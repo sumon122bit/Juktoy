@@ -1,0 +1,17 @@
+<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="l5g" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FF6B6B"/>
+      <stop offset="100%" stop-color="#FB923C"/>
+    </linearGradient>
+  </defs>
+  <!-- Circle backdrop with soft fade -->
+  <circle cx="100" cy="100" r="92" fill="url(#l5g)"/>
+  <!-- "J" from JUKTOY: stylized -->
+  <path d="M 128 48 L 128 130 Q 128 165 95 165 Q 68 165 62 138"
+        stroke="#fff" stroke-width="18" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  <!-- Leaf that sprouts from J -->
+  <path d="M 72 78 Q 42 68 38 40 Q 68 46 72 78 Z" fill="#fff"/>
+  <path d="M 72 78 Q 96 70 100 44 Q 76 48 72 78 Z" fill="#fff" opacity="0.85"/>
+  <path d="M 72 78 Q 72 92 72 108" stroke="#fff" stroke-width="5" stroke-linecap="round" fill="none"/>
+</svg>

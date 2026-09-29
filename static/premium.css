@@ -1,0 +1,4473 @@
+/* ================================================
+   JUKTOY — PREMIUM DESIGN SYSTEM v1
+   S18.1 — Foundation tokens
+   Loaded AFTER upgrade.css → wins cascade safely
+   ================================================ */
+
+/* ================================================
+   1. COLOR SYSTEM — tinted neutrals
+   ================================================ */
+
+:root {
+  /* === Light theme — blue-tinted neutrals === */
+  --bg:              #f4f6fb;   /* subtle blue tint, softer than #f0f2f5 */
+  --bg-2:            #fafbfe;   /* elevated background */
+  --card:            #ffffff;
+  --card-2:          #f7f9fd;   /* subtle hover surface */
+  --hover:           #f0f4fb;
+  --overlay:         rgba(15, 23, 42, 0.55);
+  --overlay-blur:    8px;
+
+  /* Text — 4-tier hierarchy */
+  --text:            #0c1425;   /* near-black, blue-tinted */
+  --text-dim:        #1e293b;
+  --text-muted:      #64748b;
+  --muted:           #64748b;   /* backward compat */
+
+  /* Borders — 2-tier */
+  --border:          #e5e9f0;   /* subtle */
+  --border-soft:     #eef2f8;   /* very subtle */
+  --border-strong:   #cbd5e1;   /* focus / active */
+
+  /* Brand accent — refined blue */
+  --accent:          #2563eb;   /* slightly deeper than #1877f2 */
+  --accent-hover:    #1d4ed8;
+  --accent-press:    #1e40af;
+  --accent-light:    #eff4ff;
+  --accent-soft:     #dbe6fe;
+  --accent-glow:     rgba(37, 99, 235, 0.35);
+
+  /* Semantic */
+  --success:         #16a34a;
+  --success-light:   #f0fdf4;
+  --warning:         #d97706;
+  --warning-light:   #fffbeb;
+  --danger:          #dc2626;
+  --danger-light:    #fef2f2;
+  --info:            #0ea5e9;
+  --info-light:      #f0f9ff;
+
+  /* Gradients — refined */
+  --gradient:        linear-gradient(135deg, #2563eb 0%, #1d4ed8 50%, #1e40af 100%);
+  --gradient-soft:   linear-gradient(135deg, #3b82f6, #2563eb);
+  --gradient-premium:linear-gradient(135deg, #2563eb 0%, #7c3aed 100%);
+  --gradient-mesh:   radial-gradient(at 20% 20%, #dbeafe 0%, transparent 50%),
+                     radial-gradient(at 80% 80%, #ede9fe 0%, transparent 50%);
+
+  /* === Shadow system — layered (ambient + direct) === */
+  --shadow-xs:    0 1px 2px rgba(15, 23, 42, 0.04);
+  --shadow-sm:    0 1px 3px rgba(15, 23, 42, 0.06),
+                  0 1px 2px rgba(15, 23, 42, 0.04);
+  --shadow-md:    0 4px 12px rgba(15, 23, 42, 0.08),
+                  0 2px 4px rgba(15, 23, 42, 0.04);
+  --shadow-lg:    0 12px 32px rgba(15, 23, 42, 0.12),
+                  0 4px 8px rgba(15, 23, 42, 0.06);
+  --shadow-xl:    0 24px 56px rgba(15, 23, 42, 0.16),
+                  0 8px 16px rgba(15, 23, 42, 0.08);
+  --shadow-glow:  0 0 0 4px var(--accent-light),
+                  0 8px 24px var(--accent-glow);
+  --shadow-focus: 0 0 0 3px var(--accent-light);
+
+  /* === Radius scale === */
+  --radius-xs:  6px;
+  --radius-sm:  10px;
+  --radius:     14px;
+  --radius-lg:  18px;
+  --radius-xl:  24px;
+  --radius-2xl: 32px;
+  --radius-pill: 999px;
+
+  /* === Spacing (4px grid) === */
+  --space-1:  4px;
+  --space-2:  8px;
+  --space-3:  12px;
+  --space-4:  16px;
+  --space-5:  20px;
+  --space-6:  24px;
+  --space-8:  32px;
+  --space-10: 40px;
+
+  /* === Motion — single spring + single smooth === */
+  --ease:        cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-out:    cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-bounce: cubic-bezier(0.68, -0.55, 0.27, 1.55);
+
+  /* Duration scale */
+  --duration-fast:   140ms;
+  --duration-base:   220ms;
+  --duration-slow:   340ms;
+  --duration-slower: 520ms;
+
+  /* === Typography scale === */
+  --font-xs:   11.5px;
+  --font-sm:   12.5px;
+  --font-base: 14px;
+  --font-md:   15px;
+  --font-lg:   16.5px;
+  --font-xl:   19px;
+  --font-2xl:  24px;
+  --font-3xl:  30px;
+
+  /* === Z-index scale === */
+  --z-base:     1;
+  --z-dropdown: 100;
+  --z-sticky:   200;
+  --z-drawer:   500;
+  --z-modal:    5000;
+  --z-toast:    8000;
+  --z-popover:  9999;
+  --z-top:      99999;
+}
+
+/* ================================================
+   2. DARK THEME — deeper, richer
+   ================================================ */
+
+body.dark {
+  --bg:              #0a0e1a;
+  --bg-2:            #0f1524;
+  --card:            #131a2e;
+  --card-2:          #1a2238;
+  --hover:           #1e2844;
+  --overlay:         rgba(0, 0, 0, 0.72);
+  --overlay-blur:    12px;
+
+  --text:            #f1f5f9;
+  --text-dim:        #cbd5e1;
+  --text-muted:      #8892a8;
+  --muted:           #8892a8;
+
+  --border:          rgba(148, 163, 184, 0.12);
+  --border-soft:     rgba(148, 163, 184, 0.06);
+  --border-strong:   rgba(148, 163, 184, 0.24);
+
+  --accent:          #8b5cf6;
+  --accent-hover:    #a78bfa;
+  --accent-press:    #7c3aed;
+  --accent-light:    rgba(139, 92, 246, 0.14);
+  --accent-soft:     rgba(139, 92, 246, 0.22);
+  --accent-glow:     rgba(139, 92, 246, 0.5);
+
+  --success:         #22c55e;
+  --success-light:   rgba(34, 197, 94, 0.14);
+  --warning:         #f59e0b;
+  --warning-light:   rgba(245, 158, 11, 0.14);
+  --danger:          #ef4444;
+  --danger-light:    rgba(239, 68, 68, 0.14);
+  --info:            #06b6d4;
+  --info-light:      rgba(6, 182, 212, 0.14);
+
+  --gradient:        linear-gradient(135deg, #8b5cf6 0%, #7c3aed 50%, #6d28d9 100%);
+  --gradient-soft:   linear-gradient(135deg, #a78bfa, #8b5cf6);
+  --gradient-premium:linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%);
+  --gradient-mesh:   radial-gradient(at 20% 20%, rgba(139, 92, 246, 0.12) 0%, transparent 50%),
+                     radial-gradient(at 80% 80%, rgba(236, 72, 153, 0.10) 0%, transparent 50%);
+
+  --shadow-xs:    0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-sm:    0 1px 3px rgba(0, 0, 0, 0.5),
+                  0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md:    0 4px 14px rgba(0, 0, 0, 0.5),
+                  0 2px 4px rgba(0, 0, 0, 0.3);
+  --shadow-lg:    0 12px 36px rgba(0, 0, 0, 0.6),
+                  0 4px 8px rgba(0, 0, 0, 0.3);
+  --shadow-xl:    0 28px 64px rgba(0, 0, 0, 0.7),
+                  0 8px 20px rgba(0, 0, 0, 0.4);
+  --shadow-glow:  0 0 0 4px var(--accent-light),
+                  0 8px 28px var(--accent-glow);
+  --shadow-focus: 0 0 0 3px var(--accent-light);
+}
+
+/* ================================================
+   3. GLOBAL REFINEMENTS
+   ================================================ */
+
+/* Smoother font rendering */
+body {
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* Consistent focus ring — everywhere */
+*:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+  border-radius: var(--radius-sm);
+  transition: box-shadow var(--duration-fast) var(--ease);
+}
+
+/* Selection color */
+::selection {
+  background: var(--accent-soft);
+  color: var(--text);
+}
+body.dark ::selection {
+  background: var(--accent-soft);
+  color: var(--text);
+}
+
+/* Custom scrollbar — light & dark */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: var(--radius-pill);
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--accent);
+  background-clip: content-box;
+}
+
+/* Reduce motion respect */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Kill the wild theme-transition all-selector */
+body, body * {
+  transition-property: none; /* we'll set explicit ones below */
+}
+
+/* Explicit smooth transitions on interactive surfaces only */
+button, a, input, textarea,
+.action-btn, .nav-item, .mbn-item, .c-icon-btn,
+.topbar-icon, .back-btn, .close-btn,
+.post, .rs-card, .settings-card {
+  transition:
+    background-color var(--duration-base) var(--ease),
+    border-color var(--duration-base) var(--ease),
+    color var(--duration-base) var(--ease),
+    box-shadow var(--duration-base) var(--ease),
+    transform var(--duration-base) var(--ease-spring);
+}
+
+/* ================================================
+   4. TYPOGRAPHY HIERARCHY
+   ================================================ */
+
+h1, h2, h3, h4, h5, h6 {
+  letter-spacing: -0.015em;
+  line-height: 1.3;
+}
+
+h1 { font-size: var(--font-3xl); font-weight: 800; }
+h2 { font-size: var(--font-2xl); font-weight: 800; }
+h3 { font-size: var(--font-lg);  font-weight: 700; }
+h4 { font-size: var(--font-md);  font-weight: 700; }
+
+p, span, div {
+  line-height: 1.55;
+}
+
+/* Numbers — tabular where useful */
+.stat-num, .like-count, .conv-time, .notif-time {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ================================================
+   S18.2 — BUTTON SYSTEM
+   Four variants: primary, secondary, ghost, danger
+   Four states: rest, hover, active, disabled
+   ================================================ */
+
+/* ---------- PRIMARY — brand gradient with depth ---------- */
+.btn-primary,
+.top-create-btn,
+.btn-follow,
+.ob-primary,
+.empty-state-btn:not(.secondary),
+.rs-follow-btn {
+  position: relative;
+  background: var(--gradient);
+  background-size: 200% 100%;
+  color: #ffffff !important;
+  border: none;
+  border-radius: var(--radius);
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  box-shadow:
+    var(--shadow-sm),
+    0 4px 14px var(--accent-glow),
+    inset 0 1px 0 rgba(255, 255, 255, 0.22);
+  transition:
+    transform var(--duration-fast) var(--ease-spring),
+    box-shadow var(--duration-base) var(--ease),
+    background-position var(--duration-slow) var(--ease);
+  overflow: hidden;
+}
+
+/* Shimmer sweep on hover */
+.btn-primary::before,
+.top-create-btn::before,
+.btn-follow::before,
+.ob-primary::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    105deg,
+    transparent 30%,
+    rgba(255, 255, 255, 0.25) 45%,
+    rgba(255, 255, 255, 0.25) 55%,
+    transparent 70%
+  );
+  transform: translateX(-120%);
+  transition: transform 0.7s var(--ease-out);
+  pointer-events: none;
+  border-radius: inherit;
+}
+
+.btn-primary:hover::before,
+.top-create-btn:hover::before,
+.btn-follow:hover::before,
+.ob-primary:hover::before {
+  transform: translateX(120%);
+}
+
+.btn-primary:hover,
+.top-create-btn:hover,
+.btn-follow:hover,
+.ob-primary:hover,
+.empty-state-btn:not(.secondary):hover,
+.rs-follow-btn:hover {
+  transform: translateY(-2px);
+  background-position: 100% 0;
+  box-shadow:
+    var(--shadow-md),
+    0 8px 26px var(--accent-glow),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+
+.btn-primary:active,
+.top-create-btn:active,
+.btn-follow:active,
+.ob-primary:active,
+.empty-state-btn:not(.secondary):active,
+.rs-follow-btn:active {
+  transform: translateY(0) scale(0.97);
+  box-shadow:
+    var(--shadow-xs),
+    0 2px 8px var(--accent-glow),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15);
+  transition-duration: var(--duration-fast);
+}
+
+.btn-primary:disabled,
+.ob-primary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none !important;
+  box-shadow: var(--shadow-xs) !important;
+}
+
+/* ---------- SECONDARY — glass surface with subtle border ---------- */
+.btn-secondary,
+.back-btn,
+.close-btn,
+.topbar-icon,
+.menu-toggle,
+.chat-emoji-btn,
+.c-icon-btn {
+  background: var(--card-2);
+  color: var(--text) !important;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-xs);
+  font-weight: 600;
+  transition:
+    transform var(--duration-fast) var(--ease-spring),
+    box-shadow var(--duration-base) var(--ease),
+    border-color var(--duration-base) var(--ease),
+    background var(--duration-base) var(--ease);
+}
+
+.btn-secondary:hover,
+.back-btn:hover,
+.close-btn:hover,
+.topbar-icon:hover,
+.menu-toggle:hover,
+.chat-emoji-btn:hover,
+.c-icon-btn:hover {
+  background: var(--hover);
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-sm);
+  transform: translateY(-1px);
+}
+
+.btn-secondary:active,
+.back-btn:active,
+.close-btn:active,
+.topbar-icon:active,
+.menu-toggle:active,
+.c-icon-btn:active {
+  transform: translateY(0) scale(0.96);
+  box-shadow: var(--shadow-xs);
+}
+
+/* ---------- GHOST — icon-only, no border ---------- */
+.nav-item,
+.mbn-item,
+.action-btn,
+.search-tab,
+.explore-tab,
+.notif-tab,
+.admin-tab,
+.profile-tab {
+  border-radius: var(--radius-sm);
+  transition:
+    background var(--duration-fast) var(--ease),
+    color var(--duration-fast) var(--ease),
+    transform var(--duration-fast) var(--ease-spring);
+}
+
+.nav-item:hover,
+.mbn-item:hover,
+.action-btn:hover {
+  background: var(--hover);
+  transform: translateY(-1px);
+}
+
+.nav-item:active,
+.mbn-item:active,
+.action-btn:active {
+  transform: translateY(0) scale(0.97);
+}
+
+/* Active tab — pill with gradient */
+.search-tab.active,
+.explore-tab.active,
+.notif-tab.active,
+.admin-tab.active {
+  background: var(--gradient);
+  color: #ffffff !important;
+  border-color: transparent;
+  box-shadow: 0 4px 12px var(--accent-glow);
+}
+
+.profile-tab.active {
+  color: var(--accent) !important;
+  border-bottom-color: var(--accent) !important;
+}
+
+/* Nav item active — accent glow */
+.nav-item.active {
+  background: var(--accent-light);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+/* ---------- DANGER ---------- */
+.btn-primary.danger-btn,
+.btn-secondary.danger-btn,
+.danger-btn {
+  background: linear-gradient(135deg, #ef4444, #dc2626) !important;
+  color: #ffffff !important;
+  border: none !important;
+  box-shadow:
+    var(--shadow-sm),
+    0 4px 14px rgba(220, 38, 38, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2) !important;
+}
+
+.btn-secondary.danger-btn {
+  background: var(--danger-light) !important;
+  color: var(--danger) !important;
+  border: 1px solid rgba(220, 38, 38, 0.3) !important;
+  box-shadow: var(--shadow-xs) !important;
+}
+
+.btn-secondary.danger-btn:hover {
+  background: var(--danger) !important;
+  color: #ffffff !important;
+  border-color: var(--danger) !important;
+  box-shadow: 0 4px 14px rgba(220, 38, 38, 0.35) !important;
+}
+
+/* ================================================
+   S18.3 — CARD POLISH — layered elevation
+   ================================================ */
+
+.post,
+.rs-card,
+.settings-card,
+.composer-box,
+.stories-section,
+.profile-completion,
+.about-card,
+.profile-post,
+.notif-item,
+.admin-report-card,
+.admin-user-row,
+.conv-item {
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  box-shadow:
+    var(--shadow-xs),
+    0 0 0 1px rgba(255, 255, 255, 0.5);
+  transition:
+    transform var(--duration-base) var(--ease),
+    box-shadow var(--duration-base) var(--ease),
+    border-color var(--duration-base) var(--ease);
+}
+
+body.dark .post,
+body.dark .rs-card,
+body.dark .settings-card,
+body.dark .composer-box,
+body.dark .stories-section,
+body.dark .about-card,
+body.dark .profile-post,
+body.dark .notif-item {
+  box-shadow:
+    var(--shadow-sm),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.post:hover,
+.rs-card:hover {
+  box-shadow:
+    var(--shadow-md),
+    0 0 0 1px rgba(255, 255, 255, 0.6);
+  border-color: var(--border-strong);
+}
+
+body.dark .post:hover,
+body.dark .rs-card:hover {
+  box-shadow:
+    var(--shadow-lg),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+/* Composer focus glow */
+.composer-box:focus-within {
+  border-color: var(--accent) !important;
+  box-shadow:
+    var(--shadow-md),
+    0 0 0 3px var(--accent-light),
+    0 0 30px var(--accent-glow) !important;
+}
+
+/* Card entrance animation — staggered */
+@keyframes cardEnter {
+  0% {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.post,
+.rs-card,
+.settings-card,
+.admin-report-card {
+  animation: cardEnter var(--duration-slow) var(--ease-out) backwards;
+}
+
+.post:nth-child(1) { animation-delay: 0.03s; }
+.post:nth-child(2) { animation-delay: 0.06s; }
+.post:nth-child(3) { animation-delay: 0.09s; }
+.post:nth-child(4) { animation-delay: 0.12s; }
+.post:nth-child(5) { animation-delay: 0.15s; }
+
+.rs-card:nth-child(1) { animation-delay: 0.05s; }
+.rs-card:nth-child(2) { animation-delay: 0.10s; }
+.rs-card:nth-child(3) { animation-delay: 0.15s; }
+
+/* Composer subtle glow on hover */
+.composer-box:hover {
+  border-color: var(--border-strong);
+  box-shadow:
+    var(--shadow-sm),
+    0 0 0 1px rgba(255, 255, 255, 0.5);
+}
+
+/* ================================================
+   S18.3b — INPUT POLISH
+   ================================================ */
+
+.input-group,
+.edit-bio-input,
+#search-input,
+#chat-input,
+#rcs-input,
+#conv-search-input,
+#set-username,
+#set-current-pw,
+#set-new-pw,
+#set-confirm-pw,
+#email-input-field,
+#email-password-field {
+  border-radius: var(--radius);
+  border: 1.5px solid var(--border);
+  background: var(--card-2);
+  transition:
+    border-color var(--duration-base) var(--ease),
+    box-shadow var(--duration-base) var(--ease),
+    background var(--duration-base) var(--ease);
+}
+
+.input-group:focus-within,
+.edit-bio-input:focus,
+#search-input:focus,
+#chat-input:focus,
+#rcs-input:focus,
+#conv-search-input:focus {
+  border-color: var(--accent);
+  background: var(--card);
+  box-shadow:
+    0 0 0 4px var(--accent-light),
+    0 2px 8px var(--accent-glow);
+}
+
+/* Input hover */
+.input-group:hover:not(:focus-within) {
+  border-color: var(--border-strong);
+}
+
+/* ================================================
+   S18.3c — BADGE POLISH
+   ================================================ */
+
+.notif-dot,
+.nav-badge,
+.conv-badge {
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  color: #ffffff !important;
+  font-weight: 800;
+  box-shadow:
+    0 2px 8px rgba(220, 38, 38, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  animation: badgePop var(--duration-slow) var(--ease-spring);
+}
+
+@keyframes badgePop {
+  0% { transform: scale(0); opacity: 0; }
+  60% { transform: scale(1.15); opacity: 1; }
+  100% { transform: scale(1); }
+}
+
+/* ================================================
+   S18.3d — MODAL POLISH
+   ================================================ */
+
+.modal {
+  background: var(--overlay);
+  backdrop-filter: blur(var(--overlay-blur));
+  -webkit-backdrop-filter: blur(var(--overlay-blur));
+}
+
+.modal-content {
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-xl);
+}
+
+.modal:not(.hidden) .modal-content {
+  animation: modalEnter var(--duration-slow) var(--ease-spring);
+}
+
+@keyframes modalEnter {
+  0% {
+    opacity: 0;
+    transform: scale(0.92) translateY(20px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* ================================================
+   S18.3e — TOAST POLISH
+   ================================================ */
+
+#app-toast {
+  background: var(--text);
+  color: var(--bg);
+  border-radius: var(--radius-pill);
+  padding: var(--space-3) var(--space-5);
+  font-weight: 600;
+  box-shadow: var(--shadow-xl);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+body.dark #app-toast {
+  background: var(--card);
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+
+/* ================================================
+   S18.1c — EMERALD NATURE THEME
+   Overrides S18.1 color tokens.
+   Keeps: premium shadows, motion, radii, buttons
+   ================================================ */
+
+:root {
+  /* === Background — soft sage === */
+  --bg:              #f6faf7;
+  --bg-2:            #fbfdfb;
+  --card:            #ffffff;
+  --card-2:          #f2f8f4;
+  --hover:           #eaf4ee;
+  --overlay:         rgba(6, 44, 30, 0.55);
+  --overlay-blur:    8px;
+
+  /* === Text — dark forest === */
+  --text:            #0f1e18;
+  --text-dim:        #1f3a2d;
+  --text-muted:      #5b7a68;
+  --muted:           #5b7a68;
+
+  /* === Borders — soft green === */
+  --border:          #dfebe4;
+  --border-soft:     #eaf2ec;
+  --border-strong:   #b8d4c4;
+
+  /* === Brand — Emerald === */
+  --accent:          #10b981;   /* emerald 500 */
+  --accent-hover:    #059669;   /* emerald 600 */
+  --accent-press:    #047857;   /* emerald 700 */
+  --accent-light:    #e6f9f0;
+  --accent-soft:     #c9f0dd;
+  --accent-glow:     rgba(16, 185, 129, 0.35);
+
+  /* === Semantic — matching nature === */
+  --success:         #10b981;
+  --success-light:   #e6f9f0;
+  --warning:         #d97706;
+  --warning-light:   #fff8ed;
+  --danger:          #dc2626;
+  --danger-light:    #fef2f2;
+  --info:            #0891b2;   /* teal */
+  --info-light:      #ecfeff;
+
+  /* === Gradients — emerald to teal === */
+  --gradient:        linear-gradient(135deg, #10b981 0%, #059669 50%, #047857 100%);
+  --gradient-soft:   linear-gradient(135deg, #34d399, #10b981);
+  --gradient-premium:linear-gradient(135deg, #10b981 0%, #0891b2 100%);
+  --gradient-mesh:   radial-gradient(at 20% 20%, #d1fae5 0%, transparent 50%),
+                     radial-gradient(at 80% 80%, #cffafe 0%, transparent 50%);
+}
+
+body.dark {
+  /* === Background — deep forest === */
+  --bg:              #0a1410;
+  --bg-2:            #0d1a15;
+  --card:            #0f1e18;
+  --card-2:          #15281f;
+  --hover:           #1a3026;
+  --overlay:         rgba(0, 0, 0, 0.72);
+
+  /* === Text — soft mint === */
+  --text:            #e8f1ec;
+  --text-dim:        #b9d4c5;
+  --text-muted:      #7a9b89;
+  --muted:           #7a9b89;
+
+  /* === Borders — emerald tint === */
+  --border:          rgba(52, 211, 153, 0.12);
+  --border-soft:     rgba(52, 211, 153, 0.06);
+  --border-strong:   rgba(52, 211, 153, 0.28);
+
+  /* === Brand — brighter emerald for dark === */
+  --accent:          #34d399;   /* emerald 400 */
+  --accent-hover:    #6ee7b7;   /* emerald 300 */
+  --accent-press:    #10b981;   /* emerald 500 */
+  --accent-light:    rgba(52, 211, 153, 0.14);
+  --accent-soft:     rgba(52, 211, 153, 0.24);
+  --accent-glow:     rgba(52, 211, 153, 0.5);
+
+  /* === Semantic dark === */
+  --success:         #34d399;
+  --success-light:   rgba(52, 211, 153, 0.14);
+  --warning:         #fbbf24;
+  --warning-light:   rgba(251, 191, 36, 0.14);
+  --danger:          #f87171;
+  --danger-light:    rgba(248, 113, 113, 0.14);
+  --info:            #22d3ee;
+  --info-light:      rgba(34, 211, 238, 0.14);
+
+  /* === Gradients dark === */
+  --gradient:        linear-gradient(135deg, #34d399 0%, #10b981 50%, #059669 100%);
+  --gradient-soft:   linear-gradient(135deg, #6ee7b7, #34d399);
+  --gradient-premium:linear-gradient(135deg, #34d399 0%, #22d3ee 100%);
+  --gradient-mesh:   radial-gradient(at 20% 20%, rgba(52, 211, 153, 0.12) 0%, transparent 50%),
+                     radial-gradient(at 80% 80%, rgba(34, 211, 238, 0.10) 0%, transparent 50%);
+}
+
+/* ================================================
+   Accent color — specific overrides
+   ================================================ */
+
+/* Danger buttons stay red */
+.btn-primary.danger-btn,
+.btn-secondary.danger-btn,
+.danger-btn,
+.btn-primary.danger-btn:hover {
+  background: linear-gradient(135deg, #ef4444, #dc2626) !important;
+  color: #ffffff !important;
+}
+
+/* Theme toggle knob — emerald gradient */
+.theme-switch.on .switch-knob {
+  background: linear-gradient(135deg, #34d399, #10b981) !important;
+  box-shadow: 0 2px 10px rgba(16, 185, 129, 0.6) !important;
+}
+
+/* Story ring — emerald pulse */
+.story-hex.unseen::before {
+  background: conic-gradient(
+    from 140deg,
+    #10b981, #34d399, #6ee7b7, #0891b2, #10b981
+  ) !important;
+}
+
+/* Online dot — brighter emerald */
+.online-avatar::after {
+  background: #10b981 !important;
+  box-shadow: 0 0 0 2px var(--card), 0 0 12px rgba(16, 185, 129, 0.6) !important;
+}
+
+body.dark .online-avatar::after {
+  background: #34d399 !important;
+  box-shadow: 0 0 0 2px var(--card), 0 0 12px rgba(52, 211, 153, 0.7) !important;
+}
+
+/* Composer send button — emerald gradient with glow */
+.post-send-btn.visible {
+  background: var(--gradient) !important;
+  box-shadow:
+    0 6px 20px rgba(16, 185, 129, 0.5),
+    0 0 30px rgba(16, 185, 129, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.25) !important;
+}
+
+/* Chat send button */
+.chat-send-btn {
+  background: var(--gradient) !important;
+  box-shadow:
+    0 3px 10px rgba(16, 185, 129, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2) !important;
+}
+
+/* Like button active — keep red for hearts */
+.action-btn.liked,
+.like-btn.liked {
+  color: #ef4444 !important;
+}
+
+/* Nav item active — emerald indicator */
+.nav-item.active {
+  background: var(--accent-light) !important;
+  box-shadow: inset 3px 0 0 var(--accent) !important;
+}
+.nav-item.active i,
+.nav-item.active span {
+  color: var(--accent) !important;
+}
+
+/* Story add plus icon */
+.story-hex-content.add-content {
+  color: var(--accent) !important;
+  background: var(--card) !important;
+}
+
+/* Sidebar tagline icon */
+.sidebar-tagline i {
+  color: var(--accent) !important;
+}
+
+/* Brand logo gradient */
+.brand-logo,
+.topbar .brand i {
+  background: var(--gradient) !important;
+}
+
+/* Link color */
+a {
+  color: var(--accent);
+}
+a:hover {
+  color: var(--accent-hover);
+}
+
+/* Hashtag link */
+.hashtag-link {
+  color: var(--accent) !important;
+}
+.hashtag-link:hover {
+  color: var(--accent-hover) !important;
+}
+
+/* Mention / verified checkmark */
+.verified,
+.verified-badge,
+[class*="verified"] {
+  color: var(--accent) !important;
+}
+
+/* Progress bar fill */
+.pc-bar-fill {
+  background: linear-gradient(90deg, #34d399, #10b981, #059669) !important;
+  box-shadow: 0 0 12px rgba(16, 185, 129, 0.5) !important;
+}
+
+body.dark .pc-bar-fill {
+  background: linear-gradient(90deg, #6ee7b7, #34d399, #10b981) !important;
+  box-shadow: 0 0 12px rgba(52, 211, 153, 0.6) !important;
+}
+
+/* Search box focus ring — emerald */
+#search-input:focus,
+.input-group:focus-within {
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 4px var(--accent-light), 0 2px 8px var(--accent-glow) !important;
+}
+
+/* Reaction picker active */
+.rp-emoji.active {
+  box-shadow: inset 0 0 0 2px var(--accent) !important;
+  background: var(--accent-light) !important;
+}
+
+/* Repost active */
+.action-btn.repost-btn.reposted {
+  color: var(--accent) !important;
+}
+
+/* Save/bookmark active */
+.action-btn.saved {
+  color: var(--accent) !important;
+}
+
+/* Follow button */
+.btn-follow,
+.rs-follow-btn {
+  background: var(--gradient) !important;
+  color: #ffffff !important;
+}
+
+/* Privacy switch ON */
+#privacy-switch.on,
+.theme-switch.on {
+  background: var(--accent-light) !important;
+  border-color: var(--accent) !important;
+}
+
+/* Chat outgoing bubble — emerald */
+.chat-msg.outgoing {
+  background: var(--gradient) !important;
+  box-shadow:
+    0 3px 10px rgba(16, 185, 129, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15) !important;
+}
+
+/* Tab active states */
+.search-tab.active,
+.explore-tab.active,
+.notif-tab.active,
+.admin-tab.active {
+  background: var(--gradient) !important;
+  box-shadow: 0 4px 12px var(--accent-glow) !important;
+}
+
+/* Settings h3 icon */
+.settings-card h3 i {
+  color: var(--accent) !important;
+}
+
+/* 2FA shield icon */
+#2fa-status-text i,
+.fa-shield-halved {
+  color: var(--accent) !important;
+}
+
+/* Success toast stays green */
+.success,
+.toast-success {
+  color: var(--success) !important;
+}
+
+/* Chat composer input focus */
+.chat-composer #chat-input:focus {
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 3px var(--accent-light) !important;
+}
+
+/* Notification unread indicator */
+.notif-item.unread::before {
+  background: var(--accent) !important;
+}
+
+/* Load more replies button */
+.load-more-replies {
+  color: var(--accent) !important;
+}
+.load-more-replies:hover {
+  background: var(--accent-light) !important;
+}
+
+/* Profile tab active indicator */
+.profile-tab.active {
+  color: var(--accent) !important;
+  border-bottom-color: var(--accent) !important;
+}
+
+/* Skeleton shimmer — subtle green tint */
+.sk-avatar,
+.sk-line {
+  background: linear-gradient(
+    90deg,
+    var(--card-2) 0%,
+    var(--hover) 50%,
+    var(--card-2) 100%
+  ) !important;
+}
+
+
+/* ================================================
+   S18.1d — CORAL SUNSET THEME
+   Warm, universal, unique — no major app uses coral as primary
+   Keeps: premium shadows, motion, buttons
+   ================================================ */
+
+:root {
+  /* === Background — warm cream === */
+  --bg:              #fff8f5;
+  --bg-2:            #fffcfb;
+  --card:            #ffffff;
+  --card-2:          #fef6f2;
+  --hover:           #fdeee6;
+  --overlay:         rgba(50, 20, 15, 0.55);
+  --overlay-blur:    8px;
+
+  /* === Text — warm near-black === */
+  --text:            #1a0f0e;
+  --text-dim:        #3d2420;
+  --text-muted:      #7a5a52;
+  --muted:           #7a5a52;
+
+  /* === Borders — warm subtle === */
+  --border:          #f5e3da;
+  --border-soft:     #faece5;
+  --border-strong:   #e8c4b3;
+
+  /* === Brand — Coral Sunset === */
+  --accent:          #ff6b6b;   /* coral 500 */
+  --accent-hover:    #f43f5e;   /* rose 500 */
+  --accent-press:    #e11d48;   /* rose 600 */
+  --accent-light:    #fff0ed;
+  --accent-soft:     #ffd9d2;
+  --accent-glow:     rgba(255, 107, 107, 0.35);
+
+  /* === Semantic — warm matching === */
+  --success:         #10b981;
+  --success-light:   #e6f9f0;
+  --warning:         #f59e0b;
+  --warning-light:   #fff8ed;
+  --danger:          #dc2626;
+  --danger-light:    #fef2f2;
+  --info:            #0891b2;
+  --info-light:      #ecfeff;
+
+  /* === Gradients — sunset === */
+  --gradient:        linear-gradient(135deg, #ff6b6b 0%, #fb923c 100%);
+  --gradient-soft:   linear-gradient(135deg, #ff8e8e, #ff6b6b);
+  --gradient-premium:linear-gradient(135deg, #ff6b6b 0%, #fb923c 50%, #f59e0b 100%);
+  --gradient-mesh:   radial-gradient(at 20% 20%, #ffd9d2 0%, transparent 50%),
+                     radial-gradient(at 80% 80%, #fde2c2 0%, transparent 50%);
+}
+
+body.dark {
+  /* === Background — warm black === */
+  --bg:              #1a0f0e;
+  --bg-2:            #221413;
+  --card:            #291817;
+  --card-2:          #32201e;
+  --hover:           #3d2825;
+  --overlay:         rgba(0, 0, 0, 0.75);
+
+  /* === Text — warm cream === */
+  --text:            #fef3f0;
+  --text-dim:        #e8c9bf;
+  --text-muted:      #a88276;
+  --muted:           #a88276;
+
+  /* === Borders — warm tint === */
+  --border:          rgba(255, 138, 138, 0.14);
+  --border-soft:     rgba(255, 138, 138, 0.06);
+  --border-strong:   rgba(255, 138, 138, 0.3);
+
+  /* === Brand dark — brighter coral === */
+  --accent:          #ff8e8e;   /* lighter coral for contrast */
+  --accent-hover:    #ffb3b3;
+  --accent-press:    #ff6b6b;
+  --accent-light:    rgba(255, 142, 142, 0.14);
+  --accent-soft:     rgba(255, 142, 142, 0.22);
+  --accent-glow:     rgba(255, 142, 142, 0.5);
+
+  /* === Semantic dark === */
+  --success:         #34d399;
+  --success-light:   rgba(52, 211, 153, 0.14);
+  --warning:         #fbbf24;
+  --warning-light:   rgba(251, 191, 36, 0.14);
+  --danger:          #f87171;
+  --danger-light:    rgba(248, 113, 113, 0.14);
+  --info:            #22d3ee;
+  --info-light:      rgba(34, 211, 238, 0.14);
+
+  /* === Gradients dark — sunset glow === */
+  --gradient:        linear-gradient(135deg, #ff8e8e 0%, #fbbf24 100%);
+  --gradient-soft:   linear-gradient(135deg, #ffb3b3, #ff8e8e);
+  --gradient-premium:linear-gradient(135deg, #ff8e8e 0%, #fbbf24 50%, #fb923c 100%);
+  --gradient-mesh:   radial-gradient(at 20% 20%, rgba(255, 142, 142, 0.12) 0%, transparent 50%),
+                     radial-gradient(at 80% 80%, rgba(251, 191, 36, 0.10) 0%, transparent 50%);
+}
+
+/* ================================================
+   Accent overrides — specific elements
+   ================================================ */
+
+/* Danger buttons — keep red (semantic) */
+.btn-primary.danger-btn,
+.btn-secondary.danger-btn,
+.danger-btn {
+  background: linear-gradient(135deg, #ef4444, #dc2626) !important;
+  color: #ffffff !important;
+}
+
+/* Like/heart — keep red (semantic) */
+.action-btn.liked,
+.like-btn.liked {
+  color: #ef4444 !important;
+}
+
+/* Theme toggle knob */
+.theme-switch.on .switch-knob {
+  background: linear-gradient(135deg, #ff8e8e, #fb923c) !important;
+  box-shadow: 0 2px 10px rgba(255, 107, 107, 0.6) !important;
+}
+
+/* Story ring — coral pulse */
+.story-hex.unseen::before {
+  background: conic-gradient(
+    from 140deg,
+    #ff6b6b, #fb923c, #fbbf24, #f43f5e, #ff6b6b
+  ) !important;
+}
+
+/* Online dot */
+.online-avatar::after {
+  background: #10b981 !important;
+  box-shadow: 0 0 0 2px var(--card), 0 0 12px rgba(16, 185, 129, 0.6) !important;
+}
+
+/* Post send button */
+.post-send-btn.visible {
+  background: var(--gradient) !important;
+  box-shadow:
+    0 6px 20px rgba(255, 107, 107, 0.5),
+    0 0 30px rgba(251, 146, 60, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3) !important;
+}
+
+/* Chat send button */
+.chat-send-btn {
+  background: var(--gradient) !important;
+  box-shadow:
+    0 3px 10px rgba(255, 107, 107, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2) !important;
+}
+
+/* Nav active indicator */
+.nav-item.active {
+  background: var(--accent-light) !important;
+  box-shadow: inset 3px 0 0 var(--accent) !important;
+}
+.nav-item.active i,
+.nav-item.active span {
+  color: var(--accent) !important;
+}
+
+/* Story add plus */
+.story-hex-content.add-content {
+  color: var(--accent) !important;
+  background: var(--card) !important;
+}
+
+/* Sidebar tagline icon */
+.sidebar-tagline i {
+  color: var(--accent) !important;
+}
+
+/* Brand logo */
+.brand-logo,
+.topbar .brand i {
+  background: var(--gradient) !important;
+}
+
+/* Links */
+a {
+  color: var(--accent);
+}
+a:hover {
+  color: var(--accent-hover);
+}
+
+/* Hashtag */
+.hashtag-link {
+  color: var(--accent) !important;
+}
+.hashtag-link:hover {
+  color: var(--accent-hover) !important;
+}
+
+/* Verified checkmark */
+.verified,
+.verified-badge,
+[class*="verified"] {
+  color: var(--accent) !important;
+}
+
+/* Progress bar */
+.pc-bar-fill {
+  background: linear-gradient(90deg, #ff8e8e, #ff6b6b, #fb923c) !important;
+  box-shadow: 0 0 12px rgba(255, 107, 107, 0.5) !important;
+}
+
+/* Search focus */
+#search-input:focus,
+.input-group:focus-within {
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 4px var(--accent-light), 0 2px 8px var(--accent-glow) !important;
+}
+
+/* Reaction picker active */
+.rp-emoji.active {
+  box-shadow: inset 0 0 0 2px var(--accent) !important;
+  background: var(--accent-light) !important;
+}
+
+/* Repost active */
+.action-btn.repost-btn.reposted {
+  color: var(--accent) !important;
+}
+
+/* Save/bookmark active */
+.action-btn.saved {
+  color: var(--accent) !important;
+}
+
+/* Follow button */
+.btn-follow,
+.rs-follow-btn {
+  background: var(--gradient) !important;
+  color: #ffffff !important;
+}
+
+/* Switches */
+#privacy-switch.on,
+.theme-switch.on {
+  background: var(--accent-light) !important;
+  border-color: var(--accent) !important;
+}
+
+/* Chat outgoing bubble */
+.chat-msg.outgoing {
+  background: var(--gradient) !important;
+  box-shadow:
+    0 3px 10px rgba(255, 107, 107, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15) !important;
+}
+
+/* Tabs active */
+.search-tab.active,
+.explore-tab.active,
+.notif-tab.active,
+.admin-tab.active {
+  background: var(--gradient) !important;
+  box-shadow: 0 4px 12px var(--accent-glow) !important;
+}
+
+/* Settings h3 icon */
+.settings-card h3 i {
+  color: var(--accent) !important;
+}
+
+/* Notification unread dot */
+.notif-item.unread::before {
+  background: var(--accent) !important;
+}
+
+/* Load more replies */
+.load-more-replies {
+  color: var(--accent) !important;
+}
+.load-more-replies:hover {
+  background: var(--accent-light) !important;
+}
+
+/* Profile tab active */
+.profile-tab.active {
+  color: var(--accent) !important;
+  border-bottom-color: var(--accent) !important;
+}
+
+/* Skeleton shimmer warm tint */
+.sk-avatar,
+.sk-line {
+  background: linear-gradient(
+    90deg,
+    var(--card-2) 0%,
+    var(--hover) 50%,
+    var(--card-2) 100%
+  ) !important;
+}
+
+/* Sidebar profile bg warm */
+.sidebar-profile,
+.sidebar-bio,
+.sidebar-theme {
+  background: var(--card) !important;
+  border-color: var(--border) !important;
+}
+
+
+/* ================================================
+   S18.4 — MICRO-INTERACTIONS PACK
+   Premium feel through subtle motion
+   ================================================ */
+
+/* ---------- 1. AVATAR RING GLOW on hover ---------- */
+.avatar,
+.topbar-avatar,
+.composer-avatar,
+.conv-avatar,
+.user-list-avatar,
+.post-meta .avatar,
+.rs-suggest-avatar,
+.online-avatar {
+  position: relative;
+  transition:
+    transform var(--duration-base) var(--ease-spring),
+    box-shadow var(--duration-base) var(--ease);
+}
+
+.avatar:hover,
+.topbar-avatar:hover,
+.composer-avatar:hover,
+.conv-avatar:hover,
+.user-list-avatar:hover,
+.rs-suggest-avatar:hover,
+.online-avatar:hover {
+  transform: scale(1.06);
+  box-shadow:
+    0 0 0 3px var(--accent-light),
+    0 0 0 5px var(--card),
+    0 8px 24px var(--accent-glow) !important;
+}
+
+/* ---------- 2. ICON MICRO-BOUNCE ---------- */
+
+/* Nav items */
+.nav-item i,
+.mbn-item i {
+  transition: transform var(--duration-base) var(--ease-spring);
+}
+.nav-item:hover i {
+  transform: translateX(2px) scale(1.12);
+}
+.mbn-item:hover i {
+  transform: translateY(-2px) scale(1.15);
+}
+.mbn-item.active i {
+  transform: scale(1.1);
+}
+
+/* Tab icons */
+.search-tab i,
+.explore-tab i,
+.notif-tab i,
+.admin-tab i,
+.profile-tab i {
+  transition: transform var(--duration-base) var(--ease-spring);
+}
+.search-tab:hover i,
+.explore-tab:hover i,
+.notif-tab:hover i,
+.admin-tab:hover i,
+.profile-tab:hover i {
+  transform: scale(1.2) rotate(-6deg);
+}
+.search-tab.active i,
+.explore-tab.active i,
+.notif-tab.active i,
+.admin-tab.active i {
+  transform: scale(1.08);
+}
+
+/* Composer icon buttons */
+.c-icon-btn i {
+  transition: transform var(--duration-base) var(--ease-spring);
+}
+.c-icon-btn:hover i {
+  transform: scale(1.2) rotate(-8deg);
+}
+
+/* Topbar icons */
+.topbar-icon i {
+  transition: transform var(--duration-base) var(--ease-spring);
+}
+.topbar-icon:hover i {
+  transform: scale(1.15) rotate(-6deg);
+}
+
+/* ---------- 3. STORY RING SHIMMER ---------- */
+
+.story-hex.unseen::before {
+  animation: hexPulse 3s ease-in-out infinite,
+             coralShimmer 4s linear infinite;
+  background-size: 200% 200%;
+}
+
+@keyframes coralShimmer {
+  0% {
+    background-position: 0% 50%;
+    filter: hue-rotate(0deg) brightness(1);
+  }
+  50% {
+    background-position: 100% 50%;
+    filter: hue-rotate(15deg) brightness(1.1);
+  }
+  100% {
+    background-position: 0% 50%;
+    filter: hue-rotate(0deg) brightness(1);
+  }
+}
+
+.story-card:hover .story-hex {
+  transform: scale(1.1) rotate(-4deg);
+  filter: drop-shadow(0 12px 28px var(--accent-glow));
+}
+
+.story-card:active .story-hex {
+  transform: scale(1.04) rotate(-2deg);
+}
+
+/* Add-story plus rotation */
+.story-card:hover .story-hex-content.add-content i {
+  transform: scale(1.25) rotate(90deg);
+}
+
+/* ---------- 4. RIPPLE EFFECT ---------- */
+
+.btn-primary,
+.btn-secondary,
+.top-create-btn,
+.empty-state-btn,
+.ob-primary,
+.ob-secondary,
+.action-btn,
+.reaction-btn,
+.rp-emoji {
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-primary::after,
+.btn-secondary::after,
+.top-create-btn::after,
+.empty-state-btn::after,
+.ob-primary::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.35);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  opacity: 0;
+}
+
+.btn-primary:active::after,
+.top-create-btn:active::after,
+.empty-state-btn:active::after,
+.ob-primary:active::after {
+  animation: ripple 0.6s var(--ease-out);
+}
+
+.btn-secondary:active::after {
+  animation: rippleDark 0.6s var(--ease-out);
+}
+
+@keyframes ripple {
+  0% {
+    width: 0;
+    height: 0;
+    opacity: 0.6;
+  }
+  100% {
+    width: 300px;
+    height: 300px;
+    opacity: 0;
+  }
+}
+
+@keyframes rippleDark {
+  0% {
+    width: 0;
+    height: 0;
+    opacity: 0.35;
+  }
+  100% {
+    width: 300px;
+    height: 300px;
+    opacity: 0;
+  }
+}
+
+/* ---------- 5. MESSAGE BUBBLE STAGGER ---------- */
+
+.chat-msg {
+  animation: msgBubbleEnter var(--duration-slow) var(--ease-out) backwards;
+}
+
+.chat-msg:nth-child(1) { animation-delay: 0.02s; }
+.chat-msg:nth-child(2) { animation-delay: 0.05s; }
+.chat-msg:nth-child(3) { animation-delay: 0.08s; }
+.chat-msg:nth-child(4) { animation-delay: 0.11s; }
+.chat-msg:nth-child(5) { animation-delay: 0.14s; }
+
+@keyframes msgBubbleEnter {
+  0% {
+    opacity: 0;
+    transform: translateY(10px) scale(0.92);
+  }
+  60% {
+    opacity: 1;
+    transform: translateY(-2px) scale(1.01);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Outgoing from right */
+.chat-msg.outgoing {
+  animation-name: msgBubbleOut;
+}
+@keyframes msgBubbleOut {
+  0% {
+    opacity: 0;
+    transform: translateY(10px) translateX(12px) scale(0.92);
+  }
+  60% {
+    opacity: 1;
+    transform: translateY(-2px) translateX(-2px) scale(1.01);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) translateX(0) scale(1);
+  }
+}
+
+/* ---------- 6. LIKE BUTTON HEART-THROB ---------- */
+
+.like-btn.liked i,
+.like-btn.reaction-active i {
+  animation: heartThrob 0.7s var(--ease-spring);
+}
+
+@keyframes heartThrob {
+  0%   { transform: scale(1); }
+  15%  { transform: scale(1.5) rotate(-8deg); }
+  30%  { transform: scale(0.9) rotate(6deg); }
+  50%  { transform: scale(1.3) rotate(-4deg); }
+  70%  { transform: scale(0.95) rotate(2deg); }
+  100% { transform: scale(1) rotate(0deg); }
+}
+
+/* Double-tap heart burst pulse */
+.reaction-burst {
+  animation: heartBurst 1.1s var(--ease-spring) forwards !important;
+}
+
+@keyframes heartBurst {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.3) rotate(-20deg);
+  }
+  30% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.6) rotate(10deg);
+  }
+  60% {
+    opacity: 1;
+    transform: translate(-50%, -60%) scale(1.2) rotate(-5deg);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -110%) scale(1.4) rotate(0deg);
+  }
+}
+
+/* ---------- 7. CARD HOVER LIFT ---------- */
+
+.post,
+.rs-card,
+.settings-card,
+.about-card,
+.profile-post,
+.notif-item,
+.admin-report-card,
+.explore-post-card,
+.explore-user-card,
+.tag-chip {
+  transition:
+    transform var(--duration-base) var(--ease-spring),
+    box-shadow var(--duration-base) var(--ease),
+    border-color var(--duration-base) var(--ease);
+}
+
+.post:hover,
+.notif-item:hover {
+  transform: translateY(-2px);
+}
+
+.rs-card:hover,
+.settings-card:hover {
+  transform: translateY(-3px);
+}
+
+.explore-post-card:hover,
+.explore-user-card:hover,
+.tag-chip:hover {
+  transform: translateY(-4px) scale(1.01);
+}
+
+/* ---------- 8. BRAND LOGO PULSE ---------- */
+
+.brand-logo,
+.topbar .brand i {
+  animation: brandPulse 4s ease-in-out infinite;
+}
+
+@keyframes brandPulse {
+  0%, 100% {
+    box-shadow: 0 8px 24px rgba(255, 107, 107, 0.35);
+  }
+  50% {
+    box-shadow: 0 12px 36px rgba(255, 107, 107, 0.55),
+                0 0 60px rgba(251, 146, 60, 0.25);
+  }
+}
+
+/* ---------- 9. INPUT FOCUS RING ANIMATE ---------- */
+
+.input-group:focus-within {
+  animation: inputFocusIn var(--duration-base) var(--ease-spring);
+}
+
+@keyframes inputFocusIn {
+  0% {
+    box-shadow: 0 0 0 0 var(--accent-light);
+  }
+  50% {
+    box-shadow: 0 0 0 6px var(--accent-light);
+  }
+  100% {
+    box-shadow: 0 0 0 4px var(--accent-light), 0 2px 8px var(--accent-glow);
+  }
+}
+
+/* ---------- 10. TOAST SLIDE-IN POLISH ---------- */
+
+#app-toast {
+  animation: toastPremium 0.5s var(--ease-spring);
+}
+
+@keyframes toastPremium {
+  0% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(80px) scale(0.85);
+    filter: blur(4px);
+  }
+  60% {
+    opacity: 1;
+    transform: translateX(-50%) translateY(-6px) scale(1.02);
+    filter: blur(0);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+/* ---------- 11. NOTIFICATION DOT POP ---------- */
+
+.notif-dot,
+.nav-badge,
+.conv-badge {
+  animation: dotPop 0.6s var(--ease-spring);
+}
+
+@keyframes dotPop {
+  0% { transform: scale(0) rotate(-180deg); }
+  50% { transform: scale(1.3) rotate(0deg); }
+  75% { transform: scale(0.9) rotate(0deg); }
+  100% { transform: scale(1) rotate(0deg); }
+}
+
+/* ---------- 12. MODAL BACKDROP FADE POLISH ---------- */
+
+.modal:not(.hidden) {
+  animation: modalBackdropIn 0.3s var(--ease-out);
+}
+
+@keyframes modalBackdropIn {
+  from {
+    opacity: 0;
+    backdrop-filter: blur(0);
+  }
+  to {
+    opacity: 1;
+    backdrop-filter: blur(var(--overlay-blur));
+  }
+}
+
+/* ---------- 13. COMPOSER GLOW PULSE ---------- */
+
+.composer-box.has-content {
+  animation: composerGlow 2.4s ease-in-out infinite;
+}
+
+@keyframes composerGlow {
+  0%, 100% {
+    box-shadow:
+      var(--shadow-sm),
+      0 0 0 3px var(--accent-light),
+      0 8px 24px rgba(255, 107, 107, 0.15);
+  }
+  50% {
+    box-shadow:
+      var(--shadow-md),
+      0 0 0 3px var(--accent-light),
+      0 12px 32px rgba(255, 107, 107, 0.28);
+  }
+}
+
+/* ---------- 14. SMOOTH SCROLL SNAP ---------- */
+
+.stories-row {
+  scroll-snap-type: x proximity;
+}
+.story-card {
+  scroll-snap-align: start;
+}
+
+/* ---------- 15. FOCUS-VISIBLE OUTLINE ---------- */
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ---------- 16. CHAT SEND BUTTON PRESS ---------- */
+
+.chat-send-btn:active {
+  animation: sendPress 0.35s var(--ease-spring);
+}
+
+@keyframes sendPress {
+  0% { transform: scale(1) rotate(0deg); }
+  40% { transform: scale(0.85) rotate(-15deg); }
+  100% { transform: scale(1) rotate(0deg); }
+}
+
+/* ---------- 17. STORY VIEWER ENTER ---------- */
+
+.story-viewer:not(.hidden) .sv-container {
+  animation: storyEnter 0.5s var(--ease-spring);
+}
+
+@keyframes storyEnter {
+  0% {
+    opacity: 0;
+    transform: scale(0.85) translateY(30px);
+    filter: blur(8px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+    filter: blur(0);
+  }
+}
+
+/* ---------- 18. REEL ITEM ENTER ---------- */
+
+.reel-item {
+  animation: reelEnter 0.55s var(--ease-out) backwards;
+}
+
+@keyframes reelEnter {
+  0% {
+    opacity: 0;
+    transform: scale(0.94);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* ---------- 19. STAGGERED EMPTY-STATE FLOAT ---------- */
+
+.empty-state-icon,
+.ob-icon {
+  animation: floatGentle 3s ease-in-out infinite;
+}
+
+@keyframes floatGentle {
+  0%, 100% {
+    transform: translateY(0) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-8px) rotate(-3deg);
+  }
+}
+
+/* ---------- 20. NAV SIDEBAR ITEM GLOW ---------- */
+
+.nav-item {
+  position: relative;
+}
+
+.nav-item::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%) scaleY(0);
+  width: 3px;
+  height: 60%;
+  background: var(--accent);
+  border-radius: 0 var(--radius-pill) var(--radius-pill) 0;
+  transition: transform var(--duration-base) var(--ease-spring);
+}
+
+.nav-item:hover::before {
+  transform: translateY(-50%) scaleY(0.6);
+}
+
+.nav-item.active::before {
+  transform: translateY(-50%) scaleY(1);
+}
+
+
+/* ================================================
+   S18.5 — MOTION POLISH
+   Consistent page transitions + reduced motion
+   ================================================ */
+
+/* ---------- 1. OVERLAY PAGE ENTRANCE ---------- */
+.profile-page:not(.hidden),
+.messages-page:not(.hidden),
+.reels-page:not(.hidden),
+.explore-page:not(.hidden),
+.hashtag-page:not(.hidden),
+.search-page:not(.hidden),
+.settings-page:not(.hidden),
+.admin-page:not(.hidden),
+.notifications-page:not(.hidden),
+.saved-page:not(.hidden) {
+  animation: pageSlideIn 0.4s var(--ease-out);
+}
+
+@keyframes pageSlideIn {
+  0% {
+    opacity: 0;
+    transform: translateY(16px) scale(0.99);
+    filter: blur(3px);
+  }
+  60% {
+    opacity: 1;
+    transform: translateY(-2px) scale(1.001);
+    filter: blur(0);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+/* ---------- 2. EXIT ANIMATIONS (via closing state) ---------- */
+.page-closing {
+  animation: pageSlideOut 0.25s var(--ease) forwards !important;
+}
+
+@keyframes pageSlideOut {
+  0% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(12px) scale(0.99);
+  }
+}
+
+/* ---------- 3. BOTTOM NAV ACTIVE INDICATOR ---------- */
+.mbn-item {
+  position: relative;
+}
+
+.mbn-item::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 50%;
+  transform: translateX(-50%) scaleX(0);
+  width: 40%;
+  height: 3px;
+  background: var(--gradient);
+  border-radius: var(--radius-pill);
+  transition: transform var(--duration-base) var(--ease-spring);
+  opacity: 0;
+}
+
+.mbn-item.active::after {
+  transform: translateX(-50%) scaleX(1);
+  opacity: 1;
+}
+
+/* ---------- 4. STAGGER ENTRANCE — common lists ---------- */
+.settings-card,
+.admin-report-card,
+.admin-user-row,
+.explore-post-card,
+.explore-user-card,
+.tag-chip,
+.notif-item,
+.conv-item,
+.rs-card {
+  animation: staggerEnter var(--duration-slow) var(--ease-out) backwards;
+}
+
+.settings-card:nth-child(1) { animation-delay: 0.02s; }
+.settings-card:nth-child(2) { animation-delay: 0.06s; }
+.settings-card:nth-child(3) { animation-delay: 0.10s; }
+.settings-card:nth-child(4) { animation-delay: 0.14s; }
+.settings-card:nth-child(5) { animation-delay: 0.18s; }
+.settings-card:nth-child(6) { animation-delay: 0.22s; }
+
+@keyframes staggerEnter {
+  0% {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* ---------- 5. SMOOTH FOCUS SCROLL (a11y) ---------- */
+html {
+  scroll-behavior: smooth;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+}
+
+/* ---------- 6. TOAST / DIALOG SLIDE ADJUST ---------- */
+#app-toast {
+  transform-origin: center bottom;
+}
+
+/* ---------- 7. ROUTE TRANSITION PREP ---------- */
+#app-view {
+  transition: opacity var(--duration-base) var(--ease);
+}
+
+/* ---------- 8. STORY VIEWER EXIT ---------- */
+.story-viewer.hidden {
+  opacity: 0;
+}
+
+.story-viewer {
+  transition: opacity var(--duration-base) var(--ease);
+}
+
+/* ================================================
+   S18.6 — LOADING SKELETONS
+   ================================================ */
+
+/* Reusable shimmer */
+@keyframes skeletonShimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.sk-line,
+.sk-avatar,
+.sk-img,
+.sk-pill,
+.sk-thumb,
+.sk-text {
+  background: linear-gradient(
+    90deg,
+    var(--card-2) 0%,
+    var(--hover) 40%,
+    var(--card-2) 80%
+  );
+  background-size: 200% 100%;
+  animation: skeletonShimmer 1.6s ease-in-out infinite;
+  border-radius: var(--radius-sm);
+}
+
+body.dark .sk-line,
+body.dark .sk-avatar,
+body.dark .sk-img,
+body.dark .sk-pill,
+body.dark .sk-thumb,
+body.dark .sk-text {
+  background: linear-gradient(
+    90deg,
+    var(--card-2) 0%,
+    var(--hover) 40%,
+    var(--card-2) 80%
+  );
+  background-size: 200% 100%;
+}
+
+/* ---------- 1. PROFILE SKELETON ---------- */
+.profile-skeleton {
+  padding: var(--space-4);
+}
+
+.profile-skeleton .sk-cover {
+  width: 100%;
+  height: 160px;
+  border-radius: var(--radius-lg);
+  margin-bottom: var(--space-4);
+}
+
+.profile-skeleton .sk-avatar-big {
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  margin-top: -60px;
+  margin-left: var(--space-4);
+  border: 4px solid var(--bg);
+  margin-bottom: var(--space-3);
+}
+
+.profile-skeleton .sk-name {
+  width: 40%;
+  height: 22px;
+  margin-bottom: var(--space-2);
+  margin-left: var(--space-4);
+}
+
+.profile-skeleton .sk-handle {
+  width: 25%;
+  height: 14px;
+  margin-left: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+
+.profile-skeleton .sk-bio-block {
+  width: 80%;
+  height: 60px;
+  border-radius: var(--radius);
+  margin-left: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+
+/* ---------- 2. CONVERSATION LIST SKELETON ---------- */
+.conv-skeleton {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-3);
+  border-radius: var(--radius);
+  margin-bottom: var(--space-2);
+}
+
+.conv-skeleton .sk-avatar {
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.conv-skeleton .sk-conv-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.conv-skeleton .sk-conv-name {
+  width: 40%;
+  height: 12px;
+}
+
+.conv-skeleton .sk-conv-msg {
+  width: 70%;
+  height: 10px;
+}
+
+/* ---------- 3. EXPLORE CARD SKELETON ---------- */
+.explore-card-skeleton {
+  padding: var(--space-4);
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  margin-bottom: var(--space-3);
+}
+
+.explore-card-skeleton .sk-card-head {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+  margin-bottom: var(--space-3);
+}
+
+.explore-card-skeleton .sk-card-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+}
+
+.explore-card-skeleton .sk-card-name {
+  width: 50%;
+  height: 12px;
+}
+
+.explore-card-skeleton .sk-card-content {
+  width: 90%;
+  height: 12px;
+  margin-bottom: var(--space-2);
+}
+
+.explore-card-skeleton .sk-card-content.short {
+  width: 60%;
+}
+
+/* ---------- 4. NOTIFICATION SKELETON ---------- */
+.notif-skeleton {
+  display: flex;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  margin-bottom: var(--space-2);
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+
+.notif-skeleton .sk-notif-av {
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.notif-skeleton .sk-notif-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  justify-content: center;
+}
+
+.notif-skeleton .sk-notif-line {
+  width: 60%;
+  height: 12px;
+}
+
+.notif-skeleton .sk-notif-line.short {
+  width: 35%;
+  height: 10px;
+}
+
+/* ---------- 5. REEL SKELETON ---------- */
+.reel-skeleton {
+  width: 100%;
+  height: 100vh;
+  height: 100dvh;
+  background: linear-gradient(
+    135deg,
+    #1a1a1a 0%,
+    #2a2a2a 50%,
+    #1a1a1a 100%
+  );
+  background-size: 200% 200%;
+  animation: skeletonShimmer 2s ease-in-out infinite;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.reel-skeleton::after {
+  content: "লোড হচ্ছে...";
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+/* ---------- 6. GENERIC PAGE SKELETON ---------- */
+.page-skeleton {
+  padding: var(--space-4);
+}
+
+.page-skeleton .sk-page-title {
+  width: 40%;
+  height: 22px;
+  margin-bottom: var(--space-4);
+}
+
+.page-skeleton .sk-page-block {
+  width: 100%;
+  height: 80px;
+  border-radius: var(--radius-lg);
+  margin-bottom: var(--space-3);
+}
+
+/* ---------- 7. POST SKELETON (already exists, refine) ---------- */
+.post-skeleton {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+  margin-bottom: var(--space-3);
+  box-shadow: var(--shadow-xs);
+}
+
+.post-skeleton .sk-header {
+  display: flex;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.post-skeleton .sk-avatar {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+}
+
+.post-skeleton .sk-lines {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  justify-content: center;
+}
+
+.post-skeleton .sk-line-1 {
+  width: 35%;
+  height: 12px;
+}
+
+.post-skeleton .sk-line-2 {
+  width: 20%;
+  height: 10px;
+}
+
+.post-skeleton .sk-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.post-skeleton .sk-line-3 {
+  width: 92%;
+  height: 12px;
+}
+
+.post-skeleton .sk-line-4 {
+  width: 70%;
+  height: 12px;
+}
+
+/* ---------- 8. UNIVERSAL LOADING DOTS ---------- */
+.loading-dots {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+}
+
+.loading-dots span {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: dotBounce 1.2s ease-in-out infinite;
+}
+
+.loading-dots span:nth-child(1) { animation-delay: 0s; }
+.loading-dots span:nth-child(2) { animation-delay: 0.15s; }
+.loading-dots span:nth-child(3) { animation-delay: 0.3s; }
+
+@keyframes dotBounce {
+  0%, 80%, 100% {
+    transform: translateY(0);
+    opacity: 0.4;
+  }
+  40% {
+    transform: translateY(-8px);
+    opacity: 1;
+  }
+}
+
+/* ---------- 9. SPINNER POLISH ---------- */
+.fa-spinner.fa-spin {
+  color: var(--accent);
+}
+
+/* ---------- 10. REELS FEED LOADER ---------- */
+.reels-loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #000;
+  z-index: 5;
+}
+
+.reels-loading .fa-spinner {
+  font-size: 32px;
+  color: var(--accent);
+}
+
+/* ================================================
+   REDUCED MOTION — full respect
+   ================================================ */
+
+@media (prefers-reduced-motion: reduce) {
+  .profile-page:not(.hidden),
+  .messages-page:not(.hidden),
+  .reels-page:not(.hidden),
+  .explore-page:not(.hidden),
+  .hashtag-page:not(.hidden),
+  .search-page:not(.hidden),
+  .settings-page:not(.hidden),
+  .admin-page:not(.hidden),
+  .notifications-page:not(.hidden),
+  .saved-page:not(.hidden),
+  .post,
+  .rs-card,
+  .settings-card,
+  .notif-item,
+  .conv-item,
+  .chat-msg,
+  .reel-item,
+  .story-viewer:not(.hidden) .sv-container {
+    animation: none !important;
+  }
+  .sk-line,
+  .sk-avatar,
+  .sk-img,
+  .sk-pill,
+  .sk-thumb,
+  .sk-text,
+  .post-skeleton .sk-line,
+  .loading-dots span {
+    animation: none !important;
+  }
+}
+
+
+/* ================================================
+   S18.7 — EMPTY STATES REDESIGN
+   Premium empty states with floating icons + CTA
+   ================================================ */
+
+/* Universal empty state wrapper */
+.empty-state,
+.explore-empty,
+.notif-empty,
+.conv-empty,
+.rcs-empty,
+.profile-photos-empty,
+.user-list-empty,
+.admin-empty,
+.search-empty,
+.ob-loading {
+  text-align: center;
+  padding: var(--space-10) var(--space-5);
+  animation: emptyEnter 0.5s var(--ease-out);
+}
+
+@keyframes emptyEnter {
+  0% {
+    opacity: 0;
+    transform: translateY(12px) scale(0.97);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Icon — large + floating */
+.empty-state-icon,
+.explore-empty i,
+.notif-empty i,
+.conv-empty i,
+.search-empty i,
+.admin-empty i {
+  display: inline-block;
+  font-size: 56px;
+  line-height: 1;
+  margin-bottom: var(--space-4);
+  color: var(--accent);
+  opacity: 0.85;
+  filter: drop-shadow(0 8px 24px var(--accent-glow));
+  animation: emptyIconFloat 3.6s ease-in-out infinite;
+  font-style: normal;
+}
+
+@keyframes emptyIconFloat {
+  0%, 100% {
+    transform: translateY(0) rotate(0deg);
+    filter: drop-shadow(0 8px 24px var(--accent-glow));
+  }
+  50% {
+    transform: translateY(-10px) rotate(-4deg);
+    filter: drop-shadow(0 14px 32px var(--accent-glow));
+  }
+}
+
+/* Title — bold, large */
+.empty-state-title,
+.empty-state h3,
+.explore-empty h3,
+.notif-empty h3 {
+  font-size: var(--font-xl);
+  font-weight: 800;
+  color: var(--text);
+  margin-bottom: var(--space-2);
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+}
+
+/* Description */
+.empty-state-text,
+.empty-state p,
+.explore-empty p,
+.notif-empty p,
+.conv-empty p,
+.search-empty p,
+.admin-empty p {
+  font-size: var(--font-base);
+  color: var(--text-muted);
+  line-height: 1.65;
+  margin-bottom: var(--space-5);
+  max-width: 380px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* CTA button inside empty state */
+.empty-state-btn,
+.empty-state .btn-primary,
+.empty-state .btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-5);
+  font-weight: 700;
+  border-radius: var(--radius-pill);
+  transition: transform var(--duration-fast) var(--ease-spring),
+              box-shadow var(--duration-base) var(--ease);
+}
+
+.empty-state-actions {
+  display: flex;
+  gap: var(--space-3);
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+/* Profile photos empty — special treatment */
+.profile-photos-empty .pp-empty-icon {
+  font-size: 64px;
+  display: block;
+  margin-bottom: var(--space-4);
+  animation: emptyIconFloat 3.6s ease-in-out infinite;
+}
+
+.profile-photos-empty .pp-empty-title {
+  font-size: var(--font-lg);
+  font-weight: 800;
+  color: var(--text);
+  margin-bottom: var(--space-2);
+}
+
+.profile-photos-empty .pp-empty-text {
+  font-size: var(--font-sm);
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
+/* Search empty — tighter */
+.search-empty {
+  padding: var(--space-8) var(--space-4);
+}
+.search-empty i {
+  font-size: 40px;
+  margin-bottom: var(--space-3);
+}
+.search-empty p {
+  font-size: var(--font-sm);
+  margin-bottom: 0;
+}
+
+/* Conv empty (chat list) */
+.conv-empty {
+  padding: var(--space-8) var(--space-5);
+}
+.conv-empty i {
+  font-size: 44px;
+  margin-bottom: var(--space-3);
+  opacity: 0.6;
+}
+.conv-empty p {
+  font-size: var(--font-sm);
+}
+
+/* Notif empty */
+.notif-empty {
+  padding: var(--space-8) var(--space-4);
+}
+
+/* ================================================
+   S18.8 — TYPOGRAPHY REFINEMENT
+   Bengali + English font pairing
+   ================================================ */
+
+/* Base font stack — Bengali + Latin */
+body,
+input,
+textarea,
+button,
+select {
+  font-family:
+    "Hind Siliguri",           /* Bengali */
+    "Inter",                    /* Latin */
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Roboto,
+    sans-serif;
+  font-feature-settings: "kern", "liga", "calt";
+  -webkit-font-feature-settings: "kern", "liga", "calt";
+}
+
+/* Bengali-specific — slightly larger line-height for readability */
+:lang(bn) {
+  line-height: 1.75;
+}
+
+/* Headings — tighter tracking for Latin, more breathing for Bengali */
+h1, h2, h3, h4, h5, h6,
+.brand-name,
+.post-meta .name,
+.conv-name,
+.notif-text strong,
+.notif-post-name,
+.user-list-name,
+.settings-card h3,
+.rs-name {
+  letter-spacing: -0.015em;
+  line-height: 1.35;
+  font-feature-settings: "kern" 1, "liga" 1;
+}
+
+/* Brand name — special treatment */
+.brand-name {
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  background: linear-gradient(135deg, var(--text) 0%, var(--text-dim) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+body.dark .brand-name {
+  background: linear-gradient(135deg, #fef3f0 0%, #e8c9bf 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Post content — reading optimized */
+.post-content,
+.post-content-wrap,
+.quoted-content,
+.chat-msg-text {
+  font-size: var(--font-md);
+  line-height: 1.7;
+  letter-spacing: 0.003em;
+  word-spacing: 0.02em;
+}
+
+/* Body text — smaller UI elements */
+.conv-last,
+.notif-text,
+.comment-body .ctext,
+.search-post-content,
+.explore-post-content,
+.reel-caption {
+  font-size: var(--font-base);
+  line-height: 1.6;
+}
+
+/* Small text — metadata */
+.time,
+.conv-time,
+.notif-time,
+.short-time,
+.quoted-time,
+.reel-time,
+.ctime {
+  font-size: var(--font-sm);
+  font-weight: 500;
+  letter-spacing: 0.005em;
+  color: var(--text-muted);
+}
+
+/* Tiny text — pills, badges */
+.nav-badge,
+.notif-dot,
+.conv-badge,
+.search-post-time,
+.pc-percent,
+.badge {
+  font-size: var(--font-xs);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+/* Buttons — bold for CTA clarity */
+.btn-primary,
+.btn-secondary,
+.top-create-btn,
+.btn-follow,
+.action-btn,
+.ob-primary,
+.ob-secondary,
+.empty-state-btn,
+.rs-follow-btn {
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+/* Input placeholders — muted, readable */
+input::placeholder,
+textarea::placeholder,
+.input-group input::placeholder {
+  color: var(--text-muted);
+  opacity: 0.85;
+  font-weight: 500;
+}
+
+/* Numbers — tabular for stats */
+.stat-num,
+.like-count,
+.conv-time,
+.notif-time,
+.rs-stats strong,
+.admin-stat-value,
+.session-meta,
+.login-history-meta {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+/* Code / secrets — monospace */
+#2fa-secret-display,
+#2fa-otpauth-display,
+.backup-code-item,
+code,
+kbd,
+pre {
+  font-family: "JetBrains Mono", "Fira Code", "Courier New", monospace;
+  font-feature-settings: "calt" 0;
+  letter-spacing: 0.01em;
+}
+
+/* Long text overflow */
+.post-content,
+.chat-msg-text,
+.quoted-content,
+.notif-post-text,
+.search-post-content,
+.about-card p {
+  overflow-wrap: break-word;
+  word-wrap: break-word;
+  hyphens: auto;
+  -webkit-hyphens: auto;
+}
+
+/* Links in text content */
+.post-content a,
+.chat-msg-text a,
+.about-card p a {
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 600;
+  border-bottom: 1px solid var(--accent-light);
+  transition: border-color var(--duration-fast) var(--ease);
+}
+.post-content a:hover,
+.chat-msg-text a:hover,
+.about-card p a:hover {
+  border-bottom-color: var(--accent);
+}
+
+/* Strong / emphasis */
+strong, b {
+  font-weight: 700;
+  color: var(--text);
+}
+
+em, i {
+  font-style: italic;
+  color: var(--text-dim);
+}
+
+/* Blockquote */
+blockquote {
+  border-left: 3px solid var(--accent);
+  padding: var(--space-2) var(--space-4);
+  margin: var(--space-3) 0;
+  background: var(--accent-light);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  font-style: italic;
+  color: var(--text-dim);
+}
+
+/* Text selection */
+::selection {
+  background: var(--accent-soft);
+  color: var(--text);
+}
+body.dark ::selection {
+  background: var(--accent-soft);
+  color: var(--text);
+}
+
+/* ================================================
+   Final touches — polish pass
+   ================================================ */
+
+/* Better focus ring for accessibility */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-xs);
+}
+
+/* Disable focus ring on mouse-click, keep on keyboard */
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+/* Sidebar profile name */
+.sidebar-profile .name-lg {
+  font-size: var(--font-md);
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+/* Reel username */
+.reel-username {
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+/* Story user label */
+.story-card span {
+  font-weight: 700;
+  letter-spacing: 0.002em;
+}
+
+/* ================================================
+   REDUCED MOTION respect (final)
+   ================================================ */
+
+@media (prefers-reduced-motion: reduce) {
+  .empty-state-icon,
+  .explore-empty i,
+  .notif-empty i,
+  .conv-empty i,
+  .search-empty i,
+  .profile-photos-empty .pp-empty-icon {
+    animation: none !important;
+  }
+}
+
+
+/* ================================================
+   S18.9a — BUG FIX: Profile avatar over topbar
+   Fixes: avatar rises above sticky topbar on scroll
+   Strategy: topbar z-index ABOVE avatar's z-index
+   ================================================ */
+
+/* All overlay page topbars above everything inside their page */
+.profile-topbar,
+.messages-topbar,
+.explore-topbar,
+.reels-topbar,
+.search-page-topbar,
+.admin-tabs {
+  z-index: 100 !important;
+  position: sticky;
+  top: 0;
+}
+
+/* Profile avatar stays above cover, below topbar */
+.profile-avatar-wrap {
+  z-index: 3 !important;
+  position: relative;
+}
+
+.profile-avatar {
+  z-index: 3 !important;
+  position: relative;
+}
+
+/* Profile info layer above cover, below topbar */
+.profile-info {
+  z-index: 2 !important;
+}
+
+/* Cover stays at bottom */
+.profile-cover {
+  z-index: 1 !important;
+}
+
+.profile-cover-image {
+  z-index: 1 !important;
+}
+
+/* ================================================
+   S18.9e — STORY VIEWER: reaction + reply unified
+   Merge into one visual panel with small gap
+   ================================================ */
+
+/* Reaction bar — closer to reply */
+.sv-reactions-bar {
+  bottom: 76px !important;
+  padding: 8px 12px !important;
+  border-radius: 999px !important;
+  max-width: min(420px, calc(100vw - 32px)) !important;
+  box-shadow:
+    0 8px 24px rgba(0, 0, 0, 0.5),
+    0 0 0 1px rgba(255, 255, 255, 0.08) !important;
+}
+
+/* Reply bar — same width, aligned */
+.sv-reply-bar {
+  bottom: 20px !important;
+  max-width: min(420px, calc(100vw - 32px)) !important;
+}
+
+/* Reply trigger — full width, rounded, matches reactions */
+.sv-reply-trigger {
+  width: 100% !important;
+  padding: 10px 18px !important;
+  font-size: 13.5px !important;
+  border-radius: 999px !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5) !important;
+}
+
+/* Reply form — matches */
+.sv-reply-form {
+  width: 100% !important;
+  padding: 4px !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5) !important;
+}
+
+/* Mobile — tighter */
+@media (max-width: 480px) {
+  .sv-reactions-bar {
+    bottom: 72px !important;
+    gap: 2px !important;
+    padding: 6px 10px !important;
+  }
+  .sv-reply-bar {
+    bottom: 16px !important;
+  }
+  .sv-reply-trigger {
+    padding: 9px 16px !important;
+    font-size: 13px !important;
+  }
+}
+
+/* Tiny phones */
+@media (max-width: 360px) {
+  .sv-reactions-bar {
+    bottom: 68px !important;
+  }
+  .sv-reply-bar {
+    bottom: 12px !important;
+  }
+}
+
+/* S18.9e — Story viewer layout unified */
+.sv-reactions-bar {
+  bottom: 76px !important;
+  padding: 8px 12px !important;
+  border-radius: 999px !important;
+  max-width: min(420px, calc(100vw - 32px)) !important;
+}
+.sv-reply-bar {
+  bottom: 20px !important;
+  max-width: min(420px, calc(100vw - 32px)) !important;
+}
+.sv-reply-trigger {
+  width: 100% !important;
+  padding: 10px 18px !important;
+  font-size: 13.5px !important;
+  border-radius: 999px !important;
+}
+.sv-reply-form {
+  width: 100% !important;
+  padding: 4px !important;
+}
+@media (max-width: 480px) {
+  .sv-reactions-bar { bottom: 72px !important; padding: 6px 10px !important; }
+  .sv-reply-bar { bottom: 16px !important; }
+  .sv-reply-trigger { padding: 9px 16px !important; font-size: 13px !important; }
+}
+
+/* ================================================
+   S18.9i — STORY VIEWER: single-row layout
+   [↩]  [❤️ 😂 😮 😢 👏 🔥]
+   Reply circle LEFT + reactions RIGHT — same row
+   ================================================ */
+
+/* OVERRIDE previous S18.9e positioning */
+.sv-reactions-bar {
+  position: fixed !important;
+  bottom: 24px !important;
+  top: auto !important;
+  left: 82px !important;
+  right: 20px !important;
+  transform: none !important;
+  width: auto !important;
+  max-width: none !important;
+  padding: 6px 10px !important;
+  gap: 4px !important;
+  border-radius: 999px !important;
+  display: flex !important;
+  flex-direction: row !important;
+  justify-content: flex-start !important;
+  align-items: center !important;
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  scrollbar-width: none !important;
+  transition: opacity 0.2s ease !important;
+  z-index: 99990 !important;
+}
+.sv-reactions-bar::-webkit-scrollbar { display: none !important; }
+
+.sv-reply-bar {
+  position: fixed !important;
+  bottom: 24px !important;
+  top: auto !important;
+  left: 20px !important;
+  right: auto !important;
+  transform: none !important;
+  width: 48px !important;
+  max-width: 48px !important;
+  z-index: 99991 !important;
+  transition:
+    width 0.3s cubic-bezier(0.34, 1.56, 0.64, 1),
+    left 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+}
+
+/* Reply trigger — small circle, arrow only */
+.sv-reply-trigger {
+  width: 48px !important;
+  height: 48px !important;
+  padding: 0 !important;
+  border-radius: 50% !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-size: 0 !important;   /* hides the "উত্তর লিখুন..." text */
+  gap: 0 !important;
+  background: rgba(0, 0, 0, 0.55) !important;
+  backdrop-filter: blur(14px) !important;
+  -webkit-backdrop-filter: blur(14px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.18) !important;
+  color: #fff !important;
+  cursor: pointer !important;
+  transition:
+    transform 0.2s ease,
+    background 0.2s ease !important;
+}
+
+.sv-reply-trigger i {
+  font-size: 20px !important;
+  line-height: 1 !important;
+}
+
+.sv-reply-trigger:hover {
+  transform: scale(1.08) !important;
+  background: rgba(255, 107, 107, 0.6) !important;
+}
+
+.sv-reply-trigger:active {
+  transform: scale(0.94) !important;
+}
+
+/* When form is open, expand reply bar and fade reactions */
+body:has(.sv-reply-form:not(.hidden)) .sv-reply-bar {
+  width: calc(100% - 40px) !important;
+  max-width: none !important;
+  right: 20px !important;
+  left: 20px !important;
+}
+
+body:has(.sv-reply-form:not(.hidden)) .sv-reactions-bar {
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+/* Reply form — full width when open */
+.sv-reply-form {
+  width: 100% !important;
+  border-radius: 999px !important;
+  padding: 4px !important;
+}
+
+/* Mobile */
+@media (max-width: 480px) {
+  .sv-reply-bar {
+    bottom: 20px !important;
+    left: 16px !important;
+    width: 44px !important;
+    max-width: 44px !important;
+  }
+  .sv-reply-trigger {
+    width: 44px !important;
+    height: 44px !important;
+  }
+  .sv-reply-trigger i {
+    font-size: 18px !important;
+  }
+  .sv-reactions-bar {
+    bottom: 20px !important;
+    left: 72px !important;
+    right: 16px !important;
+    padding: 5px 8px !important;
+    gap: 2px !important;
+  }
+  .sv-react {
+    width: 38px !important;
+    height: 38px !important;
+    min-width: 38px !important;
+    font-size: 22px !important;
+  }
+}
+
+/* Tiny phones */
+@media (max-width: 360px) {
+  .sv-react {
+    width: 34px !important;
+    height: 34px !important;
+    min-width: 34px !important;
+    font-size: 20px !important;
+  }
+  .sv-reactions-bar {
+    left: 68px !important;
+  }
+}
+
+/* ================================================
+   S19.4 — POST ACTION BAR (4 buttons)
+   Like | Comment | Repost | Save
+   ================================================ */
+
+.post-actions {
+  display: flex !important;
+  gap: 4px !important;
+  padding-top: 10px !important;
+}
+
+.post-actions .action-btn {
+  flex: 1 1 0 !important;
+  min-width: 0 !important;
+  padding: 9px 6px !important;
+  gap: 6px !important;
+  font-size: 13.5px !important;
+}
+
+.post-actions .action-btn i {
+  font-size: 16px !important;
+}
+
+.post-actions .repost-btn.reposted {
+  color: #10b981 !important;
+}
+
+.post-actions .save-btn.saved {
+  color: var(--accent) !important;
+}
+
+.post-actions .save-btn.saved i {
+  animation: savePop 0.45s var(--ease-spring);
+}
+
+@keyframes savePop {
+  0%   { transform: scale(1); }
+  40%  { transform: scale(1.35) rotate(-6deg); }
+  70%  { transform: scale(0.92) rotate(3deg); }
+  100% { transform: scale(1) rotate(0); }
+}
+
+/* Mobile — icons only, no labels */
+@media (max-width: 720px) {
+  .post-actions .action-btn {
+    padding: 9px 2px !important;
+    gap: 4px !important;
+    font-size: 12px !important;
+  }
+  .post-actions .action-btn i {
+    font-size: 17px !important;
+  }
+  .post-actions .save-btn span,
+  .post-actions .repost-btn span {
+    display: inline !important;
+    font-size: 11.5px !important;
+  }
+}
+
+@media (max-width: 400px) {
+  .post-actions .action-btn span {
+    font-size: 11px !important;
+  }
+}
+
+/* ================================================
+   S19.5 — POST DETAIL MODAL
+   ================================================ */
+
+.post-detail-content {
+  max-width: 560px !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  display: flex !important;
+  flex-direction: column !important;
+  max-height: 88vh !important;
+}
+
+.pd-scroll {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 20px 22px 22px;
+}
+
+.pd-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding-right: 30px;
+}
+
+.pd-head-info { flex: 1; min-width: 0; }
+.pd-name {
+  font-size: var(--font-md);
+  font-weight: 800;
+  color: var(--text);
+}
+.pd-meta {
+  font-size: var(--font-sm);
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.pd-text {
+  font-size: var(--font-md);
+  line-height: 1.7;
+  color: var(--text);
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  margin-bottom: 14px;
+}
+
+.pd-media {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 14px;
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.pd-media img {
+  width: 100%;
+  height: auto;
+  max-height: 500px;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  display: block;
+}
+
+.pd-stats {
+  display: flex;
+  gap: 20px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border-soft);
+  font-size: var(--font-base);
+  font-weight: 700;
+  color: var(--text-dim);
+}
+.pd-stats span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.pd-stats i { font-size: 14px; }
+
+body.dark .post-detail-content {
+  background: var(--card);
+}
+
+@media (max-width: 480px) {
+  .post-detail-content {
+    max-width: 94vw !important;
+  }
+  .pd-scroll { padding: 16px; }
+}
+
+/* S19.6 — story header clickable */
+.sv-avatar,
+.sv-name {
+  cursor: pointer;
+  transition: opacity var(--duration-fast) var(--ease);
+}
+.sv-avatar:hover { opacity: 0.85; transform: scale(1.05); }
+.sv-name:hover { text-decoration: underline; }
+
+/* ================================================
+   S19.7 — NOTIFICATION FOLLOW BACK BUTTON
+   ================================================ */
+
+.notif-bottom-row {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 10px !important;
+  margin-top: 6px;
+  flex-wrap: wrap;
+}
+
+.notif-followback-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  background: var(--gradient);
+  color: #ffffff;
+  border: none;
+  border-radius: var(--radius-pill);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 4px 12px var(--accent-glow),
+              inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  transition: transform var(--duration-fast) var(--ease-spring),
+              box-shadow var(--duration-base) var(--ease);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.notif-followback-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px var(--accent-glow),
+              inset 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+
+.notif-followback-btn:active {
+  transform: scale(0.96);
+}
+
+.notif-followback-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.notif-followback-btn.following {
+  background: var(--card-2);
+  color: var(--text-muted);
+  box-shadow: none;
+  border: 1px solid var(--border);
+}
+
+.notif-followback-btn i { font-size: 11px; }
+
+/* ================================================
+   S19.8 — MOBILE NAV: create FAB in center
+   ================================================ */
+
+.mbn-create {
+  position: relative !important;
+}
+
+.mbn-create i {
+  width: 46px !important;
+  height: 46px !important;
+  border-radius: 50% !important;
+  background: var(--gradient) !important;
+  color: #ffffff !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-size: 18px !important;
+  box-shadow:
+    0 6px 20px var(--accent-glow),
+    0 0 0 4px var(--card),
+    inset 0 1px 0 rgba(255, 255, 255, 0.25) !important;
+  margin-top: -12px !important;
+  transform: none !important;
+  transition: transform var(--duration-base) var(--ease-spring),
+              box-shadow var(--duration-base) var(--ease) !important;
+}
+
+.mbn-create:hover i,
+.mbn-create:active i {
+  transform: scale(1.08) rotate(-90deg) !important;
+  box-shadow:
+    0 8px 26px var(--accent-glow),
+    0 0 0 4px var(--card),
+    inset 0 1px 0 rgba(255, 255, 255, 0.35) !important;
+}
+
+.mbn-create span { display: none !important; }
+
+/* ================================================
+   S19.9 — SETTINGS SECTION HEADERS
+   ================================================ */
+
+.settings-section-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 24px 0 12px;
+  padding: 4px 6px;
+  font-size: var(--font-sm);
+  font-weight: 800;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  position: relative;
+}
+
+.settings-section-header:first-child {
+  margin-top: 8px;
+}
+
+.settings-section-header i {
+  font-size: 14px;
+  color: var(--accent);
+  opacity: 0.9;
+}
+
+.settings-section-header::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+  margin-left: 4px;
+}
+
+/* Special color for danger */
+.settings-section-header[data-section="danger"] {
+  color: var(--danger);
+}
+.settings-section-header[data-section="danger"] i {
+  color: var(--danger);
+}
+.settings-section-header[data-section="danger"]::after {
+  background: rgba(220, 38, 38, 0.3);
+}
+
+/* S19.10 — post truncate + see more */
+.post-content.truncate {
+  -webkit-line-clamp: 6;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.post-see-more {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: var(--font-sm);
+  font-weight: 700;
+  cursor: pointer;
+  padding: 4px 2px;
+  margin-top: -6px;
+  margin-bottom: 8px;
+  border-radius: var(--radius-xs);
+  transition: color var(--duration-fast) var(--ease);
+}
+.post-see-more:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+/* ================================================
+   S19.11 — CHAT DATE SEPARATOR
+   ================================================ */
+
+.chat-date-sep {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 16px 0 10px;
+}
+
+.chat-date-sep span {
+  background: var(--card);
+  color: var(--text-muted);
+  font-size: var(--font-xs);
+  font-weight: 700;
+  padding: 4px 14px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border);
+  letter-spacing: 0.02em;
+  box-shadow: var(--shadow-xs);
+}
+
+body.dark .chat-date-sep span {
+  background: var(--card-2);
+  border-color: var(--border);
+}
+
+/* ================================================
+   S21.1b — STORY CARDS INSIDE ROUNDED RECTANGLES
+   Each story item wrapped in a smooth bordered card
+   ================================================ */
+
+/* ---------- Story card → rounded rectangle container ---------- */
+.story-card {
+  width: 92px !important;
+  min-width: 92px !important;
+  padding: 10px 8px 8px !important;
+  background: var(--card) !important;
+  border: 1.5px solid var(--border) !important;
+  border-radius: var(--radius-lg) !important;
+  gap: 6px !important;
+  cursor: pointer !important;
+  position: relative !important;
+  box-shadow:
+    var(--shadow-xs),
+    inset 0 1px 0 rgba(255, 255, 255, 0.5) !important;
+  transition:
+    transform var(--duration-base) var(--ease-spring),
+    box-shadow var(--duration-base) var(--ease),
+    border-color var(--duration-base) var(--ease),
+    background var(--duration-base) var(--ease) !important;
+}
+
+/* Dark mode shadow */
+body.dark .story-card {
+  box-shadow:
+    var(--shadow-sm),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04) !important;
+}
+
+/* Hover — card lifts as a whole */
+.story-card:hover {
+  transform: translateY(-3px) !important;
+  border-color: var(--accent) !important;
+  box-shadow:
+    var(--shadow-md),
+    0 8px 24px var(--accent-glow) !important;
+}
+
+.story-card:active {
+  transform: translateY(-1px) scale(0.98) !important;
+}
+
+/* Self "+" card — dashed accent border */
+.story-card.story-add {
+  border-style: dashed !important;
+  border-color: var(--accent-soft) !important;
+  background: var(--accent-light) !important;
+}
+.story-card.story-add:hover {
+  border-style: solid !important;
+  border-color: var(--accent) !important;
+  background: var(--card) !important;
+}
+.story-card.story-add.has-story {
+  border-style: solid !important;
+  border-color: var(--accent) !important;
+  background: var(--card) !important;
+}
+
+/* ---------- Ring size — smaller now (fits card) ---------- */
+.story-hex {
+  width: 60px !important;
+  height: 60px !important;
+}
+
+/* Name inside card */
+.story-card > span {
+  font-size: 11.5px !important;
+  font-weight: 700 !important;
+  max-width: 100% !important;
+  padding: 0 2px !important;
+  line-height: 1.2 !important;
+  color: var(--text) !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+.story-card:hover > span {
+  color: var(--accent) !important;
+}
+
+/* ---------- Reduce ring glow on hover (card already glows) ---------- */
+.story-card:hover .story-hex {
+  transform: scale(1.06) !important;
+  filter: none !important;
+}
+
+/* ---------- Add-story icon sizing in small ring ---------- */
+.story-card.story-add .story-hex-content.add-content i {
+  font-size: 20px !important;
+}
+
+/* ---------- Container stories row ---------- */
+.stories-row {
+  gap: 10px !important;
+  padding: 8px 4px 12px !important;
+}
+
+/* ---------- Mobile sizes ---------- */
+@media (max-width: 480px) {
+  .story-card {
+    width: 84px !important;
+    min-width: 84px !important;
+    padding: 8px 6px 6px !important;
+  }
+  .story-hex {
+    width: 56px !important;
+    height: 56px !important;
+  }
+  .story-card > span {
+    font-size: 11px !important;
+  }
+}
+
+/* Tiny phones */
+@media (max-width: 360px) {
+  .story-card {
+    width: 76px !important;
+    min-width: 76px !important;
+    padding: 8px 4px !important;
+  }
+  .story-hex {
+    width: 52px !important;
+    height: 52px !important;
+  }
+  .story-card > span {
+    font-size: 10.5px !important;
+  }
+}
+
+/* ================================================
+   S21.1c — BIGGER STORY CARDS
+   Larger sizes for better visual weight
+   ================================================ */
+
+.story-card {
+  width: 110px !important;
+  min-width: 110px !important;
+  padding: 12px 10px 10px !important;
+  gap: 8px !important;
+}
+
+.story-hex {
+  width: 76px !important;
+  height: 76px !important;
+}
+
+.story-card > span {
+  font-size: 12.5px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0 !important;
+}
+
+.story-card.story-add .story-hex-content.add-content i {
+  font-size: 24px !important;
+}
+
+.stories-row {
+  gap: 12px !important;
+  padding: 10px 4px 14px !important;
+}
+
+/* Mobile — proportionally larger but not huge */
+@media (max-width: 480px) {
+  .story-card {
+    width: 96px !important;
+    min-width: 96px !important;
+    padding: 10px 8px 8px !important;
+  }
+  .story-hex {
+    width: 68px !important;
+    height: 68px !important;
+  }
+  .story-card > span {
+    font-size: 12px !important;
+  }
+  .story-card.story-add .story-hex-content.add-content i {
+    font-size: 22px !important;
+  }
+}
+
+/* Tiny phones */
+@media (max-width: 360px) {
+  .story-card {
+    width: 86px !important;
+    min-width: 86px !important;
+    padding: 10px 6px !important;
+  }
+  .story-hex {
+    width: 62px !important;
+    height: 62px !important;
+  }
+  .story-card > span {
+    font-size: 11.5px !important;
+  }
+}
+
+/* ================================================
+   S21.2 — REEL UPGRADES
+   Mute · Progress · Save · Haptic visual polish
+   ================================================ */
+
+/* ---------- Mute button (top-right) ---------- */
+.reel-mute {
+  position: absolute;
+  top: 70px;
+  right: 16px;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #fff;
+  font-size: 15px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 15;
+  transition: transform var(--duration-fast) var(--ease-spring),
+              background var(--duration-base) var(--ease);
+}
+.reel-mute:hover {
+  background: rgba(255, 107, 107, 0.85);
+  transform: scale(1.1);
+}
+.reel-mute:active { transform: scale(0.94); }
+
+/* ---------- Progress bar (bottom thin) ---------- */
+.reel-progress {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: rgba(255, 255, 255, 0.15);
+  z-index: 20;
+  pointer-events: none;
+}
+.reel-progress-fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, #ff6b6b, #fb923c);
+  box-shadow: 0 0 12px rgba(255, 107, 107, 0.7);
+  transition: width 0.15s linear;
+  border-radius: 0 2px 2px 0;
+}
+
+/* ---------- Save reel button state ---------- */
+.reel-action.save-reel-btn.saved .reel-action-icon {
+  background: rgba(255, 107, 107, 0.9);
+  border-color: rgba(255, 107, 107, 0.5);
+  box-shadow: 0 0 20px rgba(255, 107, 107, 0.6);
+  animation: saveReelPop 0.5s var(--ease-spring);
+}
+.reel-action.save-reel-btn.saved .reel-action-icon i {
+  color: #fff;
+}
+
+@keyframes saveReelPop {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.35); }
+  70% { transform: scale(0.92); }
+  100% { transform: scale(1); }
+}
+
+/* ---------- Reels action gap tighter for 4 buttons ---------- */
+.reel-actions {
+  gap: 16px !important;
+}
+.reel-action-icon {
+  width: 44px;
+  height: 44px;
+}
+
+@media (max-width: 480px) {
+  .reel-mute {
+    top: 60px;
+    right: 12px;
+    width: 38px;
+    height: 38px;
+    font-size: 14px;
+  }
+  .reel-action-icon {
+    width: 40px;
+    height: 40px;
+  }
+  .reel-actions {
+    gap: 12px !important;
+  }
+}
+
+/* ================================================
+   S21.3b — BUG FIX: Reels page black canvas
+   S18.1d theme override broke .reels-page background.
+   Force black with maximum specificity.
+   ================================================ */
+
+body .reels-page,
+body .reels-page:not(.hidden),
+body #reels-page {
+  background: #000000 !important;
+}
+
+body .reels-page .reels-feed,
+body #reels-feed {
+  background: #000000 !important;
+}
+
+body .reels-page .reel-item,
+body .reel-item {
+  background: #000000 !important;
+}
+
+body .reels-page .reel-video,
+body .reel-video {
+  background: #000000 !important;
+}
+
+/* Loading state — visible white text on black */
+body .reels-page > div[style*="100vh"],
+body #reels-feed > div[style*="100vh"] {
+  background: #000000 !important;
+  color: #ffffff !important;
+}
+
+/* Empty state fix */
+body .reels-empty {
+  background: #000000 !important;
+  color: #ffffff !important;
+}
+body .reels-empty h3,
+body .reels-empty p {
+  color: #ffffff !important;
+}
+body .reels-empty i {
+  color: #ff6b6b !important;
+}
+
+/* Make sure topbar buttons visible on black */
+body .reels-page .reels-topbar {
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.75), transparent) !important;
+}
+body .reels-page .reels-back-btn {
+  background: rgba(0, 0, 0, 0.5) !important;
+  color: #ffffff !important;
+}
+body .reels-page .reels-title {
+  color: #ffffff !important;
+}
+
+/* ================================================
+   S21.3c — MOBILE NAV: 6 items fit
+   ================================================ */
+
+@media (max-width: 900px) {
+  .mobile-bottom-nav {
+    padding: 6px 4px calc(6px + env(safe-area-inset-bottom, 0px)) !important;
+    gap: 2px !important;
+  }
+  .mbn-item {
+    padding: 6px 2px !important;
+    gap: 2px !important;
+    font-size: 10px !important;
+    min-width: 0 !important;
+    flex: 1 1 0 !important;
+  }
+  .mbn-item i {
+    font-size: 19px !important;
+  }
+  .mbn-item span {
+    font-size: 10px !important;
+    line-height: 1.1 !important;
+  }
+  .mbn-create i {
+    width: 42px !important;
+    height: 42px !important;
+    font-size: 17px !important;
+    margin-top: -10px !important;
+  }
+}
+
+@media (max-width: 360px) {
+  .mbn-item span {
+    display: none !important;
+  }
+  .mbn-item i {
+    font-size: 21px !important;
+  }
+}
+
+/* ================================================
+   S21.3f — REELS FULLSCREEN MODE
+   Hide bottom nav + center video + black backdrop
+   ================================================ */
+
+/* Hide bottom nav when reels open */
+body.reels-active .mobile-bottom-nav {
+  display: none !important;
+}
+
+/* Hide topbar too for immersive mode */
+body.reels-active .topbar {
+  display: none !important;
+}
+
+/* Reels page — full viewport, black */
+body.reels-active #app-view,
+body.reels-active .app-layout {
+  background: #000 !important;
+}
+
+#reels-page.reels-page:not(.hidden) {
+  background: #000 !important;
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 300 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  height: 100dvh !important;
+  overflow: hidden !important;
+}
+
+/* Reels feed — snap scroll */
+#reels-page .reels-feed,
+#reels-feed {
+  width: 100% !important;
+  height: 100vh !important;
+  height: 100dvh !important;
+  overflow-y: scroll !important;
+  overflow-x: hidden !important;
+  scroll-snap-type: y mandatory !important;
+  scroll-behavior: smooth !important;
+  -webkit-overflow-scrolling: touch !important;
+  overscroll-behavior-y: contain !important;
+  background: #000 !important;
+}
+
+/* Reel item — full screen, center video */
+#reels-page .reel-item,
+#reels-feed .reel-item {
+  position: relative !important;
+  width: 100% !important;
+  height: 100vh !important;
+  height: 100dvh !important;
+  scroll-snap-align: start !important;
+  scroll-snap-stop: always !important;
+  background: #000 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  overflow: hidden !important;
+}
+
+/* Video — truly centered, no shift */
+#reels-page .reel-video,
+#reel-feed .reel-video,
+.reel-item .reel-video {
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: contain !important;
+  object-position: center center !important;
+  background: #000 !important;
+  transform: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+/* Reel overlay — bottom-safe area */
+#reels-page .reel-overlay {
+  padding-bottom: calc(100px + env(safe-area-inset-bottom, 0px)) !important;
+}
+
+/* Actions — above safe area */
+#reels-page .reel-actions {
+  bottom: calc(140px + env(safe-area-inset-bottom, 0px)) !important;
+}
+
+/* Top bar — safe area top */
+#reels-page .reels-topbar {
+  padding-top: calc(16px + env(safe-area-inset-top, 0px)) !important;
+}
+
+/* Kill any scroll on body when reels active (prevent bg flash) */
+body.reels-active {
+  overflow: hidden !important;
+  position: fixed !important;
+  width: 100vw !important;
+  height: 100vh !important;
+}
+
+/* Body background — black (no cream/white flash) */
+body.reels-active,
+body.reels-active #app-view,
+html:has(body.reels-active) {
+  background: #000 !important;
+}
+
+/* Mobile tweaks */
+@media (max-width: 720px) {
+  #reels-page .reel-overlay {
+    padding-bottom: calc(90px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+  #reels-page .reel-actions {
+    bottom: calc(130px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+}
+
+/* ================================================
+   S21.3g — REEL: Video centering + action buttons visible
+   ================================================ */
+
+/* ---------- 1. VIDEO FULL COVER (TikTok style) ---------- */
+#reels-page .reel-video,
+#reel-feed .reel-video,
+.reel-item .reel-video {
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;       /* fills screen, centers by cropping edges */
+  object-position: center center !important;
+  background: #000 !important;
+  transform: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  display: block !important;
+}
+
+/* Reel item — remove flex so absolute video is truly full */
+#reels-page .reel-item,
+#reel-feed .reel-item {
+  display: block !important;
+  align-items: unset !important;
+  justify-content: unset !important;
+  background: #000 !important;
+  overflow: hidden !important;
+}
+
+/* ---------- 2. ACTION BUTTONS — stronger visibility ---------- */
+
+.reel-actions {
+  position: absolute !important;
+  right: 10px !important;
+  bottom: calc(120px + env(safe-area-inset-bottom, 0px)) !important;
+  z-index: 15 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 18px !important;
+  align-items: center !important;
+}
+
+.reel-action {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  gap: 4px !important;
+  background: transparent !important;
+  border: none !important;
+  cursor: pointer !important;
+  padding: 0 !important;
+  font-family: inherit !important;
+}
+
+/* Icon circle — much stronger */
+.reel-action-icon {
+  width: 48px !important;
+  height: 48px !important;
+  border-radius: 50% !important;
+  background: rgba(0, 0, 0, 0.7) !important;
+  backdrop-filter: blur(16px) saturate(160%) !important;
+  -webkit-backdrop-filter: blur(16px) saturate(160%) !important;
+  border: 1.5px solid rgba(255, 255, 255, 0.3) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-size: 20px !important;
+  color: #ffffff !important;
+  box-shadow:
+    0 4px 16px rgba(0, 0, 0, 0.6),
+    0 0 0 1px rgba(255, 255, 255, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15) !important;
+  transition: transform var(--duration-fast) var(--ease-spring),
+              background var(--duration-base) var(--ease),
+              box-shadow var(--duration-base) var(--ease) !important;
+}
+
+.reel-action:hover .reel-action-icon {
+  transform: scale(1.08) !important;
+  background: rgba(255, 107, 107, 0.85) !important;
+  border-color: rgba(255, 255, 255, 0.5) !important;
+}
+
+.reel-action:active .reel-action-icon {
+  transform: scale(0.92) !important;
+}
+
+/* Labels — white text with shadow */
+.reel-action-label {
+  font-size: 12px !important;
+  font-weight: 800 !important;
+  color: #ffffff !important;
+  text-shadow:
+    0 2px 6px rgba(0, 0, 0, 0.9),
+    0 0 4px rgba(0, 0, 0, 0.8) !important;
+  letter-spacing: 0.02em !important;
+  line-height: 1 !important;
+}
+
+/* Like — red when active */
+.reel-action.like-btn.liked .reel-action-icon {
+  background: linear-gradient(135deg, #ef4444, #dc2626) !important;
+  border-color: rgba(239, 68, 68, 0.7) !important;
+  box-shadow:
+    0 0 24px rgba(239, 68, 68, 0.7),
+    0 0 0 1px rgba(255, 255, 255, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3) !important;
+}
+
+/* Save — coral when active */
+.reel-action.save-reel-btn.saved .reel-action-icon {
+  background: linear-gradient(135deg, #ff6b6b, #f43f5e) !important;
+  border-color: rgba(255, 107, 107, 0.7) !important;
+  box-shadow:
+    0 0 24px rgba(255, 107, 107, 0.7),
+    0 0 0 1px rgba(255, 255, 255, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3) !important;
+}
+
+/* Mute button — prominent */
+.reel-mute {
+  background: rgba(0, 0, 0, 0.7) !important;
+  backdrop-filter: blur(16px) !important;
+  -webkit-backdrop-filter: blur(16px) !important;
+  border: 1.5px solid rgba(255, 255, 255, 0.3) !important;
+  color: #ffffff !important;
+  box-shadow:
+    0 4px 16px rgba(0, 0, 0, 0.6),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15) !important;
+}
+
+.reel-mute:hover {
+  background: rgba(255, 107, 107, 0.85) !important;
+  transform: scale(1.08) !important;
+}
+
+/* Progress bar — thicker, more visible */
+.reel-progress {
+  height: 4px !important;
+  background: rgba(255, 255, 255, 0.2) !important;
+}
+
+.reel-progress-fill {
+  background: linear-gradient(90deg, #ff6b6b, #fb923c, #fbbf24) !important;
+  box-shadow: 0 0 12px rgba(255, 107, 107, 0.9) !important;
+}
+
+/* ---------- 3. REEL OVERLAY text — stronger contrast ---------- */
+
+.reel-overlay {
+  background: linear-gradient(
+    to top,
+    rgba(0, 0, 0, 0.9) 0%,
+    rgba(0, 0, 0, 0.6) 35%,
+    rgba(0, 0, 0, 0.15) 70%,
+    transparent 100%
+  ) !important;
+  padding: 100px 90px 30px 20px !important;
+}
+
+.reel-username {
+  text-shadow:
+    0 2px 8px rgba(0, 0, 0, 0.95),
+    0 0 2px rgba(0, 0, 0, 0.8) !important;
+  font-weight: 800 !important;
+}
+
+.reel-caption {
+  text-shadow:
+    0 2px 8px rgba(0, 0, 0, 0.95),
+    0 0 2px rgba(0, 0, 0, 0.8) !important;
+  font-weight: 600 !important;
+}
+
+.reel-time {
+  color: rgba(255, 255, 255, 0.9) !important;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.9) !important;
+}
+
+/* ---------- 4. Mobile tweaks ---------- */
+
+@media (max-width: 480px) {
+  .reel-actions {
+    right: 8px !important;
+    gap: 14px !important;
+    bottom: calc(100px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+  .reel-action-icon {
+    width: 44px !important;
+    height: 44px !important;
+    font-size: 18px !important;
+  }
+  .reel-action-label {
+    font-size: 11px !important;
+  }
+  .reel-overlay {
+    padding: 80px 76px 24px 16px !important;
+  }
+}
+
+/* Tiny phones */
+@media (max-width: 360px) {
+  .reel-action-icon {
+    width: 40px !important;
+    height: 40px !important;
+    font-size: 16px !important;
+  }
+  .reel-actions {
+    gap: 10px !important;
+  }
+}
+
+/* ================================================
+   S21.3h — REEL VIDEO: show full, no extreme zoom
+   Uses contain + max constraints
+   ================================================ */
+
+#reels-page .reel-video,
+#reel-feed .reel-video,
+.reel-item .reel-video {
+  position: absolute !important;
+  top: 50% !important;
+  left: 50% !important;
+  transform: translate(-50%, -50%) !important;
+  width: auto !important;
+  height: auto !important;
+  max-width: 100vw !important;
+  max-height: 100vh !important;
+  max-height: 100dvh !important;
+  object-fit: contain !important;
+  object-position: center center !important;
+  background: #000 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  display: block !important;
+}
+
+/* Reel item — center with flex as fallback */
+#reels-page .reel-item,
+#reel-feed .reel-item {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  background: #000 !important;
+}
+
+/* ================================================
+   S21.3h — REEL ACTION BUTTONS: MAXIMUM visibility
+   Solid backgrounds, strong borders, high contrast
+   ================================================ */
+
+/* Reset any old look */
+.reel-actions .reel-action-icon {
+  width: 52px !important;
+  height: 52px !important;
+  border-radius: 50% !important;
+
+  /* Solid dark (not transparent) */
+  background: #1a1a1a !important;
+
+  /* Strong white border */
+  border: 2.5px solid #ffffff !important;
+
+  /* Glow ring around */
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.9),
+    0 4px 20px rgba(0, 0, 0, 0.9),
+    inset 0 2px 4px rgba(255, 255, 255, 0.1) !important;
+
+  color: #ffffff !important;
+  font-size: 22px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1),
+              background 0.2s, border-color 0.2s, box-shadow 0.2s !important;
+}
+
+/* Icon color — pure white */
+.reel-actions .reel-action-icon i {
+  color: #ffffff !important;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.8));
+}
+
+/* Labels — bold white on dark pill */
+.reel-actions .reel-action-label {
+  font-size: 12px !important;
+  font-weight: 800 !important;
+  color: #ffffff !important;
+  background: rgba(0, 0, 0, 0.75) !important;
+  padding: 3px 10px !important;
+  border-radius: 999px !important;
+  border: 1px solid rgba(255, 255, 255, 0.25) !important;
+  text-shadow: none !important;
+  letter-spacing: 0.03em !important;
+  line-height: 1 !important;
+  min-width: 32px !important;
+  text-align: center !important;
+}
+
+/* Hover */
+.reel-action:hover .reel-action-icon {
+  transform: scale(1.1) !important;
+  border-color: #ff6b6b !important;
+  background: #2a1010 !important;
+}
+
+/* Press */
+.reel-action:active .reel-action-icon {
+  transform: scale(0.92) !important;
+}
+
+/* Like active — RED */
+.reel-action.like-btn.liked .reel-action-icon {
+  background: linear-gradient(135deg, #ff2d2d, #dc2626) !important;
+  border-color: #ffffff !important;
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.9),
+    0 0 28px rgba(255, 45, 45, 0.9),
+    0 4px 16px rgba(0, 0, 0, 0.6),
+    inset 0 2px 4px rgba(255, 255, 255, 0.3) !important;
+}
+
+/* Save active — CORAL */
+.reel-action.save-reel-btn.saved .reel-action-icon {
+  background: linear-gradient(135deg, #ff6b6b, #f43f5e) !important;
+  border-color: #ffffff !important;
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.9),
+    0 0 28px rgba(255, 107, 107, 0.9),
+    0 4px 16px rgba(0, 0, 0, 0.6),
+    inset 0 2px 4px rgba(255, 255, 255, 0.3) !important;
+}
+
+/* Mute button — same treatment */
+.reel-mute {
+  width: 48px !important;
+  height: 48px !important;
+  background: #1a1a1a !important;
+  border: 2.5px solid #ffffff !important;
+  color: #ffffff !important;
+  font-size: 20px !important;
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.9),
+    0 4px 20px rgba(0, 0, 0, 0.9) !important;
+}
+
+.reel-mute i {
+  color: #ffffff !important;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.8));
+}
+
+.reel-mute:hover {
+  background: #2a1010 !important;
+  border-color: #ff6b6b !important;
+  transform: scale(1.1) !important;
+}
+
+/* Delete button — same for own reels */
+.reel-delete {
+  background: #1a1a1a !important;
+  border: 2px solid #ffffff !important;
+  color: #ffffff !important;
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.9),
+    0 4px 16px rgba(0, 0, 0, 0.9) !important;
+}
+
+.reel-delete:hover {
+  background: #dc2626 !important;
+}
+
+/* Mobile */
+@media (max-width: 480px) {
+  .reel-actions .reel-action-icon {
+    width: 46px !important;
+    height: 46px !important;
+    font-size: 20px !important;
+    border-width: 2px !important;
+  }
+  .reel-actions .reel-action-label {
+    font-size: 11px !important;
+    padding: 2px 8px !important;
+  }
+  .reel-mute {
+    width: 42px !important;
+    height: 42px !important;
+    font-size: 18px !important;
+    border-width: 2px !important;
+  }
+}
+
+@media (max-width: 360px) {
+  .reel-actions .reel-action-icon {
+    width: 42px !important;
+    height: 42px !important;
+    font-size: 18px !important;
+  }
+}
+
+/* ================================================
+   S21.3i — CLEAN RESET for reel video centering
+   Removes all previous conflicting rules
+   ================================================ */
+
+/* 1. Kill body position:fixed conflict (was pushing video down) */
+body.reels-active {
+  overflow: hidden !important;
+  position: static !important;
+  width: auto !important;
+  height: auto !important;
+}
+
+/* 2. Reel item — fixed height, block display */
+.reel-item,
+#reels-page .reel-item,
+#reel-feed .reel-item {
+  position: relative !important;
+  width: 100% !important;
+  height: 100vh !important;
+  height: 100dvh !important;
+  min-height: 100vh !important;
+  min-height: 100dvh !important;
+  max-height: 100vh !important;
+  max-height: 100dvh !important;
+  overflow: hidden !important;
+  background: #000000 !important;
+  display: block !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+/* 3. Video — bulletproof inset 0 (most reliable centering) */
+.reel-item .reel-video,
+.reel-video,
+#reels-page .reel-video,
+#reel-feed .reel-video {
+  position: absolute !important;
+  top: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  left: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: 100% !important;
+  max-height: 100% !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  object-fit: contain !important;
+  object-position: center center !important;
+  background: #000000 !important;
+  transform: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+  display: block !important;
+}

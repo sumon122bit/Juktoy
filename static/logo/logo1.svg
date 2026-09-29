@@ -1,0 +1,17 @@
+<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="l1a" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FF6B6B"/>
+      <stop offset="100%" stop-color="#F43F5E"/>
+    </linearGradient>
+    <linearGradient id="l1b" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FB923C"/>
+      <stop offset="100%" stop-color="#F59E0B"/>
+    </linearGradient>
+  </defs>
+  <!-- Interlocked rings: connection + community -->
+  <circle cx="78" cy="100" r="50" fill="none" stroke="url(#l1a)" stroke-width="22" stroke-linecap="round"/>
+  <circle cx="122" cy="100" r="50" fill="none" stroke="url(#l1b)" stroke-width="22" stroke-linecap="round"/>
+  <!-- Center glow -->
+  <circle cx="100" cy="100" r="8" fill="#fff" opacity="0.9"/>
+</svg>

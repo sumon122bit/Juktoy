@@ -1,0 +1,58 @@
+# DATABASE
+social.db
+social.db-shm
+social.db-wal
+*.db
+*.sqlite
+
+# SECRETS
+.secret_key
+.juktoy_state.json
+.env
+.env.*
+!.env.example
+*_secret*
+*_key.txt
+
+# USER UPLOADS
+static/uploads/
+!static/uploads/.gitkeep
+
+# BACKUPS
+*.bak
+*.bak.*
+app.py.bak.*
+static/*.bak.*
+templates/*.bak.*
+.backup/
+.backups/
+backup_*.zip
+
+# PYTHON
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+.pytest_cache/
+
+# BUILD / OS
+.DS_Store
+Thumbs.db
+*.log
+
+# DEV SCRIPTS
+fix-*.py
+s1-*.py
+s2-*.py
+s3-*.py
+s4-*.py
+patch-*.py
+sdpfix.py
+stripfix.py
+run.sh
+gunicorn.sh
+*.broken.*

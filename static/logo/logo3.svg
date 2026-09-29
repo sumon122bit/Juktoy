@@ -1,0 +1,16 @@
+<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="l3g" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FF6B6B"/>
+      <stop offset="50%" stop-color="#F43F5E"/>
+      <stop offset="100%" stop-color="#FB923C"/>
+    </linearGradient>
+  </defs>
+  <!-- Rounded circle backdrop -->
+  <rect x="10" y="10" width="180" height="180" rx="52" fill="url(#l3g)"/>
+  <!-- Bengali "জ" stylized -->
+  <path d="M 60 72 Q 60 55 78 55 L 128 55 Q 150 55 150 82 Q 150 105 128 112 L 96 118 Q 78 122 78 138 Q 78 152 96 152 L 138 152"
+        stroke="#fff" stroke-width="17" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  <!-- Small leaf accent -->
+  <circle cx="150" cy="152" r="8" fill="#fff"/>
+</svg>
