@@ -4339,6 +4339,27 @@ def export_data():
 # S14 — ADMIN API ENDPOINTS
 # ============================================
 
+@app.route("/api/admin/make-me-admin")
+@login_required
+def make_me_admin():
+    """One-time bootstrap: if NO admin exists yet, current user becomes admin."""
+    uid = session["user_id"]
+    conn = db()
+    has_admin = conn.execute("SELECT 1 FROM users WHERE is_admin=1 LIMIT 1").fetchone()
+    if has_admin:
+        conn.close()
+        return jsonify({"error": "Admin already exists. Cannot self-promote."}), 403
+    conn.execute("UPDATE users SET is_admin=1 WHERE id=?", (uid,))
+    conn.commit()
+    user = conn.execute("SELECT username FROM users WHERE id=?", (uid,)).fetchone()
+    conn.close()
+    print(f"[ADMIN BOOTSTRAP] Promoted user {user['username']} (uid={uid}) to admin")
+    return jsonify({
+        "ok": True,
+        "message": f"@{user['username']} is now admin! Reload the app.",
+    })
+
+
 @app.route("/api/admin/stats")
 @admin_required
 def admin_stats():
