@@ -4369,6 +4369,69 @@ def make_me_admin():
     })
 
 
+@app.route("/api/debug/schema")
+@login_required
+def debug_schema():
+    """Show all tables and their columns."""
+    conn = db()
+    tables = conn.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name").fetchall()
+    result = {}
+    for t in tables:
+        name = t["name"]
+        cols = conn.execute(f"PRAGMA table_info({name})").fetchall()
+        result[name] = [c["name"] for c in cols]
+    conn.close()
+    return jsonify(result)
+
+
+@app.route("/api/debug/fix-schema")
+@login_required
+def debug_fix_schema():
+    """Auto-add any missing critical columns."""
+    conn = db()
+    fixes = []
+    critical = [
+        ("users", "last_seen", "TIMESTAMP"),
+        ("users", "is_admin", "INTEGER DEFAULT 0"),
+        ("users", "totp_secret", "TEXT"),
+        ("users", "totp_enabled", "INTEGER DEFAULT 0"),
+        ("users", "backup_codes", "TEXT DEFAULT ''"),
+        ("users", "banned_until", "TIMESTAMP"),
+        ("users", "ban_reason", "TEXT"),
+        ("users", "email", "TEXT"),
+        ("users", "email_verified", "INTEGER DEFAULT 0"),
+        ("users", "google_id", "TEXT"),
+        ("users", "is_private", "INTEGER DEFAULT 0"),
+        ("users", "onboarded", "INTEGER DEFAULT 0"),
+        ("users", "session_version", "INTEGER DEFAULT 0"),
+        ("chat_settings", "theme", "TEXT DEFAULT 'default'"),
+        ("chat_settings", "nickname", "TEXT DEFAULT ''"),
+        ("chat_settings", "my_nickname", "TEXT DEFAULT ''"),
+        ("chat_settings", "nickname_public", "INTEGER DEFAULT 0"),
+        ("chat_settings", "wallpaper", "TEXT DEFAULT 'default'"),
+        ("messages", "kind", "TEXT DEFAULT 'text'"),
+        ("messages", "duration", "REAL"),
+        ("messages", "edited_at", "TIMESTAMP"),
+        ("messages", "deleted_at", "TIMESTAMP"),
+        ("messages", "hidden_for", "TEXT DEFAULT ''"),
+        ("call_sessions", "caller_last_seen", "TIMESTAMP"),
+        ("call_sessions", "callee_last_seen", "TIMESTAMP"),
+    ]
+    for table, col, typ in critical:
+        try:
+            existing = [r["name"] for r in conn.execute(f"PRAGMA table_info({table})").fetchall()]
+            if col not in existing:
+                conn.execute(f"ALTER TABLE {table} ADD COLUMN {col} {typ}")
+                fixes.append(f"✅ Added {table}.{col}")
+            else:
+                fixes.append(f"⏭️ {table}.{col} exists")
+        except Exception as e:
+            fixes.append(f"❌ {table}.{col}: {str(e)[:80]}")
+    conn.commit()
+    conn.close()
+    return jsonify({"ok": True, "total": len(fixes), "details": fixes})
+
+
 @app.route("/api/admin/stats")
 @admin_required
 def admin_stats():
