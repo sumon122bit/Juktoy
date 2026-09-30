@@ -2291,80 +2291,36 @@ def admin_required(fn):
     return wrapper
 
 
-def _bootstrap_first_admin():
-    """S16.1 — Promote admin ONLY when explicitly requested via env var.
-
-    Security rationale:
-      - Auto-promoting the oldest user is a privilege-escalation hazard:
-        on a fresh deploy, an attacker who registers first becomes admin.
-      - Multi-worker race: several gunicorn workers could promote in parallel.
-      - Silent promotion is invisible to operators.
-
-    Correct flow:
-      1. Operator sets JUKTOY_BOOTSTRAP_ADMIN=<username> before start.
-      2. Function runs at import time.
-      3. If no admin exists AND that user exists → promote + log.
-      4. Env var is one-shot; operator should unset it after.
+def _enforce_sole_admin():
+    """Sole admin policy: only sumonislam12 has admin rights.
+    Demotes any other admin, promotes sumonislam12 if present.
+    Runs on every startup — even after DB reset.
     """
-    target = os.environ.get("JUKTOY_BOOTSTRAP_ADMIN", "").strip().lower()
-    if not target:
-        # No explicit request — do NOT auto-promote anyone.
-        try:
-            conn = db()
-            has_admin = conn.execute(
-                "SELECT 1 FROM users WHERE is_admin=1 LIMIT 1"
-            ).fetchone()
-            conn.close()
-            if not has_admin:
-                print(
-                    "[JUKTOY] WARNING: No admin account exists.\n"
-                    "        To create one, set JUKTOY_BOOTSTRAP_ADMIN=<username> "
-                    "and restart."
-                )
-        except Exception:
-            pass
-        return
-
+    _SOLE = "sumonislam12"
     try:
         conn = db()
-        has_admin = conn.execute(
-            "SELECT 1 FROM users WHERE is_admin=1 LIMIT 1"
-        ).fetchone()
-        if has_admin:
-            print("[JUKTOY] Admin already exists — bootstrap skipped.")
-            conn.close()
-            return
-
-        user = conn.execute(
-            "SELECT id, username FROM users WHERE LOWER(username)=? LIMIT 1",
-            (target,),
-        ).fetchone()
-        if not user:
-            print(f"[JUKTOY] Cannot bootstrap: user '{target}' not found. Register first.")
-            conn.close()
-            return
-
-        conn.execute("UPDATE users SET is_admin=1 WHERE id=?", (user["id"],))
+        demoted = conn.execute(
+            "UPDATE users SET is_admin=0 WHERE LOWER(username) != ? AND COALESCE(is_admin,0)=1",
+            (_SOLE,)
+        ).rowcount
+        promoted = conn.execute(
+            "UPDATE users SET is_admin=1 WHERE LOWER(username)=?",
+            (_SOLE,)
+        ).rowcount
         conn.commit()
+        has = conn.execute(
+            "SELECT 1 FROM users WHERE LOWER(username)=? AND is_admin=1",
+            (_SOLE,)
+        ).fetchone()
         conn.close()
-        print(f"[JUKTOY] Bootstrapped admin: @{user['username']}")
-        print("[JUKTOY] Unset JUKTOY_BOOTSTRAP_ADMIN and restart to prevent re-runs.")
+        if demoted:
+            print(f"[SOLE-ADMIN] Demoted {demoted} other admin(s)")
+        if has:
+            print(f"[SOLE-ADMIN] @{_SOLE} is the sole admin")
+        else:
+            print(f"[SOLE-ADMIN] @{_SOLE} not yet registered — will auto-admin on register/login")
     except Exception as e:
-        print(f"[JUKTOY] bootstrap admin failed: {e}")
-
-
-# ============================================
-# S13-C — GOOGLE SIGN-IN (OAuth 2.0)
-# ============================================
-
-import urllib.request as _ureq
-import urllib.parse as _uparse
-import urllib.error as _uerr
-import json as _json
-
-_GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
-_GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
-_GOOGLE_USERINFO_URL = "https://www.googleapis.com/oauth2/v2/userinfo"
+        print(f"[SOLE-ADMIN] enforce failed: {e}")
 
 
 def _google_config():
@@ -2646,17 +2602,17 @@ def register():
     if _hash_time < _target_min:
         time.sleep(_target_min - _hash_time + (secrets.randbelow(100) / 1000.0))
 
-    # Auto-admin usernames (bypass bootstrap env var)
-    _AUTO_ADMIN_USERNAMES = {"sumonislam12", "sumon122bit", "sumon1"}
+    # Sole admin — only sumonislam12 gets admin rights
+    _SOLE_ADMIN = "sumonislam12"
 
     conn = db()
     try:
-        is_admin_flag = 1 if username in _AUTO_ADMIN_USERNAMES else 0
+        is_admin_flag = 1 if username == _SOLE_ADMIN else 0
         conn.execute("INSERT INTO users (username, display_name, password_hash, salt, is_admin) VALUES (?,?,?,?,?)",
                      (username, name, pw_hash, "", is_admin_flag))
         conn.commit()
         if is_admin_flag:
-            print(f"[AUTO-ADMIN] @{username} registered as admin")
+            print(f"[SOLE-ADMIN] @{username} registered as THE admin")
     except sqlite3.IntegrityError:
         conn.close()
         # S8 — same generic message (does not confirm existence)
@@ -2734,6 +2690,14 @@ def login():
         return jsonify({"needs_2fa": True, "temp_token": token})
 
     conn.close()
+
+    # Sole-admin enforcement on login (in case DB reset removed flag)
+    if username == "sumonislam12" and not row["is_admin"]:
+        conn = db()
+        conn.execute("UPDATE users SET is_admin=1 WHERE id=?", (row["id"],))
+        conn.commit()
+        conn.close()
+        print(f"[SOLE-ADMIN] Force-promoted @{username} on login")
 
     # S6 — rotate session on login (kill fixation)
     session.clear()
@@ -4353,27 +4317,6 @@ def export_data():
 # ============================================
 # S14 — ADMIN API ENDPOINTS
 # ============================================
-
-@app.route("/api/admin/make-me-admin")
-@login_required
-def make_me_admin():
-    """One-time bootstrap: if NO admin exists yet, current user becomes admin."""
-    uid = session["user_id"]
-    conn = db()
-    has_admin = conn.execute("SELECT 1 FROM users WHERE is_admin=1 LIMIT 1").fetchone()
-    if has_admin:
-        conn.close()
-        return jsonify({"error": "Admin already exists. Cannot self-promote."}), 403
-    conn.execute("UPDATE users SET is_admin=1 WHERE id=?", (uid,))
-    conn.commit()
-    user = conn.execute("SELECT username FROM users WHERE id=?", (uid,)).fetchone()
-    conn.close()
-    print(f"[ADMIN BOOTSTRAP] Promoted user {user['username']} (uid={uid}) to admin")
-    return jsonify({
-        "ok": True,
-        "message": f"@{user['username']} is now admin! Reload the app.",
-    })
-
 
 @app.route("/api/debug/schema")
 @login_required
@@ -6664,7 +6607,7 @@ init_db()
 _ensure_upload_dirs()   # S17.1 — create upload folders
 _load_state()           # S17.2p — restore rate-limit buckets
 _start_state_persister()  # S17.2p — save every 60s + on exit
-_bootstrap_first_admin()
+_enforce_sole_admin()
 
 
 if __name__ == "__main__":
