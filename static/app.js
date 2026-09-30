@@ -1,3 +1,4 @@
+const BASE_URL = "https://juktoy.onrender.com";
 // ==================================================
 // JUKTOY — Complete JavaScript
 // All features: auth, feed, profile, theme, messages
@@ -19,7 +20,7 @@ function _readCsrfCookie() {
 
 async function api(url, options = {}) {
   const opts = { ...options };
-  opts.credentials = "same-origin";
+  opts.credentials = "include";
   opts.headers = { "Content-Type": "application/json", ...(options.headers || {}) };
 
   const method = (opts.method || "GET").toUpperCase();
@@ -28,7 +29,7 @@ async function api(url, options = {}) {
     if (token) opts.headers["X-CSRF-Token"] = token;
   }
 
-  const res = await fetch(url, opts);
+  const res = await fetch(BASE_URL + url, opts);
   const data = await res.json().catch(() => ({}));
 
   // S16.5 — idle timeout: auto-logout and reload
@@ -11796,7 +11797,7 @@ console.log("[S15.1] strong password check attached ✅");
       if (Date.now() - _lastPollAt < _pollInterval - 5000) return;
       _lastPollAt = Date.now();
 
-      fetch("/api/me", { credentials: "same-origin" })
+      fetch(BASE_URL + "/api/me", { credentials: "include" })
         .then(function (r) {
           if (r.status === 401) {
             // Session revoked
