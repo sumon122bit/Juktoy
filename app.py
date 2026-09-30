@@ -14,8 +14,6 @@ CORS(app, supports_credentials=True, origins=[
     "http://localhost",
     "https://localhost"
 ])
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-
 # S9 — preferred locations (outside project directory):
 #   1. JUKTOY_SECRET_KEY env var (production)
 #   2. ~/.juktoy_secret_key  (home dir)
