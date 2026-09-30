@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JUKTOY Logo Concepts</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, "Segoe UI", sans-serif;
+    background: linear-gradient(135deg, #FFF8F5 0%, #FFE8E0 100%);
+    min-height: 100vh;
+    padding: 30px 20px;
+    color: #1A0F0E;
+  }
+  h1 {
+    text-align: center;
+    font-size: 26px;
+    font-weight: 800;
+    margin-bottom: 8px;
+    background: linear-gradient(135deg, #FF6B6B, #FB923C);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .sub { text-align: center; color: #7A5A52; margin-bottom: 30px; font-size: 14px; }
+  .grid {
+    max-width: 1100px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 22px;
+  }
+  .card {
+    background: #fff;
+    border-radius: 22px;
+    padding: 22px 16px 16px;
+    box-shadow: 0 4px 24px rgba(255,107,107,0.12);
+    text-align: center;
+    transition: transform 0.3s cubic-bezier(0.34,1.56,0.64,1);
+  }
+  .card:hover { transform: translateY(-4px); box-shadow: 0 8px 32px rgba(255,107,107,0.2); }
+  .card img { width: 140px; height: 140px; display: block; margin: 0 auto 14px; }
+  .name {
+    font-size: 15px; font-weight: 800; color: #1A0F0E; margin-bottom: 4px;
+  }
+  .desc {
+    font-size: 12px; color: #7A5A52; line-height: 1.5;
+  }
+  .preview-row {
+    display: flex; align-items: center; gap: 10px; justify-content: center;
+    margin-top: 12px; padding-top: 12px; border-top: 1px solid #f5e3da;
+  }
+  .preview-row img.mini { width: 28px; height: 28px; margin: 0; }
+  .preview-row img.med { width: 46px; height: 46px; margin: 0; }
+  .preview-row span { font-size: 18px; font-weight: 800; letter-spacing: 0.05em; color: #1A0F0E; }
+  .badge {
+    display: inline-block; font-size: 10px; font-weight: 800;
+    background: #FFE8E0; color: #B53A3A;
+    padding: 3px 8px; border-radius: 999px; margin-top: 8px;
+  }
+</style>
+</head>
+<body>
+  <h1>JUKTOY — 5 Logo Concepts</h1>
+  <p class="sub">আপনার পছন্দের নাম্বার বলুন — সেটা polish করে favicon + app icon বানাব</p>
+
+  <div class="grid">
+    <div class="card">
+      <img src="logo1.svg" alt="Concept 1">
+      <div class="name">১. Interlocked Rings</div>
+      <div class="desc">দুটো আংটা বোনা — connection + community</div>
+      <div class="preview-row">
+        <img class="mini" src="logo1.svg">
+        <img class="med" src="logo1.svg">
+        <span>JUKTOY</span>
+      </div>
+      <div class="badge">Minimal · Iconic</div>
+    </div>
+
+    <div class="card">
+      <img src="logo2.svg" alt="Concept 2">
+      <div class="name">২. Speech + Leaf</div>
+      <div class="desc">কথার বাবল + গাছের পাতা — chat + nature</div>
+      <div class="preview-row">
+        <img class="mini" src="logo2.svg">
+        <img class="med" src="logo2.svg">
+        <span>JUKTOY</span>
+      </div>
+      <div class="badge">Friendly · Approachable</div>
+    </div>
+
+    <div class="card">
+      <img src="logo3.svg" alt="Concept 3">
+      <div class="name">৩. Bengali জ</div>
+      <div class="desc">বাংলা বর্ণ "জ" stylized — cultural root</div>
+      <div class="preview-row">
+        <img class="mini" src="logo3.svg">
+        <img class="med" src="logo3.svg">
+        <span>JUKTOY</span>
+      </div>
+      <div class="badge">Cultural · Unique</div>
+    </div>
+
+    <div class="card">
+      <img src="logo4.svg" alt="Concept 4">
+      <div class="name">৪. Node Network</div>
+      <div class="desc">৬টা সংযুক্ত বিন্দু — social graph + centre leaf</div>
+      <div class="preview-row">
+        <img class="mini" src="logo4.svg">
+        <img class="med" src="logo4.svg">
+        <span>JUKTOY</span>
+      </div>
+      <div class="badge">Modern · Networky</div>
+    </div>
+
+    <div class="card">
+      <img src="logo5.svg" alt="Concept 5">
+      <div class="name">৫. J-Sprout</div>
+      <div class="desc">"J" + কচি পাতা — growth + brand-initial</div>
+      <div class="preview-row">
+        <img class="mini" src="logo5.svg">
+        <img class="med" src="logo5.svg">
+        <span>JUKTOY</span>
+      </div>
+      <div class="badge">Brand-Initial · Fresh</div>
+    </div>
+  </div>
+</body>
+</html>

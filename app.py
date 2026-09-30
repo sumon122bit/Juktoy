@@ -7,6 +7,15 @@ from collections import defaultdict, deque
 from functools import wraps
 
 app = Flask(__name__)
+from flask_cors import CORS
+CORS(app, supports_credentials=True, origins=[
+    "https://juktoy.onrender.com",
+    "capacitor://localhost",
+    "http://localhost",
+    "https://localhost"
+])
+app.config['SESSION_COOKIE_SAMESITE'] = 'None'
+app.config['SESSION_COOKIE_SECURE'] = True
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # S9 — preferred locations (outside project directory):

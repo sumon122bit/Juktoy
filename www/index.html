@@ -1,0 +1,1273 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#f0f2f5">
+<meta name="color-scheme" content="light">
+<title>JUKTOY-- A Connected Bangladesh</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<link rel="stylesheet" href="static/style.css?v=2070">
+<link rel="stylesheet" href="static/upgrade.css?v=1">
+<link rel="stylesheet" href="static/premium.css?v=1">
+<link rel="stylesheet" href="static/reels.css?v=1">
+<link rel="stylesheet" href="static/call.css?v=6">
+<link rel="stylesheet" href="static/messages.css?v=2">
+</head>
+<body class="light">
+<!-- Series 4D — boot splash (prevents login flash) -->
+<div id="app-loader" class="app-loader">
+  <div class="app-loader-inner">
+    <div class="app-loader-logo"><i class="fa-solid fa-leaf"></i></div>
+    <div class="app-loader-spinner"></div>
+  </div>
+</div>
+
+<!-- ============ AUTH ============ -->
+<div id="auth-view" class="auth-container">
+  <div class="auth-bg-glow glow-1"></div>
+  <div class="auth-bg-glow glow-2"></div>
+  <button id="auth-theme-toggle" class="auth-theme-btn"><i class="fa-solid fa-moon"></i></button>
+  <div class="auth-card">
+    <div class="brand">
+      <div class="brand-logo"><i class="fa-solid fa-leaf"></i></div>
+      <h1 class="brand-name">JUKTOY</h1>
+      <p class="tagline">A Connected Bangladesh</p>
+    </div>
+    <form id="login-form" class="form">
+      <div class="input-group"><i class="fa-regular fa-user input-icon"></i><input type="text" name="username" placeholder="ইমেইল বা ইউজারনেম" required></div>
+      <div class="input-group"><i class="fa-solid fa-lock input-icon"></i><input type="password" name="password" placeholder="পাসওয়ার্ড" required id="login-password"><i class="fa-regular fa-eye toggle-eye" data-target="login-password"></i></div>
+      <div class="form-options">
+        <label class="remember-me"><input type="checkbox" checked><span>মনে রাখুন</span></label>
+        <a href="#" class="forgot-link" id="open-forgot">পাসওয়ার্ড ভুলে গেছেন?</a>
+      </div>
+      <button type="submit" class="btn-primary">লগ ইন</button>
+    </form>
+    <form id="login-2fa-form" class="form hidden">
+      <p style="text-align:center;color:var(--muted);font-size:13.5px;line-height:1.5;margin-bottom:8px">
+        <i class="fa-solid fa-shield-halved" style="color:var(--accent)"></i><br>
+        আপনার authenticator app থেকে ৬ ডিজিটের কোড দিন
+      </p>
+      <div class="input-group">
+        <i class="fa-solid fa-key input-icon"></i>
+        <input type="text" id="login-2fa-code" placeholder="123456" inputmode="numeric" maxlength="9" autocomplete="one-time-code">
+      </div>
+      <button type="submit" class="btn-primary">যাচাই করুন</button>
+      <p style="text-align:center;font-size:12.5px;color:var(--muted);margin-top:8px">
+        Authenticator হারিয়েছেন?
+        <a href="#" id="switch-backup-code" style="color:var(--accent);font-weight:600">Backup code ব্যবহার করুন</a>
+      </p>
+      <p style="text-align:center;font-size:12.5px;margin-top:10px">
+        <a href="#" id="switch-login-2fa-back" style="color:var(--muted)">← আগের ধাপে ফিরুন</a>
+      </p>
+    </form>
+    <form id="register-form" class="form hidden">
+      <div class="input-group"><i class="fa-regular fa-user input-icon"></i><input type="text" name="username" placeholder="ইউজারনেম (ইংরেজিতে)" required></div>
+      <div class="input-group"><i class="fa-regular fa-id-badge input-icon"></i><input type="text" name="display_name" placeholder="আপনার নাম" required></div>
+      <div class="input-group"><i class="fa-solid fa-lock input-icon"></i><input type="password" name="password" placeholder="পাসওয়ার্ড (৬+ অক্ষর)" required id="register-password"><i class="fa-regular fa-eye toggle-eye" data-target="register-password"></i></div>
+      <button type="submit" class="btn-primary">অ্যাকাউন্ট তৈরি করুন</button>
+    </form>
+    <div id="auth-message" class="message"></div>
+    <div class="divider"><span>অথবা</span></div>
+    <div class="social-login">
+      <button type="button" class="social-btn google" id="btn-google-login" title="Google দিয়ে লগইন"><i class="fab fa-google"></i></button>
+      <button type="button" class="social-btn facebook"><i class="fab fa-facebook-f"></i></button>
+      <button type="button" class="social-btn apple"><i class="fab fa-apple"></i></button>
+      <button type="button" class="social-btn phone"><i class="fas fa-mobile-alt"></i></button>
+    </div>
+    <p class="footer-text" id="footer-login">অ্যাকাউন্ট নেই? <a href="#" id="switch-register">সাইন আপ করুন</a></p>
+    <p class="footer-text hidden" id="footer-register">অ্যাকাউন্ট আছে? <a href="#" id="switch-login">লগ ইন করুন</a></p>
+  </div>
+</div>
+
+<!-- ============ APP ============ -->
+<div id="app-view" class="app hidden">
+
+  <!-- TOPBAR -->
+  <header class="topbar">
+    <button id="menu-toggle" class="menu-toggle" title="মেনু"><i class="fa-solid fa-bars"></i></button>
+    <div class="brand"><i class="fa-solid fa-leaf"></i><span>JUKTOY</span></div>
+
+    <div class="search-wrap" id="search-wrap">
+      <i class="fa-solid fa-magnifying-glass search-icon"></i>
+      <input type="text" id="search-input" placeholder="মানুষ, পোস্ট, বিষয় খুঁজুন..." autocomplete="off" readonly>
+      <div id="search-results" class="search-results hidden">
+        <div class="search-tabs" id="search-tabs">
+          <button type="button" class="search-tab active" data-type="all"><i class="fa-solid fa-magnifying-glass"></i> সব</button>
+          <button type="button" class="search-tab" data-type="users"><i class="fa-solid fa-user"></i> মানুষ</button>
+          <button type="button" class="search-tab" data-type="posts"><i class="fa-solid fa-file-lines"></i> পোস্ট</button>
+          <button type="button" class="search-tab" data-type="hashtags"><i class="fa-solid fa-hashtag"></i> ট্যাগ</button>
+        </div>
+        <div class="search-body" id="search-body"></div>
+      </div>
+    </div>
+
+    <button id="top-create-post" class="top-create-btn">
+      <i class="fa-solid fa-plus"></i> <span>পোস্ট তৈরি</span>
+    </button>
+
+    <div class="topbar-actions">
+      <button class="topbar-icon" id="top-messages-btn" title="মেসেজ">
+        <i class="fa-regular fa-comment-dots"></i>
+        <span class="notif-dot hidden"></span>
+      </button>
+      <button class="topbar-icon" id="top-notif-btn" title="নোটিফিকেশন">
+        <i class="fa-regular fa-bell"></i>
+        <span class="notif-dot hidden" id="top-notif-dot"></span>
+      </button>
+      <div class="topbar-avatar" id="topbar-avatar"></div>
+    </div>
+  </header>
+
+  <!-- MOBILE DRAWER BACKDROP -->
+  <div id="sidebar-backdrop" class="sidebar-backdrop"></div>
+
+  <!-- MAIN LAYOUT -->
+  <div class="app-layout">
+
+    <!-- LEFT SIDEBAR (desktop) -->
+    <aside class="left-sidebar" id="left-sidebar">
+      <nav class="nav-list">
+        <a href="#" class="nav-item active" data-nav="home"><i class="fa-solid fa-house"></i><span>হোম</span></a>
+        <a href="#" class="nav-item" data-nav="explore"><i class="fa-regular fa-compass"></i><span>এক্সপ্লোর</span></a>
+        <a href="#" class="nav-item" data-nav="reels"><i class="fa-solid fa-film"></i><span>রিল</span></a>
+        <a href="#" class="nav-item" data-nav="notifications"><i class="fa-regular fa-bell"></i><span>নোটিফিকেশন</span><span class="nav-badge hidden" id="notif-badge">0</span></a>
+        <a href="#" class="nav-item" data-nav="messages"><i class="fa-regular fa-comment-dots"></i><span>মেসেজ</span><span class="nav-badge hidden" id="msg-badge">0</span></a>
+        <a href="#" class="nav-item" data-nav="bookmarks"><i class="fa-regular fa-bookmark"></i><span>বুকমার্ক</span></a>
+        <a href="#" class="nav-item" data-nav="suggestions"><i class="fa-solid fa-user-plus"></i><span>সাজেশন</span></a>
+        <a href="#" class="nav-item" data-nav="profile"><i class="fa-regular fa-user"></i><span>প্রোফাইল</span></a>
+        <a href="#" class="nav-item hidden" data-nav="admin" id="nav-admin"><i class="fa-solid fa-shield-halved"></i><span>Admin Panel</span></a>
+        <a href="#" class="nav-item" data-nav="calls"><i class="fa-solid fa-phone"></i><span>কল হিস্টরি</span><span class="nav-badge hidden" id="calls-badge">0</span></a>
+        <a href="#" class="nav-item" data-nav="settings"><i class="fa-solid fa-gear"></i><span>সেটিংস</span></a>
+      </nav>
+
+      <div class="sidebar-profile" id="sidebar-profile"></div>
+
+      <div class="sidebar-bio">
+        <h4>📝 আমার বায়ো</h4>
+        <p id="bio-text">বায়ো নেই</p>
+        <button id="edit-bio-btn" class="btn-secondary">✏️ এডিট</button>
+      </div>
+
+<!-- Theme Toggle Switch -->
+<div class="sidebar-theme">
+  <div class="theme-row">
+    <div class="theme-label">
+      <i class="fa-solid fa-moon" id="theme-icon"></i>
+      <span id="theme-label-text">ডার্ক মোড</span>
+    </div>
+    <button class="theme-switch" id="theme-switch" aria-label="Toggle theme">
+      <span class="switch-knob"></span>
+    </button>
+  </div>
+</div>
+     
+ <div class="sidebar-footer">
+        <button id="logout-btn" class="btn-secondary logout-btn">
+          <i class="fa-solid fa-right-from-bracket"></i> লগআউট
+        </button>
+        <div class="sidebar-tagline">
+          <i class="fa-solid fa-leaf"></i>
+          <p>Better people<br>Better conversations<br>A brighter tomorrow</p>
+        </div>
+      </div>
+    </aside>
+
+    <!-- MAIN FEED -->
+    <main class="main-feed">
+
+      <!-- STORIES -->
+      <section class="stories-section">
+        <div class="section-head">
+          <h3>স্টোরি</h3>
+          <a href="#" class="see-all">সব দেখুন</a>
+        </div>
+        <div class="stories-row">
+          <div class="story-card story-add" id="add-story">
+            <div class="story-hex">
+              <div class="story-hex-content add-content">
+                <i class="fa-solid fa-plus"></i>
+              </div>
+            </div>
+            <span>স্টোরি দিন</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- COMPOSER -->
+      <div class="composer-box">
+        <div class="composer-row-top">
+          <div class="composer-avatar" id="composer-avatar"></div>
+          <textarea id="post-content" placeholder="আপনার মনে কী আছে?" rows="1"></textarea>
+        </div>
+
+        <!-- Multi-image preview grid -->
+        <div id="image-preview-grid" class="image-preview-grid hidden"></div>
+
+        <!-- Hidden file input -->
+        <input type="file" id="image-file-input" accept="image/*" multiple style="display:none">
+
+        <div class="composer-divider-line"></div>
+        <div class="composer-row-bottom">
+          <div class="composer-icons">
+            <button class="c-icon-btn" data-tool="photo" id="btn-pick-images" title="ছবি যোগ করুন"><i class="fa-regular fa-image"></i><span>ছবি</span></button>
+                        <button class="c-icon-btn" data-tool="emoji" title="ইমোজি" id="btn-emoji"><i class="fa-regular fa-face-smile"></i><span>ইমোজি</span></button>
+          </div>
+          <button id="post-btn" class="post-send-btn" title="পোস্ট করুন"><i class="fa-solid fa-arrow-up"></i></button>
+        </div>
+      </div>
+
+      <!-- FEED -->
+      <div id="feed-list"></div>
+
+    </main>
+
+    <!-- RIGHT SIDEBAR (desktop) -->
+    <aside class="right-sidebar">
+
+      <div class="rs-card profile-preview" id="rs-profile-preview">
+        <div class="rs-cover"></div>
+        <div class="rs-profile-body">
+          <div class="rs-avatar" id="rs-avatar"></div>
+          <div class="rs-name-row">
+            <h4 id="rs-name">—</h4>
+            <i class="fa-solid fa-circle-check verified"></i>
+          </div>
+          <p class="rs-username" id="rs-username">@—</p>
+          <p class="rs-bio" id="rs-bio">বায়ো নেই</p>
+          <div class="rs-stats">
+            <div><strong id="rs-posts">0</strong><span>পোস্ট</span></div>
+            <div><strong>0</strong><span>ফলোয়ার</span></div>
+            <div><strong>0</strong><span>ফলোয়িং</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="rs-card">
+        <div class="rs-head"><h4>পরামর্শকৃত বন্ধু</h4><a href="#" class="see-all">সব দেখুন</a></div>
+        <div id="rs-suggestions" class="rs-list"></div>
+      </div>
+
+      <div class="rs-card">
+        <div class="rs-head"><h4>ট্রেন্ডিং টপিক</h4><a href="#" class="see-all">সব দেখুন</a></div>
+        <div class="rs-list" id="rs-trending">
+          <a href="#" class="trend-item"><span class="trend-tag">#বাংলাদেশ</span><span class="trend-count">12.4K পোস্ট</span></a>
+          <a href="#" class="trend-item"><span class="trend-tag">#শিক্ষা</span><span class="trend-count">8.7K পোস্ট</span></a>
+          <a href="#" class="trend-item"><span class="trend-tag">#টেকনোলজি</span><span class="trend-count">6.3K পোস্ট</span></a>
+          <a href="#" class="trend-item"><span class="trend-tag">#প্রকৃতি</span><span class="trend-count">5.1K পোস্ট</span></a>
+          <a href="#" class="trend-item"><span class="trend-tag">#মোটিভেশন</span><span class="trend-count">4.8K পোস্ট</span></a>
+        </div>
+      </div>
+
+      <div class="rs-card">
+        <div class="rs-head"><h4>অনলাইনে</h4><a href="#" class="see-all">সব দেখুন</a></div>
+        <div id="rs-online" class="rs-list"></div>
+      </div>
+
+    </aside>
+  </div>
+
+  <!-- MOBILE BOTTOM NAV -->
+<nav class="mobile-bottom-nav" id="mbn-main">
+  <button class="mbn-item active" data-mbn="home"><i class="fa-solid fa-house"></i><span>হোম</span></button>
+  <button class="mbn-item" data-mbn="explore"><i class="fa-regular fa-compass"></i><span>খুঁজুন</span></button>
+  <button class="mbn-item mbn-create" data-mbn="create"><i class="fa-solid fa-plus"></i></button>
+  <button class="mbn-item" data-mbn="reel"><i class="fa-solid fa-film"></i><span>রিল</span></button>
+  <button class="mbn-item" data-mbn="messages"><i class="fa-regular fa-comment-dots"></i><span>চ্যাট</span><span class="notif-dot hidden" id="mbn-msg-badge">0</span></button>
+</nav>
+<!-- ============ PROFILE PAGE ============ -->
+<div id="profile-page" class="profile-page hidden">
+  <div class="profile-topbar">
+    <button id="profile-back" class="back-btn"><i class="fa-solid fa-arrow-left"></i></button>
+    <span class="profile-topbar-title">প্রোফাইল</span>
+    <button id="profile-edit-icon" class="back-btn hidden"><i class="fa-solid fa-pen"></i></button>
+  </div>
+  <div class="profile-cover"><div class="cover-gradient"></div><img id="profile-page-cover" class="profile-cover-image hidden" alt="Cover photo"></div>
+  <div class="profile-info">
+    <div class="profile-avatar-wrap"><div class="profile-avatar" id="profile-page-avatar"></div></div>
+    <div class="profile-name-row">
+      <div>
+        <h2 id="profile-page-name">নাম</h2>
+        <p id="profile-page-username" class="profile-username">@username</p>
+        <p id="profile-page-joined" class="profile-joined">
+          <i class="fa-regular fa-calendar"></i> <span>—</span>
+        </p>
+      </div>
+    </div>
+    <div id="profile-page-mutual" class="profile-mutual hidden"></div>
+    <div id="profile-completion" class="profile-completion hidden">
+      <div class="pc-header">
+        <div class="pc-title">
+          <i class="fa-solid fa-circle-check"></i>
+          <span>প্রোফাইল সম্পূর্ণ</span>
+        </div>
+        <div class="pc-percent"><span id="pc-percent-text">0%</span></div>
+      </div>
+      <div class="pc-bar-track">
+        <div class="pc-bar-fill" id="pc-bar-fill"></div>
+      </div>
+      <div class="pc-missing hidden" id="pc-missing"></div>
+    </div>
+    <p id="profile-page-bio" class="profile-bio">বায়ো নেই</p>
+    <div class="profile-stats">
+      <div class="stat-item"><span class="stat-num" id="stat-posts">0</span><span class="stat-label">পোস্ট</span></div>
+      <div class="stat-item"><span class="stat-num">0</span><span class="stat-label">ফলোয়ার</span></div>
+      <div class="stat-item"><span class="stat-num">0</span><span class="stat-label">ফলোয়িং</span></div>
+    </div>
+    <div class="profile-buttons" id="profile-buttons"></div>
+  </div>
+  <div class="profile-tabs">
+    <button class="profile-tab active" data-tab="posts"><i class="fa-solid fa-table-cells-large"></i> পোস্ট</button>
+    <button class="profile-tab" data-tab="photos"><i class="fa-regular fa-images"></i> ছবি</button>
+    <button class="profile-tab" data-tab="about"><i class="fa-regular fa-id-card"></i> পরিচিতি</button>
+  </div>
+  <div class="profile-tab-content">
+    <div id="profile-tab-posts" class="profile-tab-pane"></div>
+    <div id="profile-tab-photos" class="profile-tab-pane hidden"><p class="empty-text">📷 এখনো কোনো ছবি নেই</p></div>
+    <div id="profile-tab-about" class="profile-tab-pane hidden">
+      <div class="about-card"><h3>📝 আমার সম্পর্কে</h3><p id="about-bio">বায়ো নেই</p></div>
+      <div class="about-card"><h3>👤 ইউজারনেম</h3><p id="about-username">@username</p></div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ MESSAGES ============ -->
+<div id="messages-page" class="messages-page hidden">
+  <div class="messages-topbar">
+    <button id="messages-back" class="back-btn"><i class="fa-solid fa-arrow-left"></i></button>
+    <span class="messages-topbar-title">মেসেজ <span id="msg-title-badge" class="msg-title-badge hidden">0</span></span>
+    <button id="new-group-btn" class="back-btn" title="নতুন গ্রুপ"><i class="fa-solid fa-users"></i></button>
+    <button id="new-chat-btn" class="back-btn" title="নতুন চ্যাট"><i class="fa-solid fa-pen-to-square"></i></button>
+    <button id="messages-call-btn" class="back-btn" title="কল হিস্টরি"><i class="fa-solid fa-phone"></i></button>
+  </div>
+  <div class="messages-body">
+    <aside class="conv-list" id="conv-list">
+      <div class="conv-search">
+        <i class="fa-solid fa-magnifying-glass"></i>
+        <input type="text" id="conv-search-input" placeholder="চ্যাট খুঁজুন...">
+      </div>
+      <div id="msg-stories-row" class="msg-stories-row"></div>
+      <div id="group-items" class="group-items"></div>
+      <div id="conv-items"></div>
+    </aside>
+    <section class="chat-window hidden" id="chat-window">
+      <div class="chat-header">
+        <button id="chat-close" class="back-btn"><i class="fa-solid fa-arrow-left"></i></button>
+        <div class="chat-user" id="chat-user-info"></div>
+        <div class="chat-header-actions">
+          <button class="chat-header-btn" id="chat-search-btn" type="button" title="চ্যাটে খুঁজুন">
+            <i class="fa-solid fa-magnifying-glass"></i>
+          </button>
+          <button class="chat-header-btn" id="chat-call-btn" type="button" title="অডিও কল">
+            <i class="fa-solid fa-phone"></i>
+          </button>
+          <button class="chat-header-btn" id="chat-video-btn" type="button" title="ভিডিও কল">
+            <i class="fa-solid fa-video"></i>
+          </button>
+          <button class="chat-header-btn" id="chat-more-btn" type="button" title="আরও">
+            <i class="fa-solid fa-ellipsis-vertical"></i>
+          </button>
+        </div>
+      </div>
+      <div class="chat-messages" id="chat-messages"></div>
+      <div class="voice-recorder hidden" id="voice-recorder">
+        <div class="vr-inner">
+          <div class="vr-dot"></div>
+          <span class="vr-timer" id="vr-timer">0:00</span>
+          <span class="vr-hint" id="vr-hint">ছেড়ে দিলে পাঠাবে</span>
+          <button type="button" class="vr-cancel" id="vr-cancel">
+            <i class="fa-solid fa-xmark"></i> বাতিল
+          </button>
+          <button type="button" class="vr-send" id="vr-send" title="পাঠান"><i class="fa-solid fa-paper-plane"></i></button>
+        </div>
+      </div>
+      <div class="chat-emoji-slot" id="chat-emoji-slot"></div>
+      <div class="chat-composer-wrap">
+        <div class="chat-image-preview hidden" id="chat-image-preview">
+          <img id="chat-image-preview-img" alt="Preview">
+          <button type="button" class="chat-image-remove" id="chat-image-remove"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="chat-reply-preview hidden" id="chat-reply-preview">
+          <div class="crp-body">
+            <div class="crp-name" id="crp-name">—</div>
+            <div class="crp-text" id="crp-text">—</div>
+          </div>
+          <button type="button" class="crp-close" id="crp-close"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="chat-composer">
+          <button type="button" class="chat-emoji-btn" id="chat-attach-btn" title="ছবি">
+            <i class="fa-solid fa-image"></i>
+          </button>
+          <button type="button" class="chat-emoji-btn" id="chat-emoji-btn" title="ইমোজি">
+            <i class="fa-regular fa-face-smile"></i>
+          </button>
+          <form id="chat-form" class="chat-form-inline">
+            <div class="chat-input-wrap">
+              <input type="text" id="chat-input" placeholder="মেসেজ লিখুন..." autocomplete="off">
+              <button type="button" class="chat-mic-btn" id="chat-mic-btn" title="ভয়েস রেকর্ড"><i class="fa-solid fa-microphone"></i></button>
+            </div>
+            <button type="submit" class="chat-send-btn" id="chat-send-btn"><i class="fa-solid fa-paper-plane"></i></button>
+          </form>
+        </div>
+        <input type="file" id="chat-image-input" accept="image/*" style="display:none">
+      </div>
+    </section>
+
+      <!-- ============ GROUP CHAT WINDOW ============ -->
+<div id="group-chat-window" class="chat-window hidden">
+  <div class="chat-header">
+    <button id="group-chat-close" class="back-btn"><i class="fa-solid fa-arrow-left"></i></button>
+    <div class="chat-user" id="group-chat-header-info"></div>
+  </div>
+  <div class="chat-messages" id="group-chat-messages"></div>
+  <div class="group-info-tab hidden" id="group-info-tab"></div>
+  <div class="chat-composer-wrap">
+    <div class="chat-image-preview hidden" id="group-image-preview">
+      <img id="group-image-preview-img" alt="Preview">
+      <button type="button" class="chat-image-remove" id="group-image-remove"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="chat-composer">
+      <button type="button" class="chat-emoji-btn" id="group-attach-btn" title="ছবি">
+        <i class="fa-solid fa-image"></i>
+      </button>
+      <form id="group-chat-form" class="chat-form-inline">
+        <input type="text" id="group-chat-input" placeholder="গ্রুপে মেসেজ লিখুন..." autocomplete="off">
+        <button type="submit" class="chat-send-btn" id="group-chat-send"><i class="fa-solid fa-paper-plane"></i></button>
+      </form>
+    </div>
+    <input type="file" id="group-image-input" accept="image/*" style="display:none">
+  </div>
+</div>
+  </div>
+</div>
+
+<!-- ============ NEW GROUP MODAL ============ -->
+<div id="new-group-modal" class="modal hidden">
+  <div class="modal-content" style="max-width:480px">
+    <button class="close-btn" id="close-new-group">×</button>
+    <h2 style="margin-bottom:18px;font-size:20px">👥 নতুন গ্রুপ</h2>
+    <label class="edit-label">গ্রুপের নাম</label>
+    <div class="input-group" style="margin-bottom:16px">
+      <i class="fa-solid fa-users input-icon"></i>
+      <input type="text" id="group-name-input" placeholder="যেমন: পরিবার, বন্ধুরা..." maxlength="80">
+    </div>
+    <label class="edit-label">সদস্য যোগ করুন <span id="group-member-count" style="color:var(--muted);font-weight:500">(০ জন)</span></label>
+    <div class="input-group" style="margin-bottom:12px">
+      <i class="fa-solid fa-magnifying-glass input-icon"></i>
+      <input type="text" id="group-member-search" placeholder="নাম বা ইউজারনেম লিখুন...">
+    </div>
+    <div id="group-selected-members" class="group-selected-members"></div>
+    <div id="group-search-results" class="group-search-results"></div>
+    <div class="edit-actions" style="margin-top:16px">
+      <button class="btn-secondary" id="cancel-new-group">বাতিল</button>
+      <button class="btn-primary" id="create-group-btn" style="width:auto;padding:12px 28px" disabled>
+        <i class="fa-solid fa-check"></i> গ্রুপ তৈরি করুন
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ NEW CHAT MODAL ============ -->
+<div id="new-chat-modal" class="modal hidden">
+  <div class="modal-content" style="max-width:440px">
+    <button class="close-btn" id="close-new-chat">×</button>
+    <h2 style="margin-bottom:18px;font-size:20px">✍️ নতুন চ্যাট</h2>
+    <div class="input-group" style="margin-bottom:16px">
+      <i class="fa-solid fa-magnifying-glass input-icon"></i>
+      <input type="text" id="new-chat-search" placeholder="নাম বা ইউজারনেম লিখুন...">
+    </div>
+    <div id="new-chat-results" class="new-chat-results"></div>
+  </div>
+</div>
+<!-- ============ STORY VIEWER ============ -->
+<div id="story-viewer" class="story-viewer hidden">
+  <div class="sv-backdrop"></div>
+
+  <div class="sv-container">
+    <!-- Progress bars -->
+    <div class="sv-progress" id="sv-progress"></div>
+
+    <!-- Header -->
+    <div class="sv-header">
+      <div class="sv-avatar" id="sv-avatar"></div>
+      <div class="sv-user-info">
+        <div class="sv-name" id="sv-name"></div>
+        <div class="sv-time" id="sv-time"></div>
+      </div>
+      <button class="sv-close" id="sv-close"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+
+    <!-- Media -->
+    <div class="sv-media" id="sv-media"></div>
+
+    <!-- Caption -->
+    <div class="sv-caption" id="sv-caption"></div>
+
+    <!-- Nav buttons (desktop) -->
+    <button class="sv-nav prev" id="sv-prev"><i class="fa-solid fa-chevron-left"></i></button>
+    <button class="sv-nav next" id="sv-next"><i class="fa-solid fa-chevron-right"></i></button>
+
+    <!-- Bottom actions -->
+    <div class="sv-footer">
+      <div class="sv-views" id="sv-views"></div>
+      <button class="sv-delete hidden" id="sv-delete"><i class="fa-regular fa-trash-can"></i> মুছুন</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ STORY UPLOAD MODAL ============ -->
+<div id="story-upload-modal" class="modal hidden">
+  <div class="modal-content" style="max-width:440px">
+    <button class="close-btn" id="close-story-upload">×</button>
+    <h2 style="margin-bottom:18px;font-size:20px">📸 নতুন স্টোরি</h2>
+
+    <div class="story-upload-area" id="story-upload-area">
+      <input type="file" id="story-file-input" accept="image/*" style="display:none">
+      <div class="story-upload-empty" id="story-upload-empty">
+        <i class="fa-regular fa-image"></i>
+        <p>ছবি বেছে নিন</p>
+        <button class="btn-secondary" id="btn-choose-story">📁 গ্যালারি</button>
+      </div>
+      <div class="story-upload-preview hidden" id="story-upload-preview">
+        <img id="story-preview-img" alt="Preview">
+      </div>
+    </div>
+
+    <textarea id="story-caption" class="edit-bio-input" placeholder="ক্যাপশন লিখুন (ঐচ্ছিক)..." maxlength="200" style="min-height:70px;margin-top:14px"></textarea>
+
+    <div class="edit-actions">
+      <button class="btn-secondary" id="cancel-story-upload">বাতিল</button>
+      <button class="btn-primary" id="publish-story" style="width:auto;padding:12px 28px" disabled>
+        <i class="fa-solid fa-paper-plane"></i> পোস্ট করুন
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ EDIT PROFILE MODAL ============ -->
+<div id="edit-profile-modal" class="modal hidden">
+  <div class="modal-content" style="max-width:440px">
+    <button class="close-btn" id="close-edit-profile">×</button>
+    <h2 style="margin-bottom:20px;font-size:20px">✏️ প্রোফাইল এডিট</h2>
+    <div class="cover-upload-section">
+      <div class="cover-preview" id="cover-preview">
+        <div class="cover-preview-placeholder">🖼️ কভার ফটো</div>
+      </div>
+
+      <div class="avatar-upload-actions">
+        <button class="btn-secondary" id="btn-upload-cover">
+          <i class="fa-solid fa-image"></i> কভার ফটো
+        </button>
+
+        <button class="btn-secondary" id="btn-remove-cover">
+          <i class="fa-regular fa-trash-can"></i> মুছুন
+        </button>
+      </div>
+
+      <input type="file" id="cover-input" accept="image/*" style="display:none">
+    </div>
+
+    <div class="avatar-upload-section">
+      <div class="avatar-preview" id="avatar-preview"></div>
+      <div class="avatar-upload-actions">
+        <button class="btn-secondary" id="btn-upload-avatar"><i class="fa-solid fa-camera"></i> ছবি আপলোড</button>
+        <button class="btn-secondary" id="btn-remove-avatar"><i class="fa-regular fa-trash-can"></i> মুছুন</button>
+      </div>
+      <input type="file" id="avatar-input" accept="image/*" style="display:none">
+    </div>
+    <label class="edit-label">আপনার নাম</label>
+    <div class="input-group" style="margin-bottom:16px"><i class="fa-regular fa-id-badge input-icon"></i><input type="text" id="edit-name" placeholder="আপনার নাম"></div>
+    <label class="edit-label">বায়ো</label>
+    <textarea id="edit-bio" class="edit-bio-input" placeholder="নিজের সম্পর্কে কিছু লিখুন..." maxlength="200"></textarea>
+    <div class="edit-actions">
+      <button class="btn-secondary" id="cancel-edit-profile">বাতিল</button>
+      <button class="btn-primary" id="save-edit-profile" style="width:auto;padding:12px 28px"><i class="fa-solid fa-check"></i> সেভ করুন</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ REELS PAGE ============ -->
+<div id="reels-page" class="reels-page hidden">
+  <!-- Top bar (floating) -->
+  <div class="reels-topbar">
+    <button id="reels-back" class="reels-back-btn">
+      <i class="fa-solid fa-arrow-left"></i>
+    </button>
+    <span class="reels-title">রিল</span>
+    <button id="reels-upload-btn" class="reels-back-btn" title="রিল আপলোড">
+      <i class="fa-solid fa-plus"></i>
+    </button>
+  </div>
+
+  <!-- Reels feed -->
+  <div id="reels-feed" class="reels-feed"></div>
+
+  <!-- Empty state -->
+  <div id="reels-empty" class="reels-empty hidden">
+    <i class="fa-solid fa-film"></i>
+    <h3>এখনো কোনো রিল নেই</h3>
+    <p>প্রথম রিল আপনিই পোস্ট করুন!</p>
+    <button id="reels-empty-upload" class="btn-primary" style="width:auto;padding:12px 28px">
+      <i class="fa-solid fa-plus"></i> রিল তৈরি করুন
+    </button>
+  </div>
+</div>
+
+<!-- ============ REEL UPLOAD MODAL ============ -->
+<div id="reel-upload-modal" class="modal hidden">
+  <div class="modal-content" style="max-width:440px">
+    <button class="close-btn" id="close-reel-upload">×</button>
+    <h2 style="margin-bottom:18px;font-size:20px">🎬 নতুন রিল</h2>
+
+    <div class="reel-upload-area" id="reel-upload-area">
+      <input type="file" id="reel-file-input" accept="video/*" style="display:none">
+      <div class="reel-upload-empty" id="reel-upload-empty">
+        <i class="fa-solid fa-video"></i>
+        <p>ভিডিও বেছে নিন</p>
+        <span class="reel-upload-hint">৫ MB এর কম, ~৩০ সেকেন্ডের ভিডিও</span>
+        <button class="btn-secondary" id="btn-choose-reel">
+          <i class="fa-solid fa-folder-open"></i> গ্যালারি
+        </button>
+      </div>
+      <div class="reel-upload-preview hidden" id="reel-upload-preview">
+        <video id="reel-preview-video" controls playsinline muted></video>
+      </div>
+    </div>
+
+    <textarea id="reel-caption" class="edit-bio-input"
+      placeholder="ক্যাপশন লিখুন (ঐচ্ছিক)..."
+      maxlength="300"
+      style="min-height:70px;margin-top:14px"></textarea>
+
+    <div class="edit-actions">
+      <button class="btn-secondary" id="cancel-reel-upload">বাতিল</button>
+      <button class="btn-primary" id="publish-reel"
+        style="width:auto;padding:12px 28px" disabled>
+        <i class="fa-solid fa-paper-plane"></i> পোস্ট করুন
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ REEL COMMENTS SHEET ============ -->
+<div id="reel-comments-sheet" class="reel-comments-sheet hidden">
+  <div class="rcs-backdrop"></div>
+  <div class="rcs-panel">
+    <div class="rcs-header">
+      <span class="rcs-handle"></span>
+    </div>
+    <div class="rcs-title">মন্তব্য</div>
+    <div id="rcs-list" class="rcs-list"></div>
+    <form class="rcs-form" id="rcs-form">
+      <input type="text" id="rcs-input" placeholder="মন্তব্য লিখুন..." required>
+      <button type="submit" class="rcs-send">
+        <i class="fa-solid fa-paper-plane"></i>
+      </button>
+    </form>
+  </div>
+</div>
+
+<!-- ============ NOTIFICATIONS PAGE ============ -->
+<div id="notifications-page" class="explore-page hidden">
+  <div class="explore-topbar">
+    <button id="notif-back" class="back-btn"><i class="fa-solid fa-arrow-left"></i></button>
+    <span class="explore-topbar-title">🔔 নোটিফিকেশন</span>
+    <button id="notif-mark-all" class="back-btn" title="সব পড়া হয়েছে">
+      <i class="fa-solid fa-check-double"></i>
+    </button>
+  </div>
+  <div class="notif-tabs" id="notif-tabs">
+    <button type="button" class="notif-tab active" data-type="all"><i class="fa-solid fa-list"></i> সব</button>
+    <button type="button" class="notif-tab" data-type="likes"><i class="fa-solid fa-heart"></i> লাইক</button>
+    <button type="button" class="notif-tab" data-type="comments"><i class="fa-solid fa-comment"></i> কমেন্ট</button>
+    <button type="button" class="notif-tab" data-type="follows"><i class="fa-solid fa-user-plus"></i> ফলো</button>
+  </div>
+  <div class="explore-content">
+    <div id="notif-list"></div>
+  </div>
+</div>
+
+<!-- ============ SAVED PAGE ============ -->
+<div id="saved-page" class="explore-page hidden">
+  <div class="explore-topbar">
+    <button id="saved-back" class="back-btn"><i class="fa-solid fa-arrow-left"></i></button>
+    <span class="explore-topbar-title">🔖 সেভ করা পোস্ট</span>
+  </div>
+  <div class="explore-content">
+    <div id="saved-list"></div>
+  </div>
+</div>
+
+<!-- ============ SETTINGS PAGE ============ -->
+<div id="settings-page" class="explore-page hidden">
+  <div class="explore-topbar">
+    <button id="settings-back" class="back-btn"><i class="fa-solid fa-arrow-left"></i></button>
+    <span class="explore-topbar-title">⚙️ সেটিংস</span>
+  </div>
+  <div class="explore-content">
+
+    <div class="settings-section-header" data-section="security">
+      <i class="fa-solid fa-shield-halved"></i>
+      <span>নিরাপত্তা</span>
+    </div>
+
+    <div class="settings-card">
+      <h3><i class="fa-solid fa-key"></i> পাসওয়ার্ড পরিবর্তন</h3>
+      <p class="settings-hint">নিরাপত্তার জন্য বর্তমান পাসওয়ার্ড দিয়ে যাচাই করা হবে।</p>
+      <div class="input-group"><i class="fa-solid fa-lock input-icon"></i><input type="password" id="set-current-pw" placeholder="বর্তমান পাসওয়ার্ড"></div>
+      <div class="input-group"><i class="fa-solid fa-lock input-icon"></i><input type="password" id="set-new-pw" placeholder="নতুন পাসওয়ার্ড (৬+ অক্ষর)"></div>
+      <div class="input-group"><i class="fa-solid fa-lock input-icon"></i><input type="password" id="set-confirm-pw" placeholder="নতুন পাসওয়ার্ড আবার লিখুন"></div>
+      <button class="btn-primary" id="btn-change-pw"><i class="fa-solid fa-check"></i> পাসওয়ার্ড বদলান</button>
+    </div>
+
+    <div class="settings-card">
+      <h3><i class="fa-solid fa-at"></i> ইউজারনেম পরিবর্তন</h3>
+      <p class="settings-hint">শুধু ইংরেজি ছোট হাতের অক্ষর (a-z), সংখ্যা (0-9), এবং আন্ডারস্কোর (_) ব্যবহার করুন। এই ইউজারনেম দিয়ে সবাই আপনাকে খুঁজে পাবে।</p>
+      <div class="input-group"><i class="fa-solid fa-at input-icon"></i><input type="text" id="set-username" placeholder="নতুন ইউজারনেম"></div>
+      <button class="btn-primary" id="btn-change-uname"><i class="fa-solid fa-check"></i> ইউজারনেম বদলান</button>
+    </div>
+
+    <div class="settings-card">
+      <h3><i class="fa-solid fa-circle-info"></i> অ্যাকাউন্ট তথ্য</h3>
+      <p class="settings-hint">আপনার বর্তমান ইউজারনেম: <strong id="set-current-uname">—</strong></p>
+    </div>
+
+    <div class="settings-card">
+      <h3><i class="fa-solid fa-flag"></i> আমার রিপোর্ট</h3>
+      <p class="settings-hint">আপনি যেসব কনটেন্ট রিপোর্ট করেছেন এবং তাদের অবস্থা।</p>
+      <div id="my-reports-list" class="my-reports-list">
+        <p class="empty-text" style="padding:12px 0">লোড হচ্ছে...</p>
+      </div>
+    </div>
+
+    <div class="settings-card" id="email-card">
+      <h3><i class="fa-solid fa-envelope"></i> ইমেইল</h3>
+      <p class="settings-hint" id="email-status-text">লোড হচ্ছে...</p>
+      <div id="email-has" class="hidden">
+        <p class="settings-hint">
+          <strong id="email-show">—</strong>
+          <span id="email-verified-badge" class="hidden" style="color:var(--online);margin-left:6px">
+            <i class="fa-solid fa-circle-check"></i> যাচাইকৃত
+          </span>
+        </p>
+        <div style="display:flex;gap:8px">
+          <button class="btn-secondary" id="btn-change-email" style="flex:1">
+            <i class="fa-solid fa-pen"></i> পরিবর্তন
+          </button>
+          <button class="btn-secondary danger-btn" id="btn-remove-email" style="flex:1">
+            <i class="fa-solid fa-trash"></i> মুছুন
+          </button>
+        </div>
+      </div>
+      <div id="email-none" class="hidden">
+        <p class="settings-hint">ইমেইল যোগ করলে পাসওয়ার্ড ভুলে গেলে reset করতে পারবেন।</p>
+        <button class="btn-primary" id="btn-add-email" style="width:100%">
+          <i class="fa-solid fa-plus"></i> ইমেইল যোগ করুন
+        </button>
+      </div>
+    </div>
+
+    <div class="settings-card" id="2fa-card">
+      <h3><i class="fa-solid fa-shield-halved"></i> Two-Factor Authentication</h3>
+      <p class="settings-hint" id="2fa-status-text">লোড হচ্ছে...</p>
+      <div id="2fa-enabled-view" class="hidden">
+        <p class="settings-hint">
+          <strong style="color:var(--online)">✅ সক্রিয়</strong> —
+          Backup codes বাকি: <strong id="2fa-backup-count">0</strong>
+        </p>
+        <button class="btn-secondary danger-btn" id="btn-disable-2fa" style="width:100%">
+          <i class="fa-solid fa-shield-slash"></i> 2FA নিষ্ক্রিয় করুন
+        </button>
+      </div>
+      <div id="2fa-disabled-view" class="hidden">
+        <button class="btn-primary" id="btn-enable-2fa" style="width:100%">
+          <i class="fa-solid fa-shield-halved"></i> 2FA চালু করুন
+        </button>
+      </div>
+    </div>
+
+    <div class="settings-card" id="active-sessions-card">
+      <h3><i class="fa-solid fa-desktop"></i> সক্রিয় সেশন</h3>
+      <p class="settings-hint">এখন কোন কোন ডিভাইসে আপনার অ্যাকাউন্টে লগইন আছে।</p>
+      <div id="active-sessions-list" class="active-sessions-list">
+        <p class="empty-text" style="padding:12px 0">লোড হচ্ছে...</p>
+      </div>
+      <button class="btn-secondary danger-btn" id="btn-revoke-others" style="margin-top:10px;width:100%">
+        <i class="fa-solid fa-right-from-bracket"></i> অন্য সব থেকে লগআউট
+      </button>
+    </div>
+
+    <div class="settings-card" id="login-history-card">
+      <h3><i class="fa-solid fa-clock-rotate-left"></i> সাম্প্রতিক লগইন</h3>
+      <p class="settings-hint">আপনার অ্যাকাউন্টে কোথা থেকে লগইন হয়েছে। সন্দেহজনক কিছু দেখলে পাসওয়ার্ড বদলান।</p>
+      <div id="login-history-list" class="login-history-list">
+        <p class="empty-text" style="padding:12px 0">লোড হচ্ছে...</p>
+      </div>
+      <button class="btn-secondary" id="btn-clear-logins" style="margin-top:10px;width:100%">
+        <i class="fa-regular fa-trash-can"></i> ইতিহাস মুছুন
+      </button>
+    </div>
+
+    <div class="settings-section-header" data-section="privacy">
+      <i class="fa-solid fa-lock"></i>
+      <span>প্রাইভেসি</span>
+    </div>
+
+    <div class="settings-card">
+      <h3><i class="fa-solid fa-lock"></i> প্রাইভেসি</h3>
+      <p class="settings-hint">Private account হলে শুধু আপনার followers আপনার posts দেখতে পাবে।</p>
+      <div class="privacy-toggle-row">
+        <div class="privacy-toggle-info">
+          <div class="privacy-toggle-label" id="privacy-label">Public প্রোফাইল</div>
+          <div class="privacy-toggle-sub" id="privacy-sub">সবাই আপনার posts দেখতে পাবে</div>
+        </div>
+        <button class="theme-switch" id="privacy-switch" aria-label="Toggle privacy">
+          <span class="switch-knob"></span>
+        </button>
+      </div>
+    </div>
+
+    <div class="settings-card">
+      <h3><i class="fa-solid fa-download"></i> আমার ডেটা</h3>
+      <p class="settings-hint">আপনার profile, posts, comments, messages — সব JSON ফাইলে download করুন।</p>
+      <button class="btn-secondary" id="btn-export-data">
+        <i class="fa-solid fa-file-arrow-down"></i> ডেটা download করুন
+      </button>
+    </div>
+
+    <div class="settings-card">
+      <h3><i class="fa-solid fa-shield-halved"></i> নিরাপত্তা</h3>
+      <p class="settings-hint">অন্য কোনো ডিভাইসে লগইন করা থাকলে সেখান থেকে লগআউট হয়ে যাবে। আপনার এই ডিভাইস চালু থাকবে।</p>
+      <button class="btn-secondary" id="btn-logout-all">
+        <i class="fa-solid fa-right-from-bracket"></i> সব ডিভাইস থেকে লগআউট
+      </button>
+    </div>
+
+    <div class="settings-section-header" data-section="danger">
+      <i class="fa-solid fa-triangle-exclamation"></i>
+      <span>বিপদ অঞ্চল</span>
+    </div>
+
+    <div class="settings-card danger-zone">
+      <h3><i class="fa-solid fa-triangle-exclamation"></i> ডেঞ্জার জোন</h3>
+      <p class="settings-hint">Account ডিলিট করলে আপনার সব posts, messages, stories, followers চিরতরে মুছে যাবে। এটি ফেরানো যাবে না।</p>
+      <button class="btn-secondary danger-btn" id="btn-delete-account">
+        <i class="fa-regular fa-trash-can"></i> অ্যাকাউন্ট ডিলিট করুন
+      </button>
+    </div>
+
+    <div class="settings-card">
+      <h3><i class="fa-solid fa-ban"></i> ব্লক করা ইউজার</h3>
+      <p class="settings-hint">এই ইউজারদের পোস্ট আপনার ফিডে দেখাবে না এবং তারা আপনাকে মেসেজ পাঠাতে পারবে না।</p>
+      <div id="blocked-users-list" class="blocked-users-list">
+        <p class="empty-text" style="padding:12px 0">লোড হচ্ছে...</p>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ============ SEARCH PAGE ============ -->
+<div id="search-page" class="search-page hidden">
+  <div class="search-page-topbar">
+    <button id="search-page-back" class="back-btn"><i class="fa-solid fa-arrow-left"></i></button>
+    <div class="search-page-input-wrap">
+      <i class="fa-solid fa-magnifying-glass"></i>
+      <input type="text" id="search-page-input" placeholder="মানুষ, পোস্ট, বিষয় খুঁজুন..." autocomplete="off" autofocus>
+      <button type="button" class="search-page-clear hidden" id="search-page-clear"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+  </div>
+
+  <div class="search-page-tabs" id="search-page-tabs">
+    <button type="button" class="search-tab active" data-type="all"><i class="fa-solid fa-magnifying-glass"></i> সব</button>
+    <button type="button" class="search-tab" data-type="users"><i class="fa-solid fa-user"></i> মানুষ</button>
+    <button type="button" class="search-tab" data-type="posts"><i class="fa-solid fa-file-lines"></i> পোস্ট</button>
+    <button type="button" class="search-tab" data-type="hashtags"><i class="fa-solid fa-hashtag"></i> ট্যাগ</button>
+  </div>
+
+  <div class="search-page-body" id="search-page-body"></div>
+</div>
+
+<!-- ============ EXPLORE PAGE ============ -->
+<div id="explore-page" class="explore-page hidden">
+  <div class="explore-topbar">
+    <button id="explore-back" class="back-btn"><i class="fa-solid fa-arrow-left"></i></button>
+    <span class="explore-topbar-title">এক্সপ্লোর</span>
+  </div>
+
+  <div class="explore-tabs">
+    <button class="explore-tab active" data-etab="trending"><i class="fa-solid fa-fire"></i> ট্রেন্ডিং</button>
+    <button class="explore-tab" data-etab="posts"><i class="fa-solid fa-image"></i> টপ পোস্ট</button>
+    <button class="explore-tab" data-etab="users"><i class="fa-solid fa-user-plus"></i> মানুষ</button>
+  </div>
+
+  <div class="explore-content">
+    <div id="explore-trending" class="explore-pane"></div>
+    <div id="explore-posts" class="explore-pane hidden"></div>
+    <div id="explore-users" class="explore-pane hidden"></div>
+  </div>
+</div>
+
+<!-- ============ HASHTAG PAGE ============ -->
+<div id="hashtag-page" class="hashtag-page hidden">
+  <div class="explore-topbar">
+    <button id="hashtag-back" class="back-btn"><i class="fa-solid fa-arrow-left"></i></button>
+    <span class="explore-topbar-title" id="hashtag-title">#tag</span>
+  </div>
+  <div class="explore-content">
+    <div id="hashtag-info" class="hashtag-info"></div>
+    <div id="hashtag-posts"></div>
+  </div>
+</div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!-- ============ PROFILE MODAL (legacy) ============ -->
+<div id="profile-modal" class="modal hidden">
+  <div class="modal-content">
+    <button class="close-btn" id="close-profile">×</button>
+    <div id="profile-detail"></div>
+  </div>
+</div>
+
+<!-- ============ ADMIN PANEL (S14) ============ -->
+<div id="admin-page" class="explore-page hidden">
+  <div class="explore-topbar">
+    <button id="admin-back" class="back-btn"><i class="fa-solid fa-arrow-left"></i></button>
+    <span class="explore-topbar-title">🛡️ Admin Panel</span>
+    <button id="admin-refresh" class="back-btn" title="রিফ্রেশ">
+      <i class="fa-solid fa-rotate"></i>
+    </button>
+  </div>
+
+  <div class="admin-tabs" id="admin-tabs">
+    <button type="button" class="admin-tab active" data-atab="dashboard"><i class="fa-solid fa-chart-line"></i> ড্যাশবোর্ড</button>
+    <button type="button" class="admin-tab" data-atab="reports"><i class="fa-solid fa-flag"></i> রিপোর্ট</button>
+    <button type="button" class="admin-tab" data-atab="users"><i class="fa-solid fa-users"></i> ইউজার</button>
+    <button type="button" class="admin-tab" data-atab="log"><i class="fa-solid fa-list-check"></i> লগ</button>
+  </div>
+
+  <div class="admin-content">
+    <div id="admin-pane-dashboard" class="admin-pane"></div>
+    <div id="admin-pane-reports" class="admin-pane hidden"></div>
+    <div id="admin-pane-users" class="admin-pane hidden"></div>
+    <div id="admin-pane-log" class="admin-pane hidden"></div>
+  </div>
+</div>
+
+<!-- ============ ADMIN ACTION MODAL ============ -->
+<div id="admin-action-modal" class="modal hidden">
+  <div class="modal-content" style="max-width:480px">
+    <button class="close-btn" id="close-admin-action">×</button>
+    <h2 id="admin-action-title" style="margin-bottom:16px;font-size:20px">Action</h2>
+    <div id="admin-action-body"></div>
+  </div>
+</div>
+
+<!-- ============ ONBOARDING ============ -->
+<div id="onboarding" class="onboarding hidden">
+  <div class="ob-progress">
+    <span class="ob-dot active" data-step="1"></span>
+    <span class="ob-dot" data-step="2"></span>
+    <span class="ob-dot" data-step="3"></span>
+  </div>
+
+  <!-- Step 1: Welcome -->
+  <div class="ob-step" data-step="1">
+    <div class="ob-icon">👋</div>
+    <h1 class="ob-title">স্বাগতম JUKTOY এ!</h1>
+    <p class="ob-text">বাংলাদেশের নিজস্ব সোশ্যাল প্ল্যাটফর্ম।<br>চলুন ৩টি ছোট ধাপে সেটআপ করি।</p>
+    <button class="ob-primary" data-next="2">চলুন শুরু করি <i class="fa-solid fa-arrow-right"></i></button>
+    <button class="ob-skip" data-skip>এড়িয়ে যান</button>
+  </div>
+
+  <!-- Step 2: Profile -->
+  <div class="ob-step hidden" data-step="2">
+    <div class="ob-icon">📸</div>
+    <h2 class="ob-title">প্রোফাইল সাজান</h2>
+    <p class="ob-text">ছবি ও বায়ো যোগ করলে মানুষ আপনাকে সহজে চিনবে।</p>
+
+    <div class="ob-cover-wrap" id="ob-cover-wrap">
+      <div class="ob-cover" id="ob-cover">
+        <div class="ob-cover-placeholder">
+          <i class="fa-solid fa-image"></i>
+          <span>কভার ছবি যোগ করুন</span>
+        </div>
+      </div>
+      <button class="ob-cover-btn" id="ob-cover-btn"><i class="fa-solid fa-camera"></i> কভার</button>
+      <input type="file" id="ob-cover-input" accept="image/*" style="display:none">
+    </div>
+
+    <div class="ob-avatar-wrap">
+      <div class="ob-avatar" id="ob-avatar"></div>
+      <button class="ob-avatar-btn" id="ob-avatar-btn"><i class="fa-solid fa-camera"></i></button>
+      <input type="file" id="ob-avatar-input" accept="image/*" style="display:none">
+    </div>
+
+    <textarea id="ob-bio" class="ob-bio" placeholder="নিজের সম্পর্কে কিছু লিখুন... (ঐচ্ছিক)" maxlength="200"></textarea>
+
+    <div class="ob-btn-row">
+      <button class="ob-secondary" data-back="1">পিছনে</button>
+      <button class="ob-primary" data-next="3">পরবর্তী <i class="fa-solid fa-arrow-right"></i></button>
+    </div>
+    <button class="ob-skip" data-skip>এড়িয়ে যান</button>
+  </div>
+
+  <!-- Step 3: Follow -->
+  <div class="ob-step hidden" data-step="3">
+    <div class="ob-icon">👥</div>
+    <h2 class="ob-title">যাদের ফলো করবেন</h2>
+    <p class="ob-text">৫ জনকে ফলো করলে তাদের পোস্ট আপনার ফিডে আসবে।</p>
+
+    <div id="ob-users" class="ob-users">
+      <p class="ob-loading">লোড হচ্ছে...</p>
+    </div>
+
+    <div class="ob-btn-row">
+      <button class="ob-secondary" data-back="2">পিছনে</button>
+      <button class="ob-primary" id="ob-finish">শেষ করুন <i class="fa-solid fa-check"></i></button>
+    </div>
+    <button class="ob-skip" data-skip>এড়িয়ে যান</button>
+  </div>
+</div>
+</div>
+
+<!-- ============ 2FA DISABLE MODAL ============ -->
+<div id="2fa-disable-modal" class="modal hidden">
+  <div class="modal-content" style="max-width:440px">
+    <button class="close-btn" id="close-2fa-disable">×</button>
+    <h2 style="margin-bottom:14px;font-size:20px"><i class="fa-solid fa-shield-slash" style="color:var(--danger)"></i> 2FA নিষ্ক্রিয় করুন</h2>
+    <p class="settings-hint">নিশ্চিত করতে আপনার পাসওয়ার্ড দিন।</p>
+    <div class="input-group" style="margin-bottom:16px">
+      <i class="fa-solid fa-lock input-icon"></i>
+      <input type="password" id="2fa-disable-pw" placeholder="পাসওয়ার্ড">
+    </div>
+    <div class="edit-actions">
+      <button class="btn-secondary" id="cancel-2fa-disable">বাতিল</button>
+      <button class="btn-primary danger-btn" id="submit-2fa-disable" style="width:auto;padding:12px 28px">
+        <i class="fa-solid fa-shield-slash"></i> নিষ্ক্রিয় করুন
+      </button>
+    </div>
+  </div>
+</div>
+<!-- ============ 2FA BACKUP CODES MODAL ============ -->
+<div id="2fa-backup-modal" class="modal hidden">
+  <div class="modal-content" style="max-width:480px">
+    <h2 style="margin-bottom:14px;font-size:20px"><i class="fa-solid fa-life-ring" style="color:var(--accent)"></i> Backup Codes</h2>
+    <p class="settings-hint" style="background:rgba(245,158,11,.1);border-left:3px solid #f59e0b;padding:10px 12px;border-radius:8px">
+      ⚠️ এই কোডগুলো <strong>শুধু একবার</strong> দেখানো হবে। নিরাপদ জায়গায় (password manager / কাগজে) সংরক্ষণ করুন। প্রতিটি কোড <strong>একবার</strong> কাজ করে।
+    </p>
+    <div id="2fa-backup-list" class="backup-codes-grid"></div>
+    <div class="edit-actions" style="margin-top:16px">
+      <button class="btn-secondary" id="btn-copy-backup" style="flex:1">
+        <i class="fa-regular fa-copy"></i> সব কপি
+      </button>
+      <button class="btn-primary" id="btn-done-backup" style="flex:1">
+        <i class="fa-solid fa-check"></i> সংরক্ষণ করেছি
+      </button>
+    </div>
+  </div>
+</div>
+<!-- ============ 2FA SETUP MODAL ============ -->
+<div id="2fa-setup-modal" class="modal hidden">
+  <div class="modal-content" style="max-width:480px">
+    <button class="close-btn" id="close-2fa-setup">×</button>
+    <h2 style="margin-bottom:14px;font-size:20px"><i class="fa-solid fa-shield-halved" style="color:var(--accent)"></i> 2FA চালু করুন</h2>
+    <p class="settings-hint">
+      ১. আপনার ফোনে <strong>Google Authenticator</strong>, <strong>Authy</strong>, বা <strong>FreeOTP</strong> ইনস্টল করুন।<br>
+      ২. নিচের সিক্রেট কোডটি "Enter setup key" / "Manually add" দিয়ে যোগ করুন।<br>
+      ৩. অ্যাপে দেখা ৬ ডিজিটের কোড নিচে দিন।
+    </p>
+    <label class="edit-label">আপনার সিক্রেট (base32)</label>
+    <div class="input-group" style="margin-bottom:12px">
+      <i class="fa-solid fa-key input-icon"></i>
+      <input type="text" id="2fa-secret-display" readonly style="font-family:monospace;letter-spacing:1px">
+      <button type="button" class="toggle-eye" id="btn-copy-2fa-secret" title="কপি করুন" style="right:14px">
+        <i class="fa-regular fa-copy"></i>
+      </button>
+    </div>
+    <details style="margin-bottom:14px">
+      <summary style="cursor:pointer;font-size:13px;color:var(--accent);font-weight:600">otpauth URI দেখুন (ঐচ্ছিক)</summary>
+      <div class="input-group" style="margin-top:8px">
+        <input type="text" id="2fa-otpauth-display" readonly style="font-family:monospace;font-size:11px">
+        <button type="button" class="toggle-eye" id="btn-copy-2fa-otpauth" style="right:14px">
+          <i class="fa-regular fa-copy"></i>
+        </button>
+      </div>
+    </details>
+    <label class="edit-label">Authenticator থেকে ৬ ডিজিটের কোড</label>
+    <div class="input-group" style="margin-bottom:16px">
+      <i class="fa-solid fa-shield-halved input-icon"></i>
+      <input type="text" id="2fa-verify-code" placeholder="123456" inputmode="numeric" maxlength="6" autocomplete="one-time-code">
+    </div>
+    <div class="edit-actions">
+      <button class="btn-secondary" id="cancel-2fa-setup">বাতিল</button>
+      <button class="btn-primary" id="submit-2fa-setup" style="width:auto;padding:12px 28px">
+        <i class="fa-solid fa-check"></i> চালু করুন
+      </button>
+    </div>
+  </div>
+</div>
+<!-- ============ EMAIL ADD/CHANGE MODAL ============ -->
+<div id="email-edit-modal" class="modal hidden">
+  <div class="modal-content" style="max-width:460px">
+    <button class="close-btn" id="close-email-edit">×</button>
+    <h2 style="margin-bottom:14px;font-size:20px"><i class="fa-solid fa-envelope" style="color:var(--accent)"></i> ইমেইল যোগ / পরিবর্তন</h2>
+    <p class="settings-hint">ইমেইল যাচাই না হলেও পাসওয়ার্ড রিসেট কাজ করবে।</p>
+    <div class="input-group" style="margin-bottom:12px">
+      <i class="fa-solid fa-envelope input-icon"></i>
+      <input type="email" id="email-input-field" placeholder="you@example.com" autocomplete="email">
+    </div>
+    <div class="input-group" style="margin-bottom:16px">
+      <i class="fa-solid fa-lock input-icon"></i>
+      <input type="password" id="email-password-field" placeholder="আপনার পাসওয়ার্ড" autocomplete="current-password">
+    </div>
+    <div class="edit-actions">
+      <button class="btn-secondary" id="cancel-email-edit">বাতিল</button>
+      <button class="btn-primary" id="submit-email-edit" style="width:auto;padding:12px 28px">
+        <i class="fa-solid fa-check"></i> সেভ করুন
+      </button>
+    </div>
+    <p id="email-edit-error" class="hidden" style="margin-top:10px;color:var(--danger);font-size:13px;text-align:center"></p>
+  </div>
+</div>
+<!-- ============ RESET PASSWORD MODAL (from email link) ============ -->
+<div id="reset-modal" class="modal hidden">
+  <div class="modal-content" style="max-width:460px">
+    <h2 style="margin-bottom:14px;font-size:20px"><i class="fa-solid fa-key" style="color:var(--accent)"></i> নতুন পাসওয়ার্ড</h2>
+    <p class="settings-hint">
+      <span id="reset-for-user" class="hidden">অ্যাকাউন্ট: <strong id="reset-username">—</strong><br></span>
+      আপনার নতুন পাসওয়ার্ড দিন।
+    </p>
+    <div class="input-group" style="margin-bottom:12px">
+      <i class="fa-solid fa-lock input-icon"></i>
+      <input type="password" id="reset-new-pw" placeholder="নতুন পাসওয়ার্ড (৬+)" autocomplete="new-password">
+    </div>
+    <div class="input-group" style="margin-bottom:16px">
+      <i class="fa-solid fa-lock input-icon"></i>
+      <input type="password" id="reset-confirm-pw" placeholder="আবার লিখুন" autocomplete="new-password">
+    </div>
+    <div class="edit-actions">
+      <button class="btn-secondary" id="reset-cancel">বাতিল</button>
+      <button class="btn-primary" id="reset-submit" style="width:auto;padding:12px 28px">
+        <i class="fa-solid fa-check"></i> সেভ করুন
+      </button>
+    </div>
+    <p id="reset-error" class="hidden" style="margin-top:10px;color:var(--danger);font-size:13px;text-align:center"></p>
+  </div>
+</div>
+<!-- ============ FORGOT PASSWORD MODAL (Email based) ============ -->
+<div id="forgot-modal" class="modal hidden">
+  <div class="modal-content" style="max-width:460px">
+    <button class="close-btn" id="close-forgot">×</button>
+    <h2 style="margin-bottom:14px;font-size:20px"><i class="fa-solid fa-envelope" style="color:var(--accent)"></i> পাসওয়ার্ড রিসেট</h2>
+
+    <div id="forgot-step-1">
+      <p class="settings-hint">আপনার অ্যাকাউন্টে যোগ করা ইমেইল দিন। রিসেট লিংক পাঠানো হবে।</p>
+      <div class="input-group" style="margin-bottom:16px">
+        <i class="fa-solid fa-envelope input-icon"></i>
+        <input type="email" id="forgot-email" placeholder="you@example.com" autocomplete="email">
+      </div>
+      <div class="edit-actions">
+        <button class="btn-secondary" id="cancel-forgot-1">বাতিল</button>
+        <button class="btn-primary" id="btn-forgot-send" style="width:auto;padding:12px 28px">
+          <i class="fa-solid fa-paper-plane"></i> লিংক পাঠান
+        </button>
+      </div>
+      <p id="forgot-error" class="hidden" style="margin-top:10px;color:var(--danger);font-size:13px;text-align:center"></p>
+    </div>
+
+    <div id="forgot-step-2" class="hidden" style="text-align:center">
+      <div style="font-size:56px;margin-bottom:8px">📬</div>
+      <h3 style="font-size:17px;font-weight:800;color:var(--text);margin-bottom:8px">ইমেইল চেক করুন</h3>
+      <p class="settings-hint">
+        আমরা <strong id="forgot-sent-to">—</strong> এ একটা রিসেট লিংক পাঠিয়েছি।<br>
+        লিংকে ক্লিক করে নতুন পাসওয়ার্ড সেট করুন। লিংক ১৫ মিনিট পর expire হবে।
+      </p>
+      <button class="btn-secondary" id="forgot-done" style="margin-top:12px">বুঝেছি</button>
+    </div>
+  </div>
+</div>
+
+<script src="static/app.js?v=2300"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!-- ============ CALL HISTORY PAGE (S4B) ============ -->
+<div id="call-history-page" class="explore-page hidden">
+  <div class="explore-topbar">
+    <button id="calls-back" class="back-btn"><i class="fa-solid fa-arrow-left"></i></button>
+    <span class="explore-topbar-title">📞 কল হিস্টরি</span>
+    <button id="calls-refresh" class="back-btn" title="রিফ্রেশ">
+      <i class="fa-solid fa-rotate"></i>
+    </button>
+  </div>
+  <div class="call-tabs" id="call-tabs">
+    <button type="button" class="call-tab active" data-ctab="all"><i class="fa-solid fa-list"></i> সব</button>
+    <button type="button" class="call-tab" data-ctab="missed"><i class="fa-solid fa-phone-slash"></i> মিসড</button>
+    <button type="button" class="call-tab" data-ctab="outgoing"><i class="fa-solid fa-arrow-up-right-from-square"></i> বহির্গামী</button>
+    <button type="button" class="call-tab" data-ctab="incoming"><i class="fa-solid fa-arrow-down"></i> আগত</button>
+  </div>
+  <div class="explore-content">
+    <div id="calls-list"></div>
+  </div>
+</div>
+
+<script src="static/call.js?v=7"></script>
+<script id="app-loader-watch">
+(function(){
+  var splash = document.getElementById("app-loader");
+  if (!splash) return;
+  var done = false;
+  function hide() {
+    if (done) return;
+    done = true;
+    splash.style.opacity = "0";
+    splash.style.pointerEvents = "none";
+    setTimeout(function(){
+      if (splash.parentNode) splash.parentNode.removeChild(splash);
+    }, 320);
+  }
+  var appView = document.getElementById("app-view");
+  if (appView) {
+    var check = function(){ if (!appView.classList.contains("hidden")) hide(); };
+    try {
+      new MutationObserver(check).observe(appView, { attributes: true, attributeFilter: ["class"] });
+    } catch (e) {}
+    check();
+  }
+  // Fallback — hide after 1.5s regardless (login page case)
+  setTimeout(hide, 1500);
+})();
+</script>
+</body>
+</html>
