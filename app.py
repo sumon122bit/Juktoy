@@ -14,8 +14,6 @@ CORS(app, supports_credentials=True, origins=[
     "http://localhost",
     "https://localhost"
 ])
-app.config['SESSION_COOKIE_SAMESITE'] = 'None'
-app.config['SESSION_COOKIE_SECURE'] = True
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # S9 — preferred locations (outside project directory):
@@ -114,8 +112,8 @@ SESSION_IDLE_SECONDS = 2 * 3600
 app.config.update(
     SESSION_COOKIE_NAME="juktoy_session",
     SESSION_COOKIE_HTTPONLY=True,
-    SESSION_COOKIE_SAMESITE="Lax",
-    SESSION_COOKIE_SECURE=_secure_flag,
+    SESSION_COOKIE_SAMESITE="None",
+    SESSION_COOKIE_SECURE=True,
     SESSION_COOKIE_PATH="/",
     SESSION_REFRESH_EACH_REQUEST=True,
     PERMANENT_SESSION_LIFETIME=_td(days=SESSION_MAX_AGE_DAYS),
