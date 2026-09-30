@@ -90,7 +90,52 @@ function showMessage(text, type = "") {
   el.className = "message " + type;
 }
 
+
+function _fixUrl(u) {
+  if (!u) return u;
+  if (u.startsWith("http") || u.startsWith("data:") || u.startsWith("blob:")) return u;
+  if (u.startsWith("/")) return BASE_URL + u;
+  return BASE_URL + "/" + u;
+}
+
+// ============================================
+// GLOBAL IMAGE URL FIXER
+// ============================================
+function _fixAllMedia(root) {
+  (root || document).querySelectorAll("img, video, source").forEach((el) => {
+    const src = el.getAttribute("src");
+    if (src && !src.startsWith("http") && !src.startsWith("data:") && !src.startsWith("blob:") && !src.startsWith("capacitor:")) {
+      el.setAttribute("src", BASE_URL + (src.startsWith("/") ? src : "/" + src));
+    }
+  });
+}
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", () => _fixAllMedia());
+} else {
+  _fixAllMedia();
+}
+
+const _mediaObserver = new MutationObserver((mutations) => {
+  for (const m of mutations) {
+    for (const node of m.addedNodes) {
+      if (node.nodeType === 1) _fixAllMedia(node);
+    }
+  }
+});
+
+function _startObserver() {
+  if (document.body) {
+    _mediaObserver.observe(document.body, { childList: true, subtree: true });
+    _fixAllMedia();
+  } else {
+    document.addEventListener("DOMContentLoaded", _startObserver);
+  }
+}
+_startObserver();
+
 function avatarInner(name, pic) {
+  pic = _fixUrl(pic);
   if (pic) return `<img src="${escapeHtml(pic)}" alt="${escapeHtml(name)}">`;
   return initial(name);
 }
@@ -103,6 +148,7 @@ function avatarHTML(name, pic, className = "avatar", dataUser = "") {
 
 function setAvatar(el, name, pic) {
   if (!el) return;
+  pic = _fixUrl(pic);
   if (pic) {
     el.innerHTML = `<img src="${escapeHtml(pic)}" alt="${escapeHtml(name)}">`;
   } else {
