@@ -56,3 +56,7 @@ stripfix.py
 run.sh
 gunicorn.sh
 *.broken.*
+social.db
+social.db-wal
+social.db-shm
+www/static/uploads/
