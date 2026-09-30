@@ -698,13 +698,6 @@ def init_db():
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )""")
 
-    # Series 3B — chat personalization
-    for _col, _dflt in [("theme", "'default'"), ("nickname", "''"), ("wallpaper", "'default'"), ("nickname_public", "0"), ("my_nickname", "''")]:
-        try:
-            c.execute(f"ALTER TABLE chat_settings ADD COLUMN {_col} TEXT DEFAULT {_dflt}")
-        except sqlite3.OperationalError:
-            pass
-
     c.execute("""CREATE TABLE IF NOT EXISTS starred_messages (
         user_id INTEGER NOT NULL,
         message_id INTEGER NOT NULL,
@@ -748,6 +741,19 @@ def init_db():
         is_muted INTEGER DEFAULT 0,
         PRIMARY KEY (user_id, other_user_id)
     )""")
+
+    # Series 3B — chat personalization (AFTER chat_settings exists)
+    for _col, _dflt in [
+        ("theme", "'default'"),
+        ("nickname", "''"),
+        ("wallpaper", "'default'"),
+        ("nickname_public", "0"),
+        ("my_nickname", "''"),
+    ]:
+        try:
+            c.execute(f"ALTER TABLE chat_settings ADD COLUMN {_col} TEXT DEFAULT {_dflt}")
+        except sqlite3.OperationalError:
+            pass
 
     c.execute("""CREATE TABLE IF NOT EXISTS story_views (
         story_id INTEGER,
