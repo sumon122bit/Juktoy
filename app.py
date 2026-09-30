@@ -345,7 +345,7 @@ def _pending_2fa_consume(token):
 # CSRF PROTECTION (S3)
 # ============================================
 
-_HTTPS_ONLY = _secure_flag
+_HTTPS_ONLY = True
 
 
 @app.before_request
@@ -367,7 +367,7 @@ def _set_csrf_cookie(response):
             "csrf_token",
             token,
             httponly=False,        # JS must be able to read it
-            samesite="Lax",
+            samesite="None",
             secure=_HTTPS_ONLY,
             max_age=30 * 24 * 3600,
             path="/",
@@ -458,6 +458,9 @@ def _session_version_check():
 @app.before_request
 def _csrf_check():
     """Validate CSRF token for all mutating API requests."""
+    origin = request.headers.get("Origin", "")
+    if origin.startswith("capacitor://") or origin in ("http://localhost", "https://localhost"):
+        return None
     if request.method in ("GET", "HEAD", "OPTIONS"):
         return None
     if not request.path.startswith("/api/"):
