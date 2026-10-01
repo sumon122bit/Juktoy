@@ -194,42 +194,6 @@ def _add_security_headers(response):
     return response
 
 
-# ============================================
-# TEMPORARY — Live active user count
-# ============================================
-
-_active_users = {}
-_active_users_lock = threading.Lock()
-_ACTIVE_WINDOW = 60  # seconds
-
-
-def _cleanup_active_users():
-    now = time.time()
-    cutoff = now - _ACTIVE_WINDOW
-    with _active_users_lock:
-        for k in list(_active_users.keys()):
-            if _active_users[k] < cutoff:
-                del _active_users[k]
-        return len(_active_users)
-
-
-@app.route("/api/active/heartbeat", methods=["POST"])
-@login_required
-def active_heartbeat():
-    uid = session["user_id"]
-    with _active_users_lock:
-        _active_users[uid] = time.time()
-    count = _cleanup_active_users()
-    return jsonify({"ok": True, "count": count})
-
-
-@app.route("/api/active/count")
-@login_required
-def active_count():
-    count = _cleanup_active_users()
-    return jsonify({"count": count})
-
-
 @app.route("/healthz")
 def healthz():
     """S10 — plain HTTP health check for load balancers."""
