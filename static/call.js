@@ -7,6 +7,24 @@
   "use strict";
 
   // ============================================
+  // S22 / Series 10 — Debug-gated logging
+  // Runs on localhost only (or when ?debug=1 in URL).
+  // ============================================
+  var _CALL_DEBUG_MODE = (
+    window.location.hostname === "localhost" ||
+    window.location.hostname === "127.0.0.1" ||
+    /[?&]debug=1/.test(window.location.search)
+  );
+  function _cdlog() {
+    if (!_CALL_DEBUG_MODE) return;
+    try { console.log.apply(console, arguments); } catch (e) {}
+  }
+  function _cdwarn() {
+    if (!_CALL_DEBUG_MODE) return;
+    try { console.warn.apply(console, arguments); } catch (e) {}
+  }
+
+  // ============================================
   // State
   // ============================================
   var CALL = {
@@ -73,7 +91,7 @@
 
   function toast(msg) {
     if (typeof window.showToast === "function") return window.showToast(msg);
-    console.log("[CALL]", msg);
+    _cdlog("[CALL]", msg);
   }
 
   // ============================================
@@ -259,7 +277,7 @@
     };
 
     pc.onconnectionstatechange = function () {
-      console.log("[CALL] pc state:", pc.connectionState);
+      _cdlog("[CALL] pc state:", pc.connectionState);
       if (pc.connectionState === "failed" || pc.connectionState === "disconnected") {
         // Try to recover, but if truly failed → end
         setTimeout(function () {
@@ -328,10 +346,10 @@
           if (CALL.pc && CALL.pc.signalingState !== "stable") {
             try {
               CALL.pc.setRemoteDescription({ type: "answer", sdp: c.answer });
-            } catch (e) { console.warn("[CALL] setRemote answer:", e); }
+            } catch (e) { _cdwarn("[CALL] setRemote answer:", e); }
           }
           // Caller side — entering active mode
-          console.log("[CALL] caller connected — wiring active UI");
+          _cdlog("[CALL] caller connected — wiring active UI");
           setSub("", false);
           if (CALL.active) {
             setKind(CALL.active.kind);
@@ -451,7 +469,7 @@
   // ACCEPT incoming call (callee)
   // ============================================
   function acceptIncoming(callId, fromUser, kind) {
-    console.log("[ACCEPT] ▶ step 1 — start", { callId: callId, user: fromUser && fromUser.username, kind: kind });
+    _cdlog("[ACCEPT] ▶ step 1 — start", { callId: callId, user: fromUser && fromUser.username, kind: kind });
     hideBanner();
     if (CALL.active) { toast("একটা কল চলছে"); return; }
 
@@ -476,22 +494,22 @@
     showOverlay();
     vib([30, 40, 30]);
 
-    console.log("[ACCEPT] ▶ step 2 — calling /answer accept");
+    _cdlog("[ACCEPT] ▶ step 2 — calling /answer accept");
     api("/api/calls/" + callId + "/answer", {
       method: "POST",
       body: JSON.stringify({ action: "accept" }),
     }).then(function (r) {
-      console.log("[ACCEPT] ✔ step 2 done:", r);
-      console.log("[ACCEPT] ▶ step 3 — getting mic");
+      _cdlog("[ACCEPT] ✔ step 2 done:", r);
+      _cdlog("[ACCEPT] ▶ step 3 — getting mic");
       // Try mic; fallback to no-mic if it fails
       return getLocalStream(kind).then(
         function (stream) {
-          console.log("[ACCEPT] ✔ step 3 mic ok — tracks:",
+          _cdlog("[ACCEPT] ✔ step 3 mic ok — tracks:",
                       stream.getTracks().map(function (t) { return t.kind + ":" + t.readyState; }));
           return { stream: stream, hasMic: true };
         },
         function (err) {
-          console.warn("[ACCEPT] ⚠ step 3 mic FAILED:", err && err.name, err && err.message);
+          _cdwarn("[ACCEPT] ⚠ step 3 mic FAILED:", err && err.name, err && err.message);
           toast("মাইক পাওয়া যায়নি — শুধু শুনতে পারবেন");
           return { stream: null, hasMic: false };
         }
@@ -502,9 +520,9 @@
         var lv = $("co-video-local");
         if (lv) lv.srcObject = res.stream;
       }
-      console.log("[ACCEPT] ▶ step 4 — fetching offer");
+      _cdlog("[ACCEPT] ▶ step 4 — fetching offer");
       return api("/api/calls/" + callId).then(function (c) {
-        console.log("[ACCEPT] ✔ step 4 got call:", {
+        _cdlog("[ACCEPT] ✔ step 4 got call:", {
           status: c.status,
           hasOffer: !!(c.offer),
           offerLen: c.offer ? c.offer.length : 0,
@@ -516,18 +534,18 @@
       var stream = res.stream;
       if (!c.offer) throw new Error("offer missing on server (caller didn't upload)");
 
-      console.log("[ACCEPT] ▶ step 5 — create peer + setRemote");
+      _cdlog("[ACCEPT] ▶ step 5 — create peer + setRemote");
       var pc = createPeer(callId, false);
       if (stream) attachLocalTracks(pc);
 
       return pc.setRemoteDescription({ type: "offer", sdp: c.offer }).then(function () {
-        console.log("[ACCEPT] ✔ step 5 remote set");
-        console.log("[ACCEPT] ▶ step 6 — createAnswer");
+        _cdlog("[ACCEPT] ✔ step 5 remote set");
+        _cdlog("[ACCEPT] ▶ step 6 — createAnswer");
         return pc.createAnswer();
       }).then(function (answer) {
-        console.log("[ACCEPT] ✔ step 6 answer ready, sdp len:", answer.sdp.length);
+        _cdlog("[ACCEPT] ✔ step 6 answer ready, sdp len:", answer.sdp.length);
         return pc.setLocalDescription(answer).then(function () {
-          console.log("[ACCEPT] ▶ step 7 — posting answer-sdp");
+          _cdlog("[ACCEPT] ▶ step 7 — posting answer-sdp");
           return api("/api/calls/" + callId + "/answer-sdp", {
             method: "POST",
             body: JSON.stringify({ answer: answer.sdp }),
@@ -535,7 +553,7 @@
         });
       });
     }).then(function () {
-      console.log("[ACCEPT] ✔ step 7 done — entering active mode");
+      _cdlog("[ACCEPT] ✔ step 7 done — entering active mode");
       setSub("", false);
       setKind(kind);
       renderActions("active", kind);
@@ -543,7 +561,7 @@
       startDurationTimer();
       startIcePolling(callId, false);
       startRemoteEndWatch(callId);
-      console.log("[ACCEPT] ✅ fully connected");
+      _cdlog("[ACCEPT] ✅ fully connected");
     }).catch(function (err) {
       console.error("[ACCEPT] ❌ FAILED at some step:", err);
       console.error("[ACCEPT] ❌ error name:", err && err.name, "| message:", err && err.message);
@@ -704,7 +722,7 @@
   // ============================================
   function startPolling() {
     if (CALL.pollTimer) { clearInterval(CALL.pollTimer); CALL.pollTimer = null; }
-    console.log("[CALL] startPolling called");
+    _cdlog("[CALL] startPolling called");
     CALL.pollTimer = setInterval(function () {
       // Series 4B fix — poll even when tab is hidden (multi-tab testing)
       if (!_getMe()) return;
@@ -713,7 +731,7 @@
       api("/api/calls/poll").then(function (d) {
         // Series 4B debug logging
         if (d.incoming) {
-          console.log("[CALL POLL] incoming found:", d.incoming, d.incoming_caller);
+          _cdlog("[CALL POLL] incoming found:", d.incoming, d.incoming_caller);
         }
         // Incoming call?
         if (d.incoming && d.incoming_caller) {
@@ -723,7 +741,7 @@
         } else {
           hideBanner();
         }
-      }).catch(function (e) { console.log("[CALL POLL] error:", e); });
+      }).catch(function (e) { _cdlog("[CALL POLL] error:", e); });
     }, 3500);
   }
 
@@ -733,20 +751,20 @@
   // Debug exposure
   window.CALL_DEBUG = CALL;
   window.callStatus = function () {
-    if (!CALL.active) { console.log("[CALL DEBUG] no active call"); return; }
+    if (!CALL.active) { _cdlog("[CALL DEBUG] no active call"); return; }
     var id = CALL.active.id;
-    console.log("[CALL DEBUG] id =", id, "| role =", CALL.active.role, "| kind =", CALL.active.kind);
+    _cdlog("[CALL DEBUG] id =", id, "| role =", CALL.active.role, "| kind =", CALL.active.kind);
     api("/api/calls/" + id).then(function (c) {
-      console.log("[CALL DEBUG] server status:", c.status);
-      console.log("[CALL DEBUG] caller_last_seen:", c.caller_last_seen);
-      console.log("[CALL DEBUG] callee_last_seen:", c.callee_last_seen);
-      console.log("[CALL DEBUG] end_reason:", c.end_reason);
+      _cdlog("[CALL DEBUG] server status:", c.status);
+      _cdlog("[CALL DEBUG] caller_last_seen:", c.caller_last_seen);
+      _cdlog("[CALL DEBUG] callee_last_seen:", c.callee_last_seen);
+      _cdlog("[CALL DEBUG] end_reason:", c.end_reason);
       return c;
     });
   };
 
   window.callStartPolling = function () {
-    console.log("[CALL] manual start requested");
+    _cdlog("[CALL] manual start requested");
     startPolling();
     return "ok";
   };
@@ -766,9 +784,9 @@
       xhr.setRequestHeader("Content-Type", "application/json");
       if (token) xhr.setRequestHeader("X-CSRF-Token", token);
       xhr.send(JSON.stringify({ reason: reason || "refresh" }));
-      console.log("[CALL] endCallSync sent for", id);
+      _cdlog("[CALL] endCallSync sent for", id);
     } catch (e) {
-      console.warn("[CALL] endCallSync failed:", e);
+      _cdwarn("[CALL] endCallSync failed:", e);
     }
   }
 
@@ -780,7 +798,7 @@
       // the call has been active for at least 2 seconds
       var uptime = Date.now() - (CALL.startedAt || 0);
       if (uptime > 2000) {
-        console.log("[CALL] visibility hidden → sending /end");
+        _cdlog("[CALL] visibility hidden → sending /end");
         endCallSync("hidden");
       }
     }
@@ -801,24 +819,24 @@
 
   // Series 4B — manual debug helper (type callDebug() in console)
   window.callDebug = function () {
-    console.log("[CALL DEBUG] me =", _getMe());
+    _cdlog("[CALL DEBUG] me =", _getMe());
     return api("/api/calls/poll").then(function (d) {
-      console.log("[CALL DEBUG] poll =", d);
+      _cdlog("[CALL DEBUG] poll =", d);
       return d;
     });
   };
   window.callForceShowBanner = function () {
     return api("/api/calls/poll").then(function (d) {
       if (d.incoming && d.incoming_caller) {
-        console.log("[CALL DEBUG] forcing banner");
+        _cdlog("[CALL DEBUG] forcing banner");
         showBanner(d.incoming, d.incoming_caller);
       } else {
-        console.log("[CALL DEBUG] no incoming to show");
+        _cdlog("[CALL DEBUG] no incoming to show");
       }
       return d;
     });
   };
-  console.log("[CALL] debug helpers ready: callDebug(), callForceShowBanner()");
+  _cdlog("[CALL] debug helpers ready: callDebug(), callForceShowBanner()");
   window.startVideoCall = function (username) { startCall(username, "video"); };
 
   // ============================================
@@ -845,7 +863,7 @@
         }
       }, 250);
     }
-    console.log("[CALL] module ready");
+    _cdlog("[CALL] module ready");
   }
 
   if (document.readyState === "loading") {

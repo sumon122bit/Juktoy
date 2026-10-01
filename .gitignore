@@ -60,3 +60,11 @@ social.db
 social.db-wal
 social.db-shm
 www/static/uploads/
+.env
+*.db
+*.db-shm
+*.db-wal
+*.bak
+.juktoy_state.json
+__pycache__/
+*.pyc

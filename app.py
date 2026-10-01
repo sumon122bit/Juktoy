@@ -1,20 +1,60 @@
 from flask import Flask, request, jsonify, session, render_template, redirect
 import sqlite3, subprocess, secrets, hashlib, os, re
+
+# S22 / Series 10.6 — load .env file (local dev convenience)
+try:
+    from dotenv import load_dotenv
+    load_dotenv()  # loads .env from project root if present
+except ImportError:
+    pass  # Render uses env vars directly — .env not needed there
+
+# S22 / Series 10.5 — flask-cors optional (same-origin web needs no CORS)
+try:
+    from flask_cors import CORS
+    _HAS_CORS = True
+except ImportError:
+    _HAS_CORS = False
+    print("[JUKTOY] flask-cors not installed — CORS skipped (OK for same-origin)")
 import html as _html  # S16.7 — HTML escape
+
+# ============================================
+# S13-C / S15.7 — HTTP client + JSON + URL parse
+# (used by HIBP breach check + Google OAuth)
+# ============================================
+import urllib.request as _ureq
+import urllib.parse   as _uparse
+import json           as _json
 import time
 import threading
 from collections import defaultdict, deque
 from functools import wraps
 
 app = Flask(__name__)
-from flask_cors import CORS
-CORS(app, supports_credentials=True, origins=[
-    "https://juktoy.onrender.com",
-    "capacitor://localhost",
-    "http://localhost",
-    "https://localhost"
-])
+if _HAS_CORS:
+    CORS(app, supports_credentials=True, origins=[
+        "https://juktoy.onrender.com",
+        "capacitor://localhost",
+        "http://localhost",
+        "https://localhost"
+    ])
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# ============================================
+# S22 (Series 5) — ADMIN SECURITY CONFIG
+# ============================================
+# The admin username is now configurable via env var.
+# Default falls back to legacy hardcoded value for compatibility.
+ADMIN_USERNAME = (os.environ.get("JUKTOY_ADMIN_USERNAME") or "sumonislam12").strip().lower()
+# Register key — required to create the admin account (see register()).
+# Set in Render env: JUKTOY_ADMIN_KEY=<long random string>
+ADMIN_KEY = os.environ.get("JUKTOY_ADMIN_KEY") or ""
+# S22 / Series 11 — auto-bootstrap admin on startup (env-var password)
+ADMIN_PASSWORD = os.environ.get("JUKTOY_ADMIN_PASSWORD") or ""
+# Search/privacy flags
+ADMIN_HIDDEN_FROM_SEARCH = True
+# If True: admin must enable 2FA before accessing /api/admin/*
+ADMIN_2FA_ENFORCED = True
+
 # S9 — preferred locations (outside project directory):
 #   1. JUKTOY_SECRET_KEY env var (production)
 #   2. ~/.juktoy_secret_key  (home dir)
@@ -218,16 +258,6 @@ def stats_users():
             SELECT COUNT(*) AS c FROM users
             WHERE datetime(created_at) > datetime('now','-1 hour')
         """).fetchone()["c"]
-        # Newest user
-        newest = conn.execute("""
-            SELECT username, display_name, created_at FROM users
-            ORDER BY id DESC LIMIT 1
-        """).fetchone()
-        # Oldest user
-        oldest = conn.execute("""
-            SELECT username, created_at FROM users
-            ORDER BY id ASC LIMIT 1
-        """).fetchone()
         conn.close()
         if total > _max_users_seen:
             _max_users_seen = total
@@ -239,8 +269,6 @@ def stats_users():
             "new_last_hour": recent,
             "peak_users": _max_users_seen,
             "server_uptime_sec": int(_t.time() - _boot_time),
-            "newest_user": dict(newest) if newest else None,
-            "oldest_user": dict(oldest) if oldest else None,
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -757,13 +785,6 @@ def init_db():
         PRIMARY KEY (user_id, message_id)
     )""")
 
-    # Series 4E — heartbeat columns
-    for _col in ("caller_last_seen", "callee_last_seen"):
-        try:
-            c.execute(f"ALTER TABLE call_sessions ADD COLUMN {_col} TIMESTAMP")
-        except sqlite3.OperationalError:
-            pass
-
     # Series 4A — Voice/Video call sessions
     c.execute("""CREATE TABLE IF NOT EXISTS call_sessions (
         id TEXT PRIMARY KEY,
@@ -785,6 +806,14 @@ def init_db():
                  ON call_sessions(callee_id, status, created_at)""")
     c.execute("""CREATE INDEX IF NOT EXISTS idx_calls_caller
                  ON call_sessions(caller_id, status, created_at)""")
+
+    # Series 4E — heartbeat columns (moved AFTER CREATE)
+    # Fresh DB: ALTER now succeeds because table already exists.
+    for _col in ("caller_last_seen", "callee_last_seen"):
+        try:
+            c.execute(f"ALTER TABLE call_sessions ADD COLUMN {_col} TIMESTAMP")
+        except sqlite3.OperationalError:
+            pass
 
     c.execute("""CREATE TABLE IF NOT EXISTS chat_settings (
         user_id INTEGER NOT NULL,
@@ -2006,6 +2035,44 @@ def _revoke_all_sessions(uid, except_token=None):
     conn.close()
 
 
+def _bootstrap_admin_if_missing():
+    """S22 / Series 11 — Auto-create admin on startup if missing.
+
+    Runs when:
+      - JUKTOY_ADMIN_USERNAME set (always)
+      - JUKTOY_ADMIN_PASSWORD set (required for auto-create)
+      - Admin user does NOT already exist in DB
+
+    Skip silently if any condition fails. Idempotent — safe to run every boot.
+    """
+    if not ADMIN_PASSWORD:
+        return
+    try:
+        conn = db()
+        row = conn.execute(
+            "SELECT id FROM users WHERE LOWER(username)=?", (ADMIN_USERNAME,)
+        ).fetchone()
+        if row:
+            print(f"[BOOTSTRAP] Admin @{ADMIN_USERNAME} already exists — skipping")
+            conn.close()
+            return
+
+        # Create admin
+        pw_hash = make_password_hash(ADMIN_PASSWORD)
+        cur = conn.execute("""
+            INSERT INTO users
+              (username, display_name, password_hash, salt, is_admin, is_private, onboarded)
+            VALUES (?, ?, ?, '', 1, 1, 1)
+        """, (ADMIN_USERNAME, "Sumon Islam", pw_hash))
+        conn.commit()
+        conn.close()
+        print(f"[BOOTSTRAP] ✅ Admin @{ADMIN_USERNAME} auto-created (id={cur.lastrowid})")
+    except sqlite3.IntegrityError as e:
+        print(f"[BOOTSTRAP] Admin already exists (race): {e}")
+    except Exception as e:
+        print(f"[BOOTSTRAP] ❌ Failed: {e}")
+
+
 def _purge_old_sessions():
     """Remove sessions older than 30 days."""
     try:
@@ -2207,6 +2274,38 @@ def _login_alert_async(uid, method="password", ua="", ip=""):
     t.start()
 
 
+def _admin_login_alert_async(uid, ua="", ip=""):
+    """S22 / Layer 3 — urgent alert on EVERY admin login (not just new device)."""
+    def _run():
+        try:
+            conn = db()
+            row = conn.execute(
+                "SELECT username, display_name, email FROM users WHERE id=?",
+                (uid,)
+            ).fetchone()
+            conn.close()
+            if not row or not row["email"] or not _is_valid_email(row["email"]):
+                return
+            label = _ua_to_device_label(ua)
+            now = time.strftime("%d %b %Y, %H:%M", time.localtime())
+            subject = "🔐 JUKTOY — ADMIN লগইন সতর্কতা"
+            text = (
+                f"হ্যালো {row['display_name']},\n\n"
+                f"আপনার ADMIN অ্যাকাউন্টে সদ্য লগইন হয়েছে।\n\n"
+                f"📱 ডিভাইস: {label}\n"
+                f"🌐 IP: {ip}\n"
+                f"🕒 সময়: {now}\n\n"
+                f"⚠️ আপনি না করলে সাথে সাথে পাসওয়ার্ড পরিবর্তন করুন "
+                f"এবং সব ডিভাইস থেকে লগআউট করুন।\n\n"
+                f"— JUKTOY Security"
+            )
+            _send_email(row["email"], subject, text)
+        except Exception as e:
+            print(f"[ADMIN ALERT] failed: {e}")
+    t = threading.Thread(target=_run, daemon=True)
+    t.start()
+
+
 # ============================================
 # S15.2 — SESSION FINGERPRINT (IP + UA binding)
 # ============================================
@@ -2337,6 +2436,23 @@ def _is_banned(uid):
     return False, None, None
 
 
+def _get_client_ip_key():
+    """S22 / Layer 7 — normalize client IP to /24 (IPv4) or prefix (IPv6).
+
+    Used for admin session IP binding. Returning a subnet (not exact IP)
+    allows minor network changes (mobile NAT, ISP reassignment) without
+    killing the session, while still blocking cross-network hijacks.
+    """
+    ip = (request.headers.get("X-Forwarded-For") or "").split(",")[0].strip() \
+         or (request.remote_addr or "")
+    if ":" not in ip:
+        parts = ip.split(".")
+        if len(parts) == 4:
+            return ".".join(parts[:3])           # IPv4 /24
+    parts = ip.split(":")
+    return ":".join(parts[:4])                   # IPv6 /64
+
+
 def admin_required(fn):
     @wraps(fn)
     def wrapper(*a, **kw):
@@ -2345,6 +2461,34 @@ def admin_required(fn):
             return jsonify({"error": "লগইন প্রয়োজন"}), 401
         if not _is_admin(uid):
             return jsonify({"error": "শুধু অ্যাডমিন অ্যাক্সেস করতে পারবেন"}), 403
+        # S22 / Layer 7 — admin session IP binding
+        stored_ip = session.get("admin_ip")
+        if stored_ip:
+            current_ip = _get_client_ip_key()
+            if not secrets.compare_digest(stored_ip, current_ip):
+                _log_security_event("admin_ip_mismatch", uid=uid,
+                                    metadata={"expected": stored_ip,
+                                              "got": current_ip})
+                session.clear()
+                return jsonify({
+                    "error": "সেশনের অবস্থান পরিবর্তন হয়েছে। আবার লগইন করুন।"
+                }), 401
+
+        # S22 / Layer 6 — admin MUST have 2FA enabled
+        if ADMIN_2FA_ENFORCED:
+            conn = db()
+            row = conn.execute(
+                "SELECT COALESCE(totp_enabled, 0) AS en FROM users WHERE id=?",
+                (uid,)
+            ).fetchone()
+            conn.close()
+            if not row or not row["en"]:
+                return jsonify({
+                    "error": "🛡️ অ্যাডমিন অ্যাক্সেসের জন্য 2FA চালু করা আবশ্যক। "
+                             "Settings → Two-Factor Authentication থেকে চালু করুন।",
+                    "needs_2fa_setup": True,
+                }), 403
+
         return fn(*a, **kw)
     return wrapper
 
@@ -2354,7 +2498,7 @@ def _enforce_sole_admin():
     Demotes any other admin, promotes sumonislam12 if present.
     Runs on every startup — even after DB reset.
     """
-    _SOLE = "sumonislam12"
+    _SOLE = ADMIN_USERNAME   # S22 / Layer 8 — from env or default
     try:
         conn = db()
         demoted = conn.execute(
@@ -2371,14 +2515,28 @@ def _enforce_sole_admin():
             (_SOLE,)
         ).fetchone()
         conn.close()
+        # S22 / Layer 4 — force admin account to be private
+        try:
+            conn.execute("UPDATE users SET is_private=1 WHERE LOWER(username)=?", (_SOLE,))
+            conn.commit()
+        except Exception:
+            pass
         if demoted:
             print(f"[SOLE-ADMIN] Demoted {demoted} other admin(s)")
         if has:
-            print(f"[SOLE-ADMIN] @{_SOLE} is the sole admin")
+            print(f"[SOLE-ADMIN] @{_SOLE} is the sole admin (private mode enforced)")
         else:
             print(f"[SOLE-ADMIN] @{_SOLE} not yet registered — will auto-admin on register/login")
     except Exception as e:
         print(f"[SOLE-ADMIN] enforce failed: {e}")
+
+
+# ============================================
+# S13-C — GOOGLE OAUTH ENDPOINT CONSTANTS
+# ============================================
+_GOOGLE_AUTH_URL     = "https://accounts.google.com/o/oauth2/v2/auth"
+_GOOGLE_TOKEN_URL    = "https://oauth2.googleapis.com/token"
+_GOOGLE_USERINFO_URL = "https://www.googleapis.com/oauth2/v2/userinfo"
 
 
 def _google_config():
@@ -2660,12 +2818,26 @@ def register():
     if _hash_time < _target_min:
         time.sleep(_target_min - _hash_time + (secrets.randbelow(100) / 1000.0))
 
-    # Sole admin — only sumonislam12 gets admin rights
-    _SOLE_ADMIN = "sumonislam12"
+    # Sole admin — only ADMIN_USERNAME gets admin rights,
+    # AND registration requires JUKTOY_ADMIN_KEY to be provided.
+    # S22 / Layer 1 — admin register protection
+    if username == ADMIN_USERNAME:
+        provided_key = (d.get("admin_key") or "").strip()
+        if not ADMIN_KEY:
+            # Server admin key not configured — refuse to create admin via register.
+            # Admin must be created manually or via startup promotion.
+            print("[S22] Blocked admin register attempt (no JUKTOY_ADMIN_KEY set on server)")
+            return jsonify({"error": "এই ইউজারনেম দিয়ে সাইনআপ করা যাচ্ছে না। ভিন্ন নাম চেষ্টা করুন।"}), 400
+        if provided_key != ADMIN_KEY:
+            # Wrong key — log and reject silently (same generic message)
+            print(f"[S22] Blocked admin register attempt (wrong key) from IP {request.remote_addr}")
+            _log_security_event("admin_register_blocked", username=username,
+                                metadata={"ip": request.remote_addr})
+            return jsonify({"error": "এই ইউজারনেম দিয়ে সাইনআপ করা যাচ্ছে না। ভিন্ন নাম চেষ্টা করুন।"}), 400
 
     conn = db()
     try:
-        is_admin_flag = 1 if username == _SOLE_ADMIN else 0
+        is_admin_flag = 1 if username == ADMIN_USERNAME else 0
         conn.execute("INSERT INTO users (username, display_name, password_hash, salt, is_admin) VALUES (?,?,?,?,?)",
                      (username, name, pw_hash, "", is_admin_flag))
         conn.commit()
@@ -2703,6 +2875,16 @@ def login():
     d = request.json or {}
     username = (d.get("username") or "").strip().lower()
     pw = d.get("password") or ""
+
+    # S22 / Layer 2 — stricter rate limit for admin username
+    if username == ADMIN_USERNAME:
+        ip = request.remote_addr or "unknown"
+        if not _limiter.hit(f"admin_login:{ip}", 3, 3600):
+            _log_security_event("admin_login_ratelimited", username=username)
+            return jsonify({
+                "error": "অনেক বেশি চেষ্টা হয়েছে। ১ ঘণ্টা পর আবার চেষ্টা করুন।"
+            }), 429
+
     conn = db()
     row = conn.execute("SELECT * FROM users WHERE username=?", (username,)).fetchone()
 
@@ -2750,7 +2932,7 @@ def login():
     conn.close()
 
     # Sole-admin enforcement on login (in case DB reset removed flag)
-    if username == "sumonislam12" and not row["is_admin"]:
+    if username == ADMIN_USERNAME and not row["is_admin"]:
         conn = db()
         conn.execute("UPDATE users SET is_admin=1 WHERE id=?", (row["id"],))
         conn.commit()
@@ -2771,13 +2953,22 @@ def login():
     # S16.6 — log successful login
     _log_security_event("login_success", uid=row["id"],
                         username=row["username"], metadata={"method": "password"})
+
+    # S22 / Layer 7 — bind admin session to client IP
+    _is_admin_user = bool(row["is_admin"]) or (username == ADMIN_USERNAME)
+    if _is_admin_user:
+        session["admin_ip"] = _get_client_ip_key()
+
     # S15.3 — record login + send alert if new device
     try:
         is_new = _record_login(row["id"], method="password")
+        _ua = request.headers.get("User-Agent") or ""
+        _ip = (request.headers.get("X-Forwarded-For") or "").split(",")[0].strip() or (request.remote_addr or "")
         if is_new:
-            _ua = request.headers.get("User-Agent") or ""
-            _ip = (request.headers.get("X-Forwarded-For") or "").split(",")[0].strip() or (request.remote_addr or "")
             _login_alert_async(row["id"], method="password", ua=_ua, ip=_ip)
+        # S22 / Layer 3 — always alert on admin login (regardless of device)
+        if _is_admin_user:
+            _admin_login_alert_async(row["id"], ua=_ua, ip=_ip)
     except Exception as e:
         print(f"[LOGIN RECORD] {e}")
     return jsonify({"ok": True})
@@ -3464,10 +3655,11 @@ def search_all():
             SELECT username, display_name, profile_pic FROM users
             WHERE (LOWER(username) LIKE ? OR LOWER(display_name) LIKE ?)
               AND id != ?
+              AND LOWER(username) != ?
               AND id NOT IN (SELECT blocked_id FROM blocks WHERE blocker_id=?)
               AND id NOT IN (SELECT blocker_id FROM blocks WHERE blocked_id=?)
             LIMIT 20
-        """, (like_lower, like_lower, uid, uid, uid)).fetchall()
+        """, (like_lower, like_lower, uid, ADMIN_USERNAME, uid, uid)).fetchall()
         users_out = [dict(r) for r in rows]
 
     if stype in ("all", "posts"):
@@ -3529,13 +3721,14 @@ def online_users():
                last_seen
         FROM users
         WHERE id != ?
+          AND LOWER(username) != ?
           AND last_seen IS NOT NULL
           AND datetime(last_seen) > datetime('now', '-5 minutes')
           AND id NOT IN (SELECT blocked_id FROM blocks WHERE blocker_id=?)
           AND id NOT IN (SELECT blocker_id FROM blocks WHERE blocked_id=?)
         ORDER BY datetime(last_seen) DESC
         LIMIT 10
-    """, (uid, uid, uid)).fetchall()
+    """, (uid, ADMIN_USERNAME, uid, uid)).fetchall()
     conn.close()
     return jsonify([dict(r) for r in rows])
 
@@ -3549,10 +3742,11 @@ def search_users():
     rows = conn.execute("""
         SELECT username, display_name, profile_pic FROM users
         WHERE (username LIKE ? OR display_name LIKE ?)
+          AND LOWER(username) != ?
           AND id NOT IN (SELECT blocked_id FROM blocks WHERE blocker_id=?)
           AND id NOT IN (SELECT blocker_id FROM blocks WHERE blocked_id=?)
         LIMIT 20
-    """, (q, q, uid, uid)).fetchall()
+    """, (q, q, ADMIN_USERNAME, uid, uid)).fetchall()
     conn.close()
     return jsonify([dict(r) for r in rows])
 
@@ -4288,10 +4482,35 @@ def delete_account():
         return jsonify({"error": msg}), 400
 
     conn = db()
-    row = conn.execute("SELECT id FROM users WHERE id=?", (uid,)).fetchone()
+    row = conn.execute("SELECT id, profile_pic, cover_pic FROM users WHERE id=?", (uid,)).fetchone()
     if not row:
         conn.close()
         return jsonify({"error": "ইউজার পাওয়া যায়নি"}), 404
+
+    # S22 / Series 8B — collect file paths BEFORE deleting DB rows
+    files_to_delete = []
+    if row["profile_pic"]:
+        files_to_delete.append(row["profile_pic"])
+    if row["cover_pic"]:
+        files_to_delete.append(row["cover_pic"])
+    for r in conn.execute("""
+        SELECT media FROM post_media
+        WHERE post_id IN (SELECT id FROM posts WHERE user_id=?)
+    """, (uid,)).fetchall():
+        if r["media"]:
+            files_to_delete.append(r["media"])
+    for r in conn.execute("SELECT media FROM stories WHERE user_id=?", (uid,)).fetchall():
+        if r["media"]:
+            files_to_delete.append(r["media"])
+    for r in conn.execute("SELECT video FROM reels WHERE user_id=?", (uid,)).fetchall():
+        if r["video"]:
+            files_to_delete.append(r["video"])
+    for r in conn.execute("SELECT attachment FROM messages WHERE sender_id=? AND attachment IS NOT NULL", (uid,)).fetchall():
+        if r["attachment"]:
+            files_to_delete.append(r["attachment"])
+    for r in conn.execute("SELECT attachment FROM group_messages WHERE sender_id=? AND attachment IS NOT NULL", (uid,)).fetchall():
+        if r["attachment"]:
+            files_to_delete.append(r["attachment"])
 
     # Cascade delete
     conn.execute("DELETE FROM post_media WHERE post_id IN (SELECT id FROM posts WHERE user_id=?)", (uid,))
@@ -4324,6 +4543,13 @@ def delete_account():
     conn.execute("DELETE FROM users WHERE id=?", (uid,))
     conn.commit()
     conn.close()
+
+    # S22 / Series 8B — delete orphan files from disk (outside DB lock)
+    try:
+        _delete_upload_many(files_to_delete)
+        print(f"[Series 8B] user {uid} delete → {len(files_to_delete)} files removed")
+    except Exception as e:
+        print(f"[Series 8B] file cleanup failed for user {uid}: {e}")
 
     session.clear()
     return jsonify({"ok": True})
@@ -4568,6 +4794,23 @@ def admin_report_action(rid):
         if t: target_author_id = t["user_id"]
 
     if action == "delete":
+        # S22 / Series 8 Bonus — collect file paths BEFORE DB deletes
+        _files_to_delete = []
+        if target_type == "post":
+            for _r in conn.execute(
+                "SELECT media FROM post_media WHERE post_id=?", (target_id,)
+            ).fetchall():
+                if _r["media"]:
+                    _files_to_delete.append(_r["media"])
+        elif target_type == "reel":
+            _r = conn.execute(
+                "SELECT video FROM reels WHERE id=?", (target_id,)
+            ).fetchone()
+            if _r and _r["video"]:
+                _files_to_delete.append(_r["video"])
+        elif target_type == "comment":
+            pass  # comments have no file attachments
+
         if target_type == "post":
             conn.execute("DELETE FROM reactions WHERE post_id=?", (target_id,))
             conn.execute("DELETE FROM comments WHERE post_id=?", (target_id,))
@@ -4643,6 +4886,16 @@ def admin_report_action(rid):
 
     conn.commit()
     conn.close()
+
+    # S22 / Series 8 Bonus — delete orphan files from disk (outside DB lock)
+    try:
+        if action == "delete" and _files_to_delete:
+            _delete_upload_many(_files_to_delete)
+            print(f"[Series 8B-Bonus] report #{rid} delete → "
+                  f"{len(_files_to_delete)} files removed")
+    except Exception as _e:
+        print(f"[Series 8B-Bonus] file cleanup failed for report #{rid}: {_e}")
+
     return jsonify({"ok": True, "action": action})
 
 
@@ -4680,17 +4933,15 @@ def admin_users():
               OR (r.target_type='post' AND r.target_id IN (SELECT id FROM posts WHERE user_id=?))
               OR (r.target_type='comment' AND r.target_id IN (SELECT id FROM comments WHERE user_id=?))
             )""", (r["id"], r["id"], r["id"])).fetchone()["c"]
-        # Is currently banned?
-        conn2 = db()
+        # S22 / Series 9B — reuse existing conn (was: N+1 connections)
         ud["is_banned"] = False
         if r["banned_until"]:
             try:
-                still = conn2.execute("SELECT datetime('now') < datetime(?) AS s",
-                                      (r["banned_until"],)).fetchone()["s"]
+                still = conn.execute("SELECT datetime('now') < datetime(?) AS s",
+                                     (r["banned_until"],)).fetchone()["s"]
                 ud["is_banned"] = bool(still)
             except Exception:
                 pass
-        conn2.close()
         users.append(ud)
 
     conn.close()
@@ -4798,8 +5049,23 @@ def admin_security_events():
 @app.route("/api/admin/check")
 @login_required
 def admin_check():
-    """Returns whether current user is admin."""
-    return jsonify({"is_admin": _is_admin(session["user_id"])})
+    """Returns whether current user is admin + 2FA status."""
+    uid = session["user_id"]
+    is_adm = _is_admin(uid)
+    two_fa = False
+    if is_adm:
+        conn = db()
+        row = conn.execute(
+            "SELECT COALESCE(totp_enabled, 0) AS en FROM users WHERE id=?",
+            (uid,)
+        ).fetchone()
+        conn.close()
+        two_fa = bool(row and row["en"])
+    return jsonify({
+        "is_admin": is_adm,
+        "has_2fa": two_fa,
+        "needs_2fa_setup": bool(is_adm and ADMIN_2FA_ENFORCED and not two_fa),
+    })
 
 
 # ============================================
@@ -4856,11 +5122,12 @@ def explore_suggested_users():
                (SELECT COUNT(*) FROM follows WHERE following_id=u.id) AS followers,
                (SELECT COUNT(*) FROM posts WHERE user_id=u.id) AS posts_count
         FROM users u WHERE u.id != ?
+          AND LOWER(u.username) != ?
           AND u.id NOT IN (SELECT following_id FROM follows WHERE follower_id=?)
           AND u.id NOT IN (SELECT blocked_id FROM blocks WHERE blocker_id=?)
           AND u.id NOT IN (SELECT blocker_id FROM blocks WHERE blocked_id=?)
         ORDER BY followers DESC LIMIT 12
-    """, (uid, uid, uid, uid)).fetchall()
+    """, (uid, ADMIN_USERNAME, uid, uid, uid)).fetchall()
     conn.close()
     return jsonify([dict(r) for r in rows])
 
@@ -5420,13 +5687,6 @@ def send_message(username):
     if image and not is_valid_image_uri(image, 3_000_000):
         return jsonify({"error": "ছবি ২ MB এর কম হতে হবে"}), 400
 
-    # S17.1 — save message image to filesystem
-    saved_image = None
-    if image:
-        saved_image = _save_data_uri(image, "messages", prefix=f"u{session['user_id']}_")
-        if not saved_image:
-            return jsonify({"error": "ছবি সংরক্ষণ করা যায়নি"}), 500
-
     conn = db()
     other = conn.execute("SELECT id FROM users WHERE username=?", (username,)).fetchone()
     if not other:
@@ -5452,6 +5712,14 @@ def send_message(username):
         if not (uid in ids and other["id"] in ids):
             conn.close()
             return jsonify({"error": "ভুল parent message"}), 400
+
+    # S22 / Series 8 — save image AFTER all validation (no orphan files)
+    saved_image = None
+    if image:
+        saved_image = _save_data_uri(image, "messages", prefix=f"u{session['user_id']}_")
+        if not saved_image:
+            conn.close()
+            return jsonify({"error": "ছবি সংরক্ষণ করা যায়নি"}), 500
 
     with _typing_lock:
         _typing_state.pop((uid, other["id"]), None)
@@ -6094,19 +6362,20 @@ def send_group_message(gid):
     if image and not is_valid_image_uri(image, 3_000_000):
         return jsonify({"error": "ছবি ২ MB এর কম হতে হবে"}), 400
 
-    # S17.1 — save group message image to filesystem
-    saved_image = None
-    if image:
-        saved_image = _save_data_uri(image, "messages", prefix=f"g{gid}_u{uid}_")
-        if not saved_image:
-            return jsonify({"error": "ছবি সংরক্ষণ করা যায়নি"}), 500
-
     conn = db()
     member = conn.execute("SELECT 1 FROM group_members WHERE group_id=? AND user_id=?",
                           (gid, uid)).fetchone()
     if not member:
         conn.close()
         return jsonify({"error": "আপনি এই গ্রুপের সদস্য নন"}), 403
+
+    # S22 / Series 8 — save image AFTER membership check (no orphan files)
+    saved_image = None
+    if image:
+        saved_image = _save_data_uri(image, "messages", prefix=f"g{gid}_u{uid}_")
+        if not saved_image:
+            conn.close()
+            return jsonify({"error": "ছবি সংরক্ষণ করা যায়নি"}), 500
 
     cur = conn.execute("""INSERT INTO group_messages (group_id, sender_id, content, attachment)
         VALUES (?,?,?,?)""", (gid, uid, content, saved_image))
@@ -6214,6 +6483,7 @@ def online_contacts():
                                     WHERE sv.story_id=s.id AND sv.viewer_id=?)) AS unread_story
         FROM users u
         WHERE u.id != ?
+          AND LOWER(u.username) != ?
           AND u.id NOT IN (SELECT blocked_id FROM blocks WHERE blocker_id=?)
           AND u.id NOT IN (SELECT blocker_id FROM blocks WHERE blocked_id=?)
           AND (
@@ -6239,7 +6509,7 @@ def online_contacts():
                     datetime('now','-1 hour') THEN 0 ELSE 1 END) ASC,
           datetime(COALESCE(u.last_seen, u.created_at)) DESC
         LIMIT 25
-    """, (uid, uid, uid, uid, uid, uid, uid, uid)).fetchall()
+    """, (uid, uid, ADMIN_USERNAME, uid, uid, uid, uid, uid, uid)).fetchall()
 
     conn.close()
 
@@ -6666,6 +6936,8 @@ _ensure_upload_dirs()   # S17.1 — create upload folders
 _load_state()           # S17.2p — restore rate-limit buckets
 _start_state_persister()  # S17.2p — save every 60s + on exit
 _enforce_sole_admin()
+_bootstrap_admin_if_missing()   # S22 / Series 11 — auto-create admin
+_purge_old_sessions()   # S22 / Series 9A — cleanup stale sessions (>30d)
 
 
 if __name__ == "__main__":

@@ -1,4 +1,34 @@
-const BASE_URL = "https://juktoy.onrender.com";
+// ==================================================
+// SMART BASE URL RESOLVER
+// - Localhost / Render / any hosting  → relative URLs (auto)
+// - Capacitor (APK) / Electron / file://  → absolute production URL
+// - Override anytime from console:
+//     localStorage.setItem("juktoy_api_base", "https://staging.example.com")
+//     (then reload)
+//     localStorage.removeItem("juktoy_api_base")   ← revert
+// ==================================================
+function _resolveBaseUrl() {
+  try {
+    const override = localStorage.getItem("juktoy_api_base");
+    if (override && override.trim()) {
+      return override.trim().replace(/\/$/, "");
+    }
+  } catch (e) { /* private mode — ignore */ }
+
+  const proto = window.location.protocol;
+
+  // Capacitor mobile app OR Electron desktop OR local file
+  if (proto === "capacitor:" || proto === "file:") {
+    // Absolute production URL required (no same-origin available)
+    return "https://juktoy.onrender.com";
+  }
+
+  // Everything else (http/https) → relative URLs
+  // Works on: localhost, Render, Vercel, Railway, VPS, any domain
+  return "";
+}
+const BASE_URL = _resolveBaseUrl();
+console.log("[JUKTOY] API base:", BASE_URL || "(same-origin)");
 // ==================================================
 // JUKTOY — Complete JavaScript
 // All features: auth, feed, profile, theme, messages
@@ -439,6 +469,9 @@ document.querySelectorAll(".nav-item").forEach((item) => {
 // ==================================================
 
 const _enterAppHooks = [];
+// S22 / Series 6 — expose to window so call.js, stats pill, and any
+// external module can register hooks reliably (const is NOT on window).
+window._enterAppHooks = _enterAppHooks;
 
 async function enterApp() {
   const { user } = await api("/api/me");
@@ -7890,6 +7923,14 @@ async function _obFinish(skipped) {
         });
         state.me.profile_pic = r.avatar;
       }
+      // S22 / Series 7 — onboarding cover photo was being lost
+      if (_obState.pendingCover) {
+        var rc = await api("/api/me/cover", {
+          method: "POST",
+          body: JSON.stringify({ cover: _obState.pendingCover })
+        });
+        state.me.cover_pic = rc.cover;
+      }
     } catch (e) {}
   }
 
@@ -11089,6 +11130,14 @@ async function _checkAdminStatus() {
     var navAdmin = document.getElementById("nav-admin");
     if (navAdmin) {
       navAdmin.classList.toggle("hidden", !_isAdmin);
+    }
+    // S22 / Layer 6 — 2FA warning for admin
+    if (_isAdmin && res.needs_2fa_setup) {
+      if (typeof showToast === "function") {
+        setTimeout(function () {
+          showToast("🛡️ অ্যাডমিন অ্যাক্সেসের জন্য 2FA চালু করুন — Settings → Two-Factor");
+        }, 800);
+      }
     }
   } catch (e) {
     _isAdmin = false;
