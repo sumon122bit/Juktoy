@@ -234,46 +234,6 @@ def _add_security_headers(response):
     return response
 
 
-# ============================================
-# TEMPORARY — User count monitor (detect DB wipe)
-# ============================================
-
-import time as _t
-_boot_time = _t.time()
-_max_users_seen = 0
-
-
-@app.route("/api/stats/users")
-def stats_users():
-    """Public endpoint — total registered users + peak + uptime."""
-    global _max_users_seen
-    try:
-        conn = db()
-        total = conn.execute("SELECT COUNT(*) AS c FROM users").fetchone()["c"]
-        admins = conn.execute("SELECT COUNT(*) AS c FROM users WHERE COALESCE(is_admin,0)=1").fetchone()["c"]
-        posts = conn.execute("SELECT COUNT(*) AS c FROM posts").fetchone()["c"]
-        messages = conn.execute("SELECT COUNT(*) AS c FROM messages").fetchone()["c"]
-        # Recent activity: users created in last hour
-        recent = conn.execute("""
-            SELECT COUNT(*) AS c FROM users
-            WHERE datetime(created_at) > datetime('now','-1 hour')
-        """).fetchone()["c"]
-        conn.close()
-        if total > _max_users_seen:
-            _max_users_seen = total
-        return jsonify({
-            "total_users": total,
-            "admins": admins,
-            "posts": posts,
-            "messages": messages,
-            "new_last_hour": recent,
-            "peak_users": _max_users_seen,
-            "server_uptime_sec": int(_t.time() - _boot_time),
-        })
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-
 @app.route("/healthz")
 def healthz():
     """S10 — plain HTTP health check for load balancers."""
