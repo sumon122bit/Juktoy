@@ -13301,3 +13301,165 @@ function _openDeleteMessageSheet(msgId, msgEl, isMine) {
 })();
 
 
+
+
+// ═══════════════════════════════════════════════
+// TEMPORARY — User count monitor (DB wipe detector)
+// ═══════════════════════════════════════════════
+(function () {
+  if (window.juktoy_user_stats) return;
+  window.juktoy_user_stats = true;
+
+  var timer = null;
+  var el = null;
+  var expanded = false;
+  var history = [];  // track counts over time
+
+  function ensureUI() {
+    if (el) return el;
+    el = document.createElement("div");
+    el.id = "user-stats-pill";
+    el.style.cssText = [
+      "position:fixed",
+      "bottom:14px",
+      "left:14px",
+      "z-index:9998",
+      "background:linear-gradient(135deg,#FF6B6B,#F43F5E)",
+      "color:#fff",
+      "font-size:12px",
+      "font-weight:700",
+      "padding:8px 14px",
+      "border-radius:14px",
+      "box-shadow:0 6px 20px rgba(255,107,107,0.5)",
+      "font-family:inherit",
+      "cursor:pointer",
+      "display:flex",
+      "align-items:center",
+      "gap:8px",
+      "backdrop-filter:blur(10px)",
+      "-webkit-backdrop-filter:blur(10px)",
+      "opacity:0",
+      "transition:opacity 0.3s ease",
+      "user-select:none",
+      "max-width:calc(100vw - 28px)"
+    ].join(";");
+    el.innerHTML = '<span style="font-size:14px">👥</span><span id="us-total">—</span> <span style="opacity:0.85;font-size:10.5px">ইউজার</span>';
+    el.title = "tap to see details";
+    el.addEventListener("click", toggleDetails);
+    document.body.appendChild(el);
+    return el;
+  }
+
+  var detailPanel = null;
+
+  function toggleDetails() {
+    expanded = !expanded;
+    if (!expanded) {
+      if (detailPanel) { detailPanel.remove(); detailPanel = null; }
+      return;
+    }
+    detailPanel = document.createElement("div");
+    detailPanel.id = "user-stats-detail";
+    detailPanel.style.cssText = [
+      "position:fixed",
+      "bottom:60px",
+      "left:14px",
+      "z-index:9998",
+      "background:var(--card,#fff)",
+      "color:var(--text,#111)",
+      "padding:14px 16px",
+      "border-radius:16px",
+      "box-shadow:0 10px 30px rgba(0,0,0,0.25)",
+      "font-family:inherit",
+      "font-size:12.5px",
+      "min-width:220px",
+      "max-width:calc(100vw - 28px)",
+      "line-height:1.6"
+    ].join(";");
+    document.body.appendChild(detailPanel);
+    renderDetails();
+  }
+
+  var lastData = null;
+
+  function renderDetails() {
+    if (!detailPanel || !lastData) return;
+    var d = lastData;
+    var uptime = d.server_uptime_sec || 0;
+    var hours = Math.floor(uptime / 3600);
+    var mins = Math.floor((uptime % 3600) / 60);
+
+    var histHTML = "";
+    if (history.length > 1) {
+      histHTML = '<div style="margin-top:8px;padding-top:8px;border-top:1px solid #eee;font-size:11px;opacity:0.85">';
+      histHTML += '<b>ইতিহাস:</b><br>';
+      history.slice(-5).forEach(function (h) {
+        histHTML += "• " + h.t + ": <b>" + h.n + "</b> users<br>";
+      });
+      histHTML += '</div>';
+    }
+
+    detailPanel.innerHTML =
+      '<div style="font-weight:800;font-size:14px;margin-bottom:8px">📊 User Stats</div>' +
+      '<div>মোট ইউজার: <b>' + (d.total_users || 0) + '</b></div>' +
+      '<div>অ্যাডমিন: <b>' + (d.admins || 0) + '</b></div>' +
+      '<div>মোট পোস্ট: <b>' + (d.posts || 0) + '</b></div>' +
+      '<div>মোট মেসেজ: <b>' + (d.messages || 0) + '</b></div>' +
+      '<div>গত ১ ঘণ্টায় নতুন: <b>' + (d.new_last_hour || 0) + '</b></div>' +
+      '<div>সর্বোচ্চ দেখা: <b>' + (d.peak_users || 0) + '</b></div>' +
+      '<div style="margin-top:8px;padding-top:8px;border-top:1px solid #eee;font-size:11px;opacity:0.7">' +
+        'সার্ভার চালু: ' + hours + 'ঘ ' + mins + 'মি' +
+      '</div>' +
+      (d.newest_user ? '<div style="font-size:11px;opacity:0.85;margin-top:6px">সর্বশেষ: <b>@' + d.newest_user.username + '</b></div>' : '') +
+      histHTML;
+  }
+
+  async function tick() {
+    try {
+      var r = await fetch("/api/stats/users", { credentials: "same-origin" });
+      if (!r.ok) return;
+      var d = await r.json();
+      lastData = d;
+
+      // Track history
+      var now = new Date();
+      var timeStr = String(now.getHours()).padStart(2, "0") + ":" + String(now.getMinutes()).padStart(2, "0");
+      var last = history[history.length - 1];
+      if (!last || last.n !== d.total_users) {
+        history.push({ t: timeStr, n: d.total_users });
+      }
+
+      var pill = ensureUI();
+      var num = document.getElementById("us-total");
+      if (num) num.textContent = d.total_users || 0;
+      pill.style.opacity = "1";
+
+      if (detailPanel) renderDetails();
+    } catch (e) {}
+  }
+
+  function start() {
+    if (timer) return;
+    tick();
+    timer = setInterval(tick, 20000);  // 20s
+  }
+
+  function stop() {
+    if (timer) { clearInterval(timer); timer = null; }
+  }
+
+  if (typeof window._enterAppHooks !== "undefined" && Array.isArray(window._enterAppHooks)) {
+    window._enterAppHooks.push(function () { start(); });
+  } else {
+    setTimeout(function () {
+      if (typeof window._enterAppHooks !== "undefined") {
+        window._enterAppHooks.push(function () { start(); });
+      }
+    }, 500);
+  }
+
+  document.addEventListener("visibilitychange", function () {
+    if (document.hidden) stop();
+    else if (window.state && window.state.me) start();
+  });
+})();
