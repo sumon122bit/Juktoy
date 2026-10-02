@@ -2752,6 +2752,19 @@ def _is_public_action_blocked_for_admin():
     return None
 
 
+def admin_required_no_2fa(fn):
+    """S27B — admin check WITHOUT 2FA (debug only)."""
+    @wraps(fn)
+    def wrapper(*a, **kw):
+        uid = session.get("user_id")
+        if not uid:
+            return jsonify({"error": "লগইন প্রয়োজন"}), 401
+        if not _is_admin(uid):
+            return jsonify({"error": "শুধু অ্যাডমিন অ্যাক্সেস করতে পারবেন"}), 403
+        return fn(*a, **kw)
+    return wrapper
+
+
 def admin_required(fn):
     @wraps(fn)
     def wrapper(*a, **kw):
@@ -5324,7 +5337,7 @@ def remove_backup_email():
 
 
 @app.route("/api/admin/debug/smtp")
-@admin_required
+@admin_required_no_2fa
 def admin_debug_smtp():
     """S27B — SMTP diagnostic (admin only)."""
     cfg = _smtp_config()
@@ -5353,7 +5366,7 @@ def admin_debug_smtp():
 
 
 @app.route("/api/admin/debug/test-email", methods=["POST"])
-@admin_required
+@admin_required_no_2fa
 @rate_limit("test_email", 3, 3600)
 def admin_debug_test_email():
     """S27B — send a test email (admin only)."""
@@ -5370,7 +5383,7 @@ def admin_debug_test_email():
 
 
 @app.route("/api/admin/debug/reset-email-verified", methods=["POST"])
-@admin_required
+@admin_required_no_2fa
 def admin_debug_reset_verified():
     """S27B — reset own email_verified to 0 for testing."""
     uid = session["user_id"]
