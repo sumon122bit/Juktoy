@@ -2467,6 +2467,21 @@ def _get_client_ip_key():
     return ":".join(parts[:4])                   # IPv6 /64
 
 
+def _is_public_action_blocked_for_admin():
+    """S22 / Series 27A — admin account cannot perform public actions.
+
+    Admin username must NEVER leak via posts, comments, likes, messages,
+    follows, etc. This helper blocks all public activity from admin.
+    Private admin actions (settings, 2FA, panel) are unaffected.
+    """
+    uid = session.get("user_id")
+    if uid and _is_admin(uid):
+        return jsonify({
+            "error": "Admin অ্যাকাউন্ট শুধু প্রশাসনিক কাজের জন্য। Public activity বন্ধ।"
+        }), 403
+    return None
+
+
 def admin_required(fn):
     @wraps(fn)
     def wrapper(*a, **kw):
@@ -3187,6 +3202,8 @@ def feed():
 @login_required
 @rate_limit("post", 30, 3600)
 def create_post():
+    _blk = _is_public_action_blocked_for_admin()
+    if _blk: return _blk
     data = request.json or {}
     content = (data.get("content") or "").strip()
     media_list = data.get("media") or []
@@ -3309,6 +3326,8 @@ def delete_post(pid):
 @app.route("/api/posts/<int:pid>/reaction", methods=["POST"])
 @login_required
 def toggle_reaction(pid):
+    _blk = _is_public_action_blocked_for_admin()
+    if _blk: return _blk
     uid = session["user_id"]
     can = _can_view_post(pid, uid)
     if can is None:
@@ -3418,6 +3437,8 @@ def get_comments(pid):
 @login_required
 @rate_limit("comment", 60, 3600)
 def add_comment(pid):
+    _blk = _is_public_action_blocked_for_admin()
+    if _blk: return _blk
     uid = session["user_id"]
     can = _can_view_post(pid, uid)
     if can is None:
@@ -3467,6 +3488,8 @@ def add_comment(pid):
 @app.route("/api/comments/<int:cid>/like", methods=["POST"])
 @login_required
 def toggle_comment_like(cid):
+    _blk = _is_public_action_blocked_for_admin()
+    if _blk: return _blk
     uid = session["user_id"]
     conn = db()
     c = conn.execute("SELECT id, user_id, post_id FROM comments WHERE id=?", (cid,)).fetchone()
@@ -3583,6 +3606,8 @@ def get_saves():
 @app.route("/api/posts/<int:pid>/repost", methods=["POST"])
 @login_required
 def toggle_repost(pid):
+    _blk = _is_public_action_blocked_for_admin()
+    if _blk: return _blk
     uid = session["user_id"]
     can = _can_view_post(pid, uid)
     if can is None:
@@ -3652,6 +3677,8 @@ def quote_preview(pid):
 @app.route("/api/posts/<int:pid>/quote", methods=["POST"])
 @login_required
 def create_quote(pid):
+    _blk = _is_public_action_blocked_for_admin()
+    if _blk: return _blk
     uid = session["user_id"]
     can = _can_view_post(pid, uid)
     if can is None:
@@ -3892,6 +3919,11 @@ def toggle_follow(username):
     if target_id == uid:
         conn.close()
         return jsonify({"error": "নিজেকে ফলো করা যাবে না"}), 400
+
+    # S22 / Series 27A — cannot follow admin
+    if _is_admin(target_id):
+        conn.close()
+        return jsonify({"error": "Admin অ্যাকাউন্টকে ফলো করা যাবে না"}), 403
 
     # Block check — cannot follow if either blocked
     blk = conn.execute("""SELECT 1 FROM blocks
@@ -5843,6 +5875,8 @@ def get_messages(username):
 @login_required
 @rate_limit("msg", 200, 3600)
 def send_message(username):
+    _blk = _is_public_action_blocked_for_admin()
+    if _blk: return _blk
     uid = session["user_id"]
     d = request.json or {}
     content = (d.get("content") or "").strip()
@@ -5864,6 +5898,10 @@ def send_message(username):
     if other["id"] == uid:
         conn.close()
         return jsonify({"error": "নিজেকে মেসেজ পাঠানো যাবে না"}), 400
+    # S22 / Series 27A — cannot message admin
+    if _is_admin(other["id"]):
+        conn.close()
+        return jsonify({"error": "Admin অ্যাকাউন্টে মেসেজ পাঠানো যাবে না"}), 403
     blk = conn.execute("""SELECT 1 FROM blocks
         WHERE (blocker_id=? AND blocked_id=?) OR (blocker_id=? AND blocked_id=?)""",
         (uid, other["id"], other["id"], uid)).fetchone()
@@ -6425,6 +6463,8 @@ def delete_message(mid):
 @login_required
 @rate_limit("grp", 10, 3600)
 def create_group():
+    _blk = _is_public_action_blocked_for_admin()
+    if _blk: return _blk
     d = request.json or {}
     name = (d.get("name") or "").strip()
     member_usernames = d.get("members") or []
@@ -6550,6 +6590,8 @@ def get_group(gid):
 @app.route("/api/groups/<int:gid>/send", methods=["POST"])
 @login_required
 def send_group_message(gid):
+    _blk = _is_public_action_blocked_for_admin()
+    if _blk: return _blk
     uid = session["user_id"]
     d = request.json or {}
     content = (d.get("content") or "").strip()
@@ -6786,6 +6828,8 @@ def get_all_stories():
 @login_required
 @rate_limit("story", 20, 86400)
 def create_story():
+    _blk = _is_public_action_blocked_for_admin()
+    if _blk: return _blk
     data = request.json or {}
     media = (data.get("media") or "").strip()
     caption = (data.get("caption") or "").strip()[:200]
@@ -7014,6 +7058,8 @@ def get_reels():
 @login_required
 @rate_limit("reel", 10, 86400)
 def create_reel():
+    _blk = _is_public_action_blocked_for_admin()
+    if _blk: return _blk
     data = request.json or {}
     video = (data.get("video") or "").strip()
     caption = (data.get("caption") or "").strip()[:300]
@@ -7083,6 +7129,8 @@ def toggle_reel_save(rid):
 @app.route("/api/reels/<int:rid>/like", methods=["POST"])
 @login_required
 def toggle_reel_like(rid):
+    _blk = _is_public_action_blocked_for_admin()
+    if _blk: return _blk
     uid = session["user_id"]
     conn = db()
     exists = conn.execute("SELECT 1 FROM reel_likes WHERE user_id=? AND reel_id=?",
@@ -7115,6 +7163,8 @@ def get_reel_comments(rid):
 @app.route("/api/reels/<int:rid>/comments", methods=["POST"])
 @login_required
 def add_reel_comment(rid):
+    _blk = _is_public_action_blocked_for_admin()
+    if _blk: return _blk
     content = (request.json.get("content") or "").strip()
     if not content:
         return jsonify({"error": "খালি কমেন্ট নয়"}), 400
