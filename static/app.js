@@ -11105,6 +11105,8 @@ window._pending2fa = { token: null };
       no_google_id: "Google আইডি পাওয়া যায়নি।",
       create_failed: "অ্যাকাউন্ট তৈরি করা যায়নি।",
       access_denied: "আপনি অনুমতি দেননি।",
+      // S22 / Series 13 — new error codes
+      "2fa_enabled": "এই ইমেইলের একটি অ্যাকাউন্টে 2FA চালু আছে। Google দিয়ে লগইন করা যাবে না — পাসওয়ার্ড দিয়ে লগইন করুন।",
     };
     var text = msgs[err] || ("Google error: " + err);
     setTimeout(function () {

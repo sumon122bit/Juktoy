@@ -114,6 +114,31 @@ def _load_secret_key():
 
 app.secret_key = _load_secret_key()
 
+
+# ============================================================
+# S22 / Series 26 — auto-close request-scoped DB connection
+# ============================================================
+@app.teardown_appcontext
+def _close_db_on_teardown(exc):
+    """S22 / Series 26 (fixed) — close all DB connections opened during
+    this request. Iterates g._juktoy_conns (registered by db()).
+    Idempotent — already-closed connections are safely skipped.
+    """
+    try:
+        from flask import g
+        conns = getattr(g, "_juktoy_conns", None) or []
+        for c in conns:
+            try:
+                c.close()
+            except Exception:
+                pass
+        try:
+            g._juktoy_conns = []
+        except Exception:
+            pass
+    except Exception:
+        pass
+
 # ============================================
 # SESSION / SECURITY CONFIG
 # ============================================
@@ -128,6 +153,17 @@ import os as _os
 from werkzeug.middleware.proxy_fix import ProxyFix
 # Trust one layer of proxy (nginx/gunicorn) — X-Forwarded-Proto, X-Forwarded-Host, X-Forwarded-For
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1, x_for=1)
+
+# ============================================================
+# S22 / Series 19 — trusted client IP helper
+# ============================================================
+# ProxyFix (x_for=1) already rewrites request.remote_addr to the
+# real client IP using the rightmost untrusted hop. Reading
+# X-Forwarded-For directly is unsafe — that header is fully
+# attacker-controlled and bypasses rate limits + IP binding.
+def _client_ip():
+    """Return trusted client IP (real remote_addr after ProxyFix)."""
+    return request.remote_addr or "0.0.0.0"
 
 _env_https = _os.environ.get("JUKTOY_HTTPS")
 _env_name = _os.environ.get("JUKTOY_ENV") or _os.environ.get("FLASK_ENV") or ""
@@ -976,8 +1012,7 @@ def _log_security_event(event, uid=None, username=None, metadata=None):
         ip = ""
         ua = ""
         try:
-            ip = (request.headers.get("X-Forwarded-For") or "").split(",")[0].strip() \
-                 or (request.remote_addr or "")
+            ip = _client_ip()
             ua = (request.headers.get("User-Agent") or "")[:300]
         except Exception:
             pass
@@ -1100,14 +1135,29 @@ def _delete_upload_many(paths):
 
 
 def db():
-    # Performance: WAL mode is persistent — set once in init_db.
-    # Here we only set connection-scoped pragmas (fast).
+    """S22 / Series 26 (fixed) — leak-safe SQLite connection.
+
+    Returns a FRESH connection each call so routes that call
+    conn.close() mid-request keep working. Every connection is
+    registered in g._juktoy_conns and closed by teardown_appcontext
+    so early-return leaks are prevented.
+    """
     conn = sqlite3.connect(DB, timeout=10.0, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA busy_timeout=3000")
     conn.execute("PRAGMA foreign_keys=ON")
     conn.execute("PRAGMA temp_store=MEMORY")
-    conn.execute("PRAGMA cache_size=-16000")  # 16 MB per connection
+    conn.execute("PRAGMA cache_size=-16000")
+
+    # Register for request-end cleanup (best effort)
+    try:
+        from flask import g
+        if not hasattr(g, "_juktoy_conns"):
+            g._juktoy_conns = []
+        g._juktoy_conns.append(conn)
+    except Exception:
+        pass
+
     return conn
 
 
@@ -1943,7 +1993,7 @@ def _create_session_record(uid, method="password"):
     """Create a sessions row and store token in flask session."""
     token = secrets.token_urlsafe(32)
     ua = request.headers.get("User-Agent") or ""
-    ip = (request.headers.get("X-Forwarded-For") or "").split(",")[0].strip() or (request.remote_addr or "")
+    ip = _client_ip()
     label = _ua_to_device_label(ua)
 
     conn = db()
@@ -2134,7 +2184,7 @@ def _ua_to_device_label(ua):
 def _record_login(uid, method="password"):
     """Insert a login record. Return True if it's a new device."""
     ua = request.headers.get("User-Agent") or ""
-    ip = (request.headers.get("X-Forwarded-For") or "").split(",")[0].strip() or (request.remote_addr or "")
+    ip = _client_ip()
     label = _ua_to_device_label(ua)
 
     # Compute an IP subnet key
@@ -2273,7 +2323,7 @@ def _admin_login_alert_async(uid, ua="", ip=""):
 def _session_fp():
     """Compute fingerprint from current request (UA + IP)."""
     ua = (request.headers.get("User-Agent") or "")[:500]
-    ip = (request.headers.get("X-Forwarded-For") or "").split(",")[0].strip() or (request.remote_addr or "")
+    ip = _client_ip()
     # Use first /24 for IPv4 (allow subnet roaming) or full IPv6 prefix
     ip_key = ip
     if ":" not in ip:
@@ -2287,7 +2337,7 @@ def _session_fp():
 def _bind_session():
     """Called at login. Store fingerprint."""
     session["session_fp"] = _session_fp()
-    session["session_ip"] = (request.headers.get("X-Forwarded-For") or "").split(",")[0].strip() or (request.remote_addr or "")
+    session["session_ip"] = _client_ip()
     session["session_ua"] = (request.headers.get("User-Agent") or "")[:200]
     session["session_fp_set_at"] = int(time.time())
 
@@ -2403,8 +2453,7 @@ def _get_client_ip_key():
     allows minor network changes (mobile NAT, ISP reassignment) without
     killing the session, while still blocking cross-network hijacks.
     """
-    ip = (request.headers.get("X-Forwarded-For") or "").split(",")[0].strip() \
-         or (request.remote_addr or "")
+    ip = _client_ip()
     if ":" not in ip:
         parts = ip.split(".")
         if len(parts) == 4:
@@ -2679,7 +2728,7 @@ def google_callback():
             is_new = _record_login(uid, method="google")
             if is_new:
                 _ua = request.headers.get("User-Agent") or ""
-                _ip = (request.headers.get("X-Forwarded-For") or "").split(",")[0].strip() or (request.remote_addr or "")
+                _ip = _client_ip()
                 _login_alert_async(uid, method="google", ua=_ua, ip=_ip)
         except Exception as e:
             print(f"[LOGIN RECORD google] {e}")
@@ -2923,7 +2972,7 @@ def login():
     try:
         is_new = _record_login(row["id"], method="password")
         _ua = request.headers.get("User-Agent") or ""
-        _ip = (request.headers.get("X-Forwarded-For") or "").split(",")[0].strip() or (request.remote_addr or "")
+        _ip = _client_ip()
         if is_new:
             _login_alert_async(row["id"], method="password", ua=_ua, ip=_ip)
         # S22 / Layer 3 — always alert on admin login (regardless of device)
@@ -2991,11 +3040,48 @@ def login_2fa():
     session["user_id"] = uid
     session["session_version"] = ver
     session["session_start"] = int(time.time())
+    session["last_active"] = time.time()   # S22 / Series 20 — idle timeout tracking
     session.permanent = True
     # S15.2 — bind fingerprint
     _bind_session()
     # S15.4 — create session record
     _create_session_record(uid, method="2fa")
+
+    # S22 / Series 20 — admin IP binding on 2FA path
+    # (was missing → admin session hijack bypass on 2FA logins)
+    try:
+        _c2 = db()
+        _ar = _c2.execute(
+            "SELECT COALESCE(is_admin,0) AS a, COALESCE(totp_enabled,0) AS tfa "
+            "FROM users WHERE id=?", (uid,)
+        ).fetchone()
+        _c2.close()
+        _is_adm = bool(_ar and _ar["a"])
+        if _is_adm:
+            session["admin_ip"] = _get_client_ip_key()
+    except Exception:
+        _is_adm = False
+
+    # S16.6 — security event log
+    try:
+        _log_security_event(
+            "login_success_2fa", uid=uid,
+            metadata={"used_backup": used_backup}
+        )
+    except Exception:
+        pass
+
+    # S15.3 + S22 / Layer 3 — record login + send alerts
+    try:
+        _ua = request.headers.get("User-Agent") or ""
+        _ip = _client_ip()
+        is_new = _record_login(uid, method="2fa")
+        if is_new:
+            _login_alert_async(uid, method="2fa", ua=_ua, ip=_ip)
+        if _is_adm:
+            _admin_login_alert_async(uid, ua=_ua, ip=_ip)
+    except Exception as e:
+        print(f"[LOGIN RECORD 2fa] {e}")
 
     return jsonify({
         "ok": True,
@@ -4499,6 +4585,49 @@ def delete_account():
     conn.execute("UPDATE security_events SET user_id=NULL, username=NULL WHERE user_id=?", (uid,))
     conn.execute("DELETE FROM group_messages WHERE sender_id=?", (uid,))
     conn.execute("DELETE FROM group_members WHERE user_id=?", (uid,))
+
+    # S22 / Series 25 — missing tables (previously orphaned after user delete)
+    conn.execute("DELETE FROM starred_messages WHERE user_id=?", (uid,))
+    conn.execute("DELETE FROM chat_settings WHERE user_id=? OR other_user_id=?", (uid, uid))
+
+    # Call sessions where user was caller or callee
+    conn.execute("DELETE FROM call_sessions WHERE caller_id=? OR callee_id=?", (uid, uid))
+
+    # Group chats created by this user (orphan prevention)
+    # First: delete messages + members of those groups, then delete the groups
+    conn.execute(
+        "DELETE FROM group_messages WHERE group_id IN "
+        "(SELECT id FROM group_chats WHERE created_by=?)", (uid,)
+    )
+    conn.execute(
+        "DELETE FROM group_members WHERE group_id IN "
+        "(SELECT id FROM group_chats WHERE created_by=?)", (uid,)
+    )
+    conn.execute("DELETE FROM group_chats WHERE created_by=?", (uid,))
+
+    # Reports where user is the TARGET (not just reporter)
+    conn.execute(
+        "DELETE FROM reports WHERE target_type='user' AND target_id=?", (uid,)
+    )
+    conn.execute(
+        "DELETE FROM reports WHERE target_type='post' AND target_id IN "
+        "(SELECT id FROM posts WHERE user_id=?)", (uid,)
+    )
+    conn.execute(
+        "DELETE FROM reports WHERE target_type='comment' AND target_id IN "
+        "(SELECT id FROM comments WHERE user_id=?)", (uid,)
+    )
+    conn.execute(
+        "DELETE FROM reports WHERE target_type='reel' AND target_id IN "
+        "(SELECT id FROM reels WHERE user_id=?)", (uid,)
+    )
+
+    # Moderation log — anonymize admin_id (preserve audit trail but unlink PII)
+    conn.execute(
+        "UPDATE moderation_log SET admin_id=0, notes=notes || ' [user deleted]' "
+        "WHERE admin_id=?", (uid,)
+    )
+
     conn.execute("DELETE FROM posts WHERE user_id=?", (uid,))
     conn.execute("DELETE FROM users WHERE id=?", (uid,))
     conn.commit()
@@ -5389,6 +5518,15 @@ def call_answer(call_id):
         conn.close()
         return jsonify({"error": "only callee"}), 403
 
+    # S22 / Series 23 — only allow answer when call is still ringing.
+    # Prevents re-accepting an ended/declined/missed call (call revival).
+    if action in ("accept", "decline") and row["status"] != "ringing":
+        conn.close()
+        return jsonify({
+            "error": "call is no longer ringing",
+            "status": row["status"],
+        }), 409
+
     if action == "decline":
         conn.execute("""UPDATE call_sessions SET status='declined',
                         ended_at=CURRENT_TIMESTAMP, ended_by=?, end_reason='declined'
@@ -5428,10 +5566,17 @@ def call_answer_sdp(call_id):
     if not answer:
         return jsonify({"error": "answer required"}), 400
     conn = db()
-    row = conn.execute("SELECT callee_id FROM call_sessions WHERE id=?", (call_id,)).fetchone()
+    row = conn.execute(
+        "SELECT callee_id, status FROM call_sessions WHERE id=?",
+        (call_id,)
+    ).fetchone()
     if not row or row["callee_id"] != uid:
         conn.close()
         return jsonify({"error": "forbidden"}), 403
+    # S22 / Series 23 — SDP only accepted while call is active
+    if row["status"] != "active":
+        conn.close()
+        return jsonify({"error": "call is not active", "status": row["status"]}), 409
     conn.execute("UPDATE call_sessions SET answer=? WHERE id=?", (_sdp_encode(answer), call_id))
     conn.commit()
     conn.close()
@@ -5441,39 +5586,98 @@ def call_answer_sdp(call_id):
 @app.route("/api/calls/<call_id>/ice", methods=["POST"])
 @login_required
 def call_ice(call_id):
-    """Submit an ICE candidate. Appends to my side's list (JSON-encoded)."""
+    """Submit an ICE candidate. Appends to my side's list (JSON-encoded).
+
+    S22 / Series 24 — added:
+      - BEGIN IMMEDIATE transaction to prevent race between concurrent appends
+      - Per-candidate size cap (4 KB)
+      - Per-side count cap (100)
+      - Per-side total size cap (100 KB)
+    """
     uid = session["user_id"]
     d = request.json or {}
     cand = d.get("candidate")
     if not cand:
         return jsonify({"error": "candidate required"}), 400
-    import json as _json
-    conn = db()
-    row = conn.execute("SELECT caller_id, callee_id, caller_ice, callee_ice FROM call_sessions WHERE id=?",
-                       (call_id,)).fetchone()
-    if not row:
-        conn.close()
-        return jsonify({"error": "not found"}), 404
-    if uid == row["caller_id"]:
-        col = "caller_ice"
-        cur = row["caller_ice"] or ""
-    elif uid == row["callee_id"]:
-        col = "callee_ice"
-        cur = row["callee_ice"] or ""
-    else:
-        conn.close()
-        return jsonify({"error": "forbidden"}), 403
 
+    # S22 / Series 24 — validate candidate is a dict-like, not a huge blob
+    import json as _json
     try:
-        arr = _json.loads(cur) if cur else []
-    except Exception:
-        arr = []
-    arr.append(cand)
-    conn.execute(f"UPDATE call_sessions SET {col}=? WHERE id=?",
-                 (_json.dumps(arr), call_id))
-    conn.commit()
-    conn.close()
-    return jsonify({"ok": True, "count": len(arr)})
+        cand_str = _json.dumps(cand)
+    except (TypeError, ValueError):
+        return jsonify({"error": "invalid candidate"}), 400
+    if len(cand_str) > 4096:
+        return jsonify({"error": "candidate too large"}), 400
+
+    conn = db()
+    try:
+        # S22 / Series 24 — serialized read-modify-write (prevents lost updates)
+        conn.execute("BEGIN IMMEDIATE")
+        row = conn.execute(
+            "SELECT caller_id, callee_id, caller_ice, callee_ice, status "
+            "FROM call_sessions WHERE id=?",
+            (call_id,)
+        ).fetchone()
+        if not row:
+            conn.rollback()
+            conn.close()
+            return jsonify({"error": "not found"}), 404
+
+        # S22 / Series 24 — don't accept ICE on ended calls
+        if row["status"] not in ("ringing", "active"):
+            conn.rollback()
+            conn.close()
+            return jsonify({"error": "call not active", "status": row["status"]}), 409
+
+        if uid == row["caller_id"]:
+            col = "caller_ice"
+            cur = row["caller_ice"] or ""
+        elif uid == row["callee_id"]:
+            col = "callee_ice"
+            cur = row["callee_ice"] or ""
+        else:
+            conn.rollback()
+            conn.close()
+            return jsonify({"error": "forbidden"}), 403
+
+        try:
+            arr = _json.loads(cur) if cur else []
+            if not isinstance(arr, list):
+                arr = []
+        except Exception:
+            arr = []
+
+        # S22 / Series 24 — hard caps
+        if len(arr) >= 100:
+            conn.rollback()
+            conn.close()
+            return jsonify({"error": "too many candidates"}), 429
+
+        arr.append(cand)
+        new_json = _json.dumps(arr)
+
+        if len(new_json) > 102400:  # 100 KB total per side
+            conn.rollback()
+            conn.close()
+            return jsonify({"error": "candidate list too large"}), 413
+
+        conn.execute(
+            f"UPDATE call_sessions SET {col}=? WHERE id=?",
+            (new_json, call_id)
+        )
+        conn.commit()
+        return jsonify({"ok": True, "count": len(arr)})
+    except Exception as e:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        raise
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
 
 
 @app.route("/api/calls/<call_id>/end", methods=["POST"])
@@ -5995,8 +6199,17 @@ def send_voice_message(username):
         return jsonify({"error": "\u09ac\u09cd\u09b2\u0995\u09a1 \u0987\u0989\u099c\u09be\u09b0\u0995\u09c7 \u09ae\u09c7\u09b8\u09c7\u099c \u09aa\u09be\u09a0\u09be\u09a8\u09cb \u09af\u09be\u09ac\u09c7 \u09a8\u09be"}), 403
 
     if parent_id:
-        p = conn.execute("SELECT sender_id, receiver_id FROM messages WHERE id=?", (parent_id,)).fetchone()
+        p = conn.execute(
+            "SELECT sender_id, receiver_id FROM messages WHERE id=?",
+            (parent_id,)
+        ).fetchone()
         if not p:
+            conn.close()
+            return jsonify({"error": "\u09ad\u09c1\u09b2 parent"}), 400
+        # S22 / Series 22 — verify parent belongs to same conversation
+        # (prevents reading messages from OTHER chats via parent_id)
+        ids = {p["sender_id"], p["receiver_id"]}
+        if not (uid in ids and other_id in ids):
             conn.close()
             return jsonify({"error": "\u09ad\u09c1\u09b2 parent"}), 400
 
@@ -6078,11 +6291,16 @@ def edit_message(mid):
         return jsonify({"error": "\u09ac\u09a1\u09bc \u09ae\u09c7\u09b8\u09c7\u099c"}), 400
 
     conn = db()
-    m = conn.execute("""SELECT sender_id, receiver_id, kind, content, created_at
+    m = conn.execute("""SELECT sender_id, receiver_id, kind, content, created_at,
+                              deleted_at
                         FROM messages WHERE id=?""", (mid,)).fetchone()
     if not m:
         conn.close()
         return jsonify({"error": "\u09ae\u09c7\u09b8\u09c7\u099c \u09a8\u09c7\u0987"}), 404
+    # S22 / Series 21 — cannot edit a message that was deleted for everyone
+    if m["deleted_at"]:
+        conn.close()
+        return jsonify({"error": "\u09ae\u09c1\u099b\u09c7 \u09ab\u09c7\u09b2\u09be \u09ae\u09c7\u09b8\u09c7\u099c \u098f\u09a1\u09bf\u099f \u0995\u09b0\u09be \u09af\u09be\u09ac\u09c7 \u09a8\u09be"}), 400
     if m["sender_id"] != uid:
         conn.close()
         return jsonify({"error": "\u09b6\u09c1\u09a7\u09c1 \u09a8\u09bf\u099c\u09c7\u09b0 \u09ae\u09c7\u09b8\u09c7\u099c \u098f\u09a1\u09bf\u099f"}), 403
@@ -6135,7 +6353,7 @@ def delete_for_everyone(mid):
     """Series 3C — mark message as deleted for both sides (within 60 min)."""
     uid = session["user_id"]
     conn = db()
-    m = conn.execute("""SELECT sender_id, receiver_id, kind, created_at
+    m = conn.execute("""SELECT sender_id, receiver_id, kind, created_at, attachment
                         FROM messages WHERE id=?""", (mid,)).fetchone()
     if not m:
         conn.close()
@@ -6154,10 +6372,27 @@ def delete_for_everyone(mid):
         conn.close()
         return jsonify({"error": "\u09e6\u09ed \u09ae\u09bf\u09a8\u09bf\u099f \u09aa\u09b0 \u09ae\u09c1\u099b\u09be \u09af\u09be\u09ac\u09c7 \u09a8\u09be"}), 400
 
-    conn.execute("""UPDATE messages SET deleted_at=CURRENT_TIMESTAMP, content=''
-                    WHERE id=?""", (mid,))
+    # S22 / Series 21 — capture attachment path BEFORE clearing DB
+    _attachment_to_delete = m["attachment"]
+
+    # S22 / Series 21 — clear BOTH content and attachment
+    conn.execute(
+        """UPDATE messages SET deleted_at=CURRENT_TIMESTAMP,
+                              content='',
+                              attachment=NULL
+           WHERE id=?""",
+        (mid,),
+    )
     conn.commit()
     conn.close()
+
+    # S22 / Series 21 — delete file from disk (outside DB lock)
+    if _attachment_to_delete:
+        try:
+            _delete_upload_file(_attachment_to_delete)
+        except Exception as e:
+            print(f"[Series 21] attachment delete failed: {e}")
+
     return jsonify({"ok": True})
 
 
