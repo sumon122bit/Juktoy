@@ -62,16 +62,32 @@ async function api(url, options = {}) {
   const res = await fetch(BASE_URL + url, opts);
   const data = await res.json().catch(() => ({}));
 
-  // S16.5 + batch — 401 handling (idle timeout AND session revoked)
+  // S16.5 + batch — 401 handling (safe: no reload for /api/me)
+  // DO NOT reload on /api/me — that's the login-page check (expected 401).
+  // Only reload on session-idle or a real API call failing mid-session.
   if (res.status === 401) {
-    var msg = data.idle_timeout
-      ? "⏱️ নিষ্ক্রিয়তার কারণে লগআউট হয়েছেন"
-      : (data.error || "সেশন শেষ হয়ে গেছে। আবার লগইন করুন।");
+    var _isMeCheck = (url === "/api/me");
+    var _wasLoggedIn = false;
     try {
-      if (typeof showToast === "function") showToast(msg);
+      _wasLoggedIn = !!(window.state && window.state.me);
     } catch (e) {}
-    setTimeout(function () { window.location.reload(); }, 1500);
-    throw new Error(msg);
+
+    if (data && data.idle_timeout) {
+      try {
+        if (typeof showToast === "function") {
+          showToast("⏱️ নিষ্ক্রিয়তার কারণে লগআউট হয়েছেন");
+        }
+      } catch (e) {}
+      setTimeout(function () { window.location.reload(); }, 1500);
+    } else if (!_isMeCheck && _wasLoggedIn) {
+      try {
+        if (typeof showToast === "function") {
+          showToast(data.error || "সেশন শেষ হয়ে গেছে। আবার লগইন করুন।");
+        }
+      } catch (e) {}
+      setTimeout(function () { window.location.reload(); }, 1500);
+    }
+    // else: silent — login page's normal 401, don't loop
   }
 
   if (!res.ok) throw new Error(data.error || "কিছু ভুল হয়েছে");
