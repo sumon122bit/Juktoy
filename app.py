@@ -7142,16 +7142,3 @@ _purge_old_sessions()   # S22 / Series 9A — cleanup stale sessions (>30d)
 
 if __name__ == "__main__":
     app.run(host='0.0.0.0', debug=False, port=5000)
-
-
-@app.route("/debug/whoami")
-def _debug_whoami():
-    from flask import request
-    return jsonify({
-        "remote_addr": request.remote_addr,
-        "X-Forwarded-For": request.headers.get("X-Forwarded-For"),
-        "X-Real-IP": request.headers.get("X-Real-IP"),
-        "X-Forwarded-Proto": request.headers.get("X-Forwarded-Proto"),
-        "X-Forwarded-Host": request.headers.get("X-Forwarded-Host"),
-        "User-Agent": (request.headers.get("User-Agent") or "")[:80],
-    })
