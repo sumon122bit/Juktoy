@@ -1883,19 +1883,41 @@ def set_email():
     uname = conn.execute("SELECT username FROM users WHERE id=?", (uid,)).fetchone()["username"]
     conn.close()
 
-    verify_tok = _create_reset_token(uid)
-    base = _app_url()
-    link = f"{base}/#verify_email={verify_tok}"
-    _send_email(
-        email,
-        "JUKTOY — ইমেইল যাচাই করুন",
-        f"হ্যালো {uname},\n\nJUKTOY এ আপনার ইমেইল যোগ করার অনুরোধ পাওয়া গেছে।\n\n"
-        f"যাচাই করতে নিচের লিংকে ক্লিক করুন:\n{link}\n\n"
-        f"লিংকটি ১৫ মিনিট পর expire হয়ে যাবে।\n\n"
-        f"আপনি না করলে এই ইমেইল উপেক্ষা করুন।\n\n— JUKTOY"
-    )
+    # S27B fix — 6-digit code verification (not link)
+    import secrets as _sec
+    code = str(_sec.randbelow(900000) + 100000)
+    code_hash = make_password_hash(code)
 
-    return jsonify({"ok": True, "email": email})
+    conn2 = db()
+    conn2.execute(
+        "DELETE FROM password_resets WHERE user_id=? AND purpose='email_verify'",
+        (uid,)
+    )
+    conn2.execute(
+        """INSERT INTO password_resets (user_id, token_hash, expires_at, purpose)
+           VALUES (?, ?, datetime('now', '+10 minutes'), 'email_verify')""",
+        (uid, code_hash)
+    )
+    conn2.commit()
+    conn2.close()
+
+    _NL = chr(10)
+    body = (
+        "হ্যালো " + str(uname) + "," + _NL + _NL +
+        "JUKTOY-তে email verify করার জন্য আপনার কোড:" + _NL + _NL +
+        "        " + code + _NL + _NL +
+        "কোডটি ১০ মিনিটের জন্য বৈধ।" + _NL + _NL +
+        "আপনি না করে থাকলে এই email উপেক্ষা করুন।" + _NL + _NL +
+        "— JUKTOY"
+    )
+    _send_email(email, "JUKTOY — Email verification code", body)
+
+    return jsonify({
+        "ok": True,
+        "email": email,
+        "verify_required": True,
+        "message": "৬ ডিজিটের কোড email-এ পাঠানো হয়েছে",
+    })
 
 
 @app.route("/api/me/email/remove", methods=["POST"])
@@ -1916,6 +1938,101 @@ def remove_email():
     conn.commit()
     conn.close()
     return jsonify({"ok": True})
+
+
+@app.route("/api/me/email/confirm-code", methods=["POST"])
+@login_required
+@rate_limit("email_confirm", 10, 900)
+def confirm_email_code():
+    """S27B fix — verify 6-digit code sent to user's email."""
+    uid = session["user_id"]
+    d = request.json or {}
+    code = (d.get("code") or "").strip()
+
+    if not code or len(code) != 6 or not code.isdigit():
+        return jsonify({"error": "৬ ডিজিটের কোড দিন"}), 400
+
+    conn = db()
+    # Get latest unexpired email_verify token for this user
+    rows = conn.execute(
+        """SELECT id, token_hash FROM password_resets
+           WHERE user_id=? AND purpose='email_verify' AND used=0
+             AND expires_at > datetime('now')
+           ORDER BY id DESC LIMIT 5""",
+        (uid,)
+    ).fetchall()
+
+    matched_id = None
+    for r in rows:
+        try:
+            if _verify_secure_hash(code, r["token_hash"]):
+                matched_id = r["id"]
+                break
+        except Exception:
+            continue
+
+    if not matched_id:
+        conn.close()
+        _log_security_event("email_confirm_fail", uid=uid)
+        return jsonify({"error": "ভুল কোড বা মেয়াদ শেষ"}), 400
+
+    # Consume token + verify email
+    conn.execute("UPDATE password_resets SET used=1 WHERE id=?", (matched_id,))
+    conn.execute("UPDATE users SET email_verified=1 WHERE id=?", (uid,))
+    conn.commit()
+    conn.close()
+
+    _log_security_event("email_verified", uid=uid)
+    return jsonify({"ok": True, "message": "Email যাচাই সম্পন্ন হয়েছে ✅"})
+
+
+@app.route("/api/me/email/resend-code", methods=["POST"])
+@login_required
+@rate_limit("email_resend_code", 3, 3600)
+def resend_email_code():
+    """S27B fix — resend verification code."""
+    uid = session["user_id"]
+    conn = db()
+    row = conn.execute(
+        "SELECT username, email, COALESCE(email_verified,0) AS ev FROM users WHERE id=?",
+        (uid,)
+    ).fetchone()
+    if not row:
+        conn.close()
+        return jsonify({"error": "ইউজার পাওয়া যায়নি"}), 404
+    if not row["email"]:
+        conn.close()
+        return jsonify({"error": "আগে ইমেইল যোগ করুন"}), 400
+    if row["ev"]:
+        conn.close()
+        return jsonify({"ok": True, "already_verified": True})
+
+    code = str(secrets.randbelow(900000) + 100000)
+    code_hash = make_password_hash(code)
+    conn.execute(
+        "DELETE FROM password_resets WHERE user_id=? AND purpose='email_verify'",
+        (uid,)
+    )
+    conn.execute(
+        """INSERT INTO password_resets (user_id, token_hash, expires_at, purpose)
+           VALUES (?, ?, datetime('now', '+10 minutes'), 'email_verify')""",
+        (uid, code_hash)
+    )
+    conn.commit()
+    email = row["email"]
+    uname = row["username"]
+    conn.close()
+
+    _NL = chr(10)
+    body = (
+        "হ্যালো " + str(uname) + "," + _NL + _NL +
+        "আপনার নতুন verification code:" + _NL + _NL +
+        "        " + code + _NL + _NL +
+        "কোডটি ১০ মিনিটের জন্য বৈধ।" + _NL + _NL +
+        "— JUKTOY"
+    )
+    _send_email(email, "JUKTOY — Email verification code", body)
+    return jsonify({"ok": True, "message": "নতুন কোড পাঠানো হয়েছে"})
 
 
 @app.route("/api/me/email/verify", methods=["POST"])
