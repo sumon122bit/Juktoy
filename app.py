@@ -157,7 +157,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 # (10.x.x.x) which rotates on every request → session fingerprint
 # mismatch → non-stop logouts. x_for=2 makes ProxyFix skip both
 # internal IPs and expose the REAL client IP from XFF.
-app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1, x_for=2)
+app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1, x_for=3)
 
 # ============================================================
 # S22 / Series 19 — trusted client IP helper
