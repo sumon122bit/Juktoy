@@ -49,18 +49,24 @@
     <form id="login-2fa-form" class="form hidden">
       <p style="text-align:center;color:var(--muted);font-size:13.5px;line-height:1.5;margin-bottom:8px">
         <i class="fa-solid fa-shield-halved" style="color:var(--accent)"></i><br>
-        আপনার authenticator app থেকে ৬ ডিজিটের কোড দিন
+        <span id="login-2fa-hint">কোড পাঠানো হয়েছে</span>
+      </p>
+      <p id="login-2fa-email-line" class="hidden" style="text-align:center;font-size:12.5px;color:var(--accent);margin-bottom:8px">
+        📧 <strong id="login-2fa-email-mask">your email</strong> এ কোড পাঠানো হয়েছে
       </p>
       <div class="input-group">
         <i class="fa-solid fa-key input-icon"></i>
         <input type="text" id="login-2fa-code" placeholder="123456" inputmode="numeric" maxlength="9" autocomplete="one-time-code">
       </div>
       <button type="submit" class="btn-primary">যাচাই করুন</button>
-      <p style="text-align:center;font-size:12.5px;color:var(--muted);margin-top:8px">
+      <p id="login-2fa-backup-line" style="text-align:center;font-size:12.5px;color:var(--muted);margin-top:8px;display:none">
         Authenticator হারিয়েছেন?
         <a href="#" id="switch-backup-code" style="color:var(--accent);font-weight:600">Backup code ব্যবহার করুন</a>
       </p>
       <p style="text-align:center;font-size:12.5px;margin-top:10px">
+        <a href="#" id="switch-lost-2fa" style="color:var(--danger);font-weight:700">🔑 2FA device হারিয়ে ফেলেছেন?</a>
+      </p>
+      <p style="text-align:center;font-size:12.5px;margin-top:6px">
         <a href="#" id="switch-login-2fa-back" style="color:var(--muted)">← আগের ধাপে ফিরুন</a>
       </p>
     </form>
@@ -781,20 +787,58 @@
     <div class="settings-card" id="2fa-card">
       <h3><i class="fa-solid fa-shield-halved"></i> Two-Factor Authentication</h3>
       <p class="settings-hint" id="2fa-status-text">লোড হচ্ছে...</p>
-      <div id="2fa-enabled-view" class="hidden">
-        <p class="settings-hint">
-          <strong style="color:var(--online)">✅ সক্রিয়</strong> —
+
+      <!-- S27B-4 — Email 2FA (primary) -->
+      <div id="2fa-email-row" style="padding:14px;border:1.5px solid var(--border);border-radius:14px;margin-bottom:10px;background:var(--card-2)">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
+          <div style="flex:1;min-width:0">
+            <div style="font-size:14px;font-weight:800;color:var(--text);display:flex;align-items:center;gap:6px">
+              📧 Email 2FA
+              <span id="2fa-email-badge" style="font-size:10px;font-weight:800;text-transform:uppercase;padding:2px 7px;border-radius:999px;background:var(--accent-light);color:var(--accent)">প্রধান</span>
+            </div>
+            <div id="2fa-email-sub" style="font-size:12px;color:var(--muted);margin-top:3px;line-height:1.4">Email-এ কোড পাঠানো হবে</div>
+          </div>
+          <button class="theme-switch" id="email-2fa-switch" aria-label="Toggle email 2FA">
+            <span class="switch-knob"></span>
+          </button>
+        </div>
+      </div>
+
+      <!-- S27B-4 — TOTP (Authenticator app, optional) -->
+      <div id="2fa-totp-row" style="padding:14px;border:1.5px solid var(--border);border-radius:14px;margin-bottom:10px;background:var(--card-2)">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
+          <div style="flex:1;min-width:0">
+            <div style="font-size:14px;font-weight:800;color:var(--text);display:flex;align-items:center;gap:6px">
+              🔐 Authenticator App
+              <span style="font-size:10px;font-weight:800;text-transform:uppercase;padding:2px 7px;border-radius:999px;background:var(--card);color:var(--muted);border:1px solid var(--border)">ঐচ্ছিক</span>
+            </div>
+            <div id="2fa-totp-sub" style="font-size:12px;color:var(--muted);margin-top:3px;line-height:1.4">Google Authenticator / Authy</div>
+          </div>
+          <button class="theme-switch" id="totp-2fa-switch" aria-label="Toggle TOTP">
+            <span class="switch-knob"></span>
+          </button>
+        </div>
+        <div id="totp-backup-codes-line" style="display:none;margin-top:10px;font-size:12.5px;color:var(--muted)">
           Backup codes বাকি: <strong id="2fa-backup-count">0</strong>
-        </p>
-        <button class="btn-secondary danger-btn" id="btn-disable-2fa" style="width:100%">
-          <i class="fa-solid fa-shield-slash"></i> 2FA নিষ্ক্রিয় করুন
-        </button>
+        </div>
       </div>
+
+      <!-- Warning when email missing -->
       <div id="2fa-disabled-view" class="hidden">
-        <button class="btn-primary" id="btn-enable-2fa" style="width:100%">
-          <i class="fa-solid fa-shield-halved"></i> 2FA চালু করুন
+        <p class="settings-hint" style="color:var(--muted);text-align:center">
+          2FA চালু করতে উপরের যেকোনো একটি toggle on করুন।
+        </p>
+      </div>
+
+      <!-- Kept for legacy JS compatibility -->
+      <div id="2fa-enabled-view" class="hidden" style="display:none !important">
+        <button class="btn-secondary danger-btn" id="btn-disable-2fa" style="width:100%;margin-top:10px">
+          <i class="fa-solid fa-shield-slash"></i> সব 2FA নিষ্ক্রিয় করুন
         </button>
       </div>
+      <button class="btn-primary hidden" id="btn-enable-2fa" style="display:none !important">
+        <i class="fa-solid fa-shield-halved"></i> 2FA চালু করুন
+      </button>
     </div>
 
     <div class="settings-card" id="active-sessions-card">
@@ -1210,7 +1254,7 @@
   </div>
 </div>
 
-<script src="/static/app.js?v=2701"></script>
+<script src="/static/app.js?v=2711"></script>
 
 
 

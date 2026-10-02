@@ -721,7 +721,11 @@
   // Polling loop — runs app-wide
   // ============================================
   function startPolling() {
-    if (CALL.pollTimer) { clearInterval(CALL.pollTimer); CALL.pollTimer = null; }
+    // S22 batch — clear previous timer first (prevents duplicates)
+    if (CALL.pollTimer) {
+      clearInterval(CALL.pollTimer);
+      CALL.pollTimer = null;
+    }
     _cdlog("[CALL] startPolling called");
     CALL.pollTimer = setInterval(function () {
       // Series 4B fix — poll even when tab is hidden (multi-tab testing)

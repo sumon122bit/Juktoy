@@ -4,9 +4,16 @@ import sqlite3, subprocess, secrets, hashlib, os, re
 # S22 / Series 10.6 — load .env file (local dev convenience)
 try:
     from dotenv import load_dotenv
-    load_dotenv()  # loads .env from project root if present
+    _dotenv_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
+    if os.path.exists(_dotenv_path):
+        load_dotenv(_dotenv_path, override=True)
+        print(f"[JUKTOY] .env loaded from {_dotenv_path}")
+    else:
+        print(f"[JUKTOY] no .env at {_dotenv_path} — using shell env")
 except ImportError:
-    pass  # Render uses env vars directly — .env not needed there
+    print("[JUKTOY] python-dotenv not installed — using shell env")
+except Exception as _e:
+    print(f"[JUKTOY] .env load failed: {_e}")  # Render uses env vars directly — .env not needed there
 
 # S22 / Series 10.5 — flask-cors optional (same-origin web needs no CORS)
 try:
@@ -431,15 +438,21 @@ _pending_2fa_lock = threading.Lock()
 _PENDING_2FA_TTL = 300  # 5 minutes
 
 
-def _pending_2fa_create(uid, ver):
+def _pending_2fa_create(uid, ver, method="totp", code_hash=None):
+    """S22 / Series 27B-4 — supports both TOTP and email-2FA methods."""
     token = secrets.token_urlsafe(32)
     with _pending_2fa_lock:
-        # Cleanup expired
         now = time.time()
         for k in list(_pending_2fa.keys()):
             if _pending_2fa[k]["expires"] < now:
                 del _pending_2fa[k]
-        _pending_2fa[token] = {"uid": uid, "ver": ver, "expires": now + _PENDING_2FA_TTL}
+        _pending_2fa[token] = {
+            "uid": uid,
+            "ver": ver,
+            "method": method,
+            "code_hash": code_hash,
+            "expires": now + _PENDING_2FA_TTL,
+        }
     return token
 
 
@@ -677,6 +690,12 @@ def init_db():
     # S18.9b — track last activity for real online status
     try:
         c.execute("ALTER TABLE users ADD COLUMN last_seen TIMESTAMP")
+    except sqlite3.OperationalError:
+        pass
+
+    # S22 / Series 27B-4 — email-based 2FA flag
+    try:
+        c.execute("ALTER TABLE users ADD COLUMN email_2fa_enabled INTEGER DEFAULT 0")
     except sqlite3.OperationalError:
         pass
 
@@ -1583,6 +1602,14 @@ def _start_state_persister():
     atexit.register(_save_state)
 
 
+def _safe_json():
+    """S22 batch — safe request.json fallback (never raises)."""
+    try:
+        return request.get_json(silent=True) or {}
+    except Exception:
+        return {}
+
+
 def rate_limit(name, limit, window, per_username=False):
     """Decorator. Key: f"{name}:ip:{ip}" (+ optional f"{name}:user:{username}")."""
     def deco(fn):
@@ -1837,8 +1864,17 @@ def set_email():
         conn.close()
         return jsonify({"error": "এই ইমেইল ব্যবহার করা যাবে না"}), 400
 
+    # S27B fix-A — preserve verification if email unchanged
+    prev = conn.execute(
+        "SELECT email, COALESCE(email_verified,0) AS ev FROM users WHERE id=?",
+        (uid,)
+    ).fetchone()
+    same_email = bool(prev and (prev["email"] or "").lower() == email)
+    new_verified = 1 if (same_email and prev["ev"]) else 0
+
     try:
-        conn.execute("UPDATE users SET email=?, email_verified=0 WHERE id=?", (email, uid))
+        conn.execute("UPDATE users SET email=?, email_verified=? WHERE id=?",
+                     (email, new_verified, uid))
         conn.commit()
     except sqlite3.IntegrityError:
         conn.close()
@@ -2570,15 +2606,18 @@ def admin_required(fn):
                     "error": "সেশনের অবস্থান পরিবর্তন হয়েছে। আবার লগইন করুন।"
                 }), 401
 
-        # S22 / Layer 6 — admin MUST have 2FA enabled
+        # S22 / Layer 6 + S27B-4 — admin MUST have 2FA enabled
+        # Accept EITHER TOTP (authenticator) OR email-based 2FA
         if ADMIN_2FA_ENFORCED:
             conn = db()
             row = conn.execute(
-                "SELECT COALESCE(totp_enabled, 0) AS en FROM users WHERE id=?",
+                "SELECT COALESCE(totp_enabled, 0) AS totp, "
+                "COALESCE(email_2fa_enabled, 0) AS email2fa "
+                "FROM users WHERE id=?",
                 (uid,)
             ).fetchone()
             conn.close()
-            if not row or not row["en"]:
+            if not row or (not row["totp"] and not row["email2fa"]):
                 return jsonify({
                     "error": "🛡️ অ্যাডমিন অ্যাক্সেসের জন্য 2FA চালু করা আবশ্যক। "
                              "Settings → Two-Factor Authentication থেকে চালু করুন।",
@@ -3018,12 +3057,57 @@ def login():
                            (row["id"],)).fetchone()
     ver = ver_row["v"] if ver_row else 0
 
-    # S12 — if 2FA enabled, do not create session yet
+    # S12 + S27B-4 — 2FA flow. Email 2FA is PREFERRED when enabled.
     totp_enabled = row["totp_enabled"] if "totp_enabled" in row.keys() else 0
+    email_2fa_enabled = 0
+    try:
+        email_2fa_enabled = row["email_2fa_enabled"] if "email_2fa_enabled" in row.keys() else 0
+    except Exception:
+        email_2fa_enabled = 0
+
+    # Email 2FA takes priority when both are enabled
+    if email_2fa_enabled:
+        email_addr = row["email"] if "email" in row.keys() else None
+        email_ok = False
+        try:
+            email_ok = bool(email_addr) and bool(row["email_verified"])
+        except Exception:
+            email_ok = False
+
+        if email_ok:
+            # Generate 6-digit code
+            code = str(secrets.randbelow(900000) + 100000)
+            code_hash = make_password_hash(code)
+            conn.close()
+
+            # Send email
+            try:
+                _NL = chr(10)
+                body = (
+                    "হ্যালো " + str(row["username"]) + "," + _NL + _NL +
+                    "আপনার JUKTOY অ্যাকাউন্টে login verification code:" + _NL + _NL +
+                    "        " + code + _NL + _NL +
+                    "কোডটি 10 মিনিটের জন্য বৈধ।" + _NL + _NL +
+                    "⚠️ আপনি না করে থাকলে এই ইমেইল উপেক্ষা করুন।" + _NL + _NL +
+                    "— JUKTOY Security"
+                )
+                _send_email(email_addr, "JUKTOY — Login code", body)
+            except Exception as e:
+                print(f"[login-email-2fa] send failed: {e}")
+
+            token = _pending_2fa_create(row["id"], ver, method="email", code_hash=code_hash)
+            return jsonify({
+                "needs_2fa": True,
+                "temp_token": token,
+                "method": "email",
+                "email_masked": _mask_email(email_addr) if email_addr else "",
+            })
+        # fallback to TOTP if email not verified
+
     if totp_enabled:
         conn.close()
-        token = _pending_2fa_create(row["id"], ver)
-        return jsonify({"needs_2fa": True, "temp_token": token})
+        token = _pending_2fa_create(row["id"], ver, method="totp")
+        return jsonify({"needs_2fa": True, "temp_token": token, "method": "totp"})
 
     conn.close()
 
@@ -3091,6 +3175,54 @@ def login_2fa():
 
     uid = rec["uid"]
     ver = rec["ver"]
+    method = rec.get("method") or "totp"
+
+    # S27B-4 — EMAIL method: verify 6-digit code against stored hash
+    if method == "email":
+        stored_hash = rec.get("code_hash") or ""
+        if not stored_hash:
+            _pending_2fa_consume(token)
+            return jsonify({"error": "সেশন শেষ। আবার লগইন করুন।"}), 400
+        try:
+            ok_email = _verify_secure_hash(code, stored_hash)
+        except Exception:
+            ok_email = False
+        if not ok_email:
+            return jsonify({"error": "ভুল কোড। আবার চেষ্টা করুন।"}), 400
+
+        _pending_2fa_consume(token)
+        session.clear()
+        session["user_id"] = uid
+        session["session_version"] = ver
+        session["session_start"] = int(time.time())
+        session["last_active"] = time.time()
+        session.permanent = True
+        _bind_session()
+        _create_session_record(uid, method="email_2fa")
+
+        # Admin IP binding
+        try:
+            _c2 = db()
+            _ar = _c2.execute("SELECT COALESCE(is_admin,0) AS a FROM users WHERE id=?", (uid,)).fetchone()
+            _c2.close()
+            if _ar and _ar["a"]:
+                session["admin_ip"] = _get_client_ip_key()
+        except Exception:
+            pass
+
+        _log_security_event("login_success_email_2fa", uid=uid)
+        try:
+            _ua = request.headers.get("User-Agent") or ""
+            _ip = _client_ip()
+            is_new = _record_login(uid, method="email_2fa")
+            if is_new:
+                _login_alert_async(uid, method="email_2fa", ua=_ua, ip=_ip)
+        except Exception as e:
+            print(f"[LOGIN RECORD email_2fa] {e}")
+
+        return jsonify({"ok": True, "method": "email"})
+
+    # TOTP method
     conn = db()
     row = conn.execute("""SELECT totp_secret, COALESCE(totp_enabled,0) AS en,
                                 COALESCE(backup_codes,'') AS bc
@@ -3100,12 +3232,10 @@ def login_2fa():
         _pending_2fa_consume(token)
         return jsonify({"error": "2FA নিষ্ক্রিয়"}), 400
 
-    # Try TOTP first
     ok = _verify_totp(row["totp_secret"], code)
     used_backup = False
     new_bc = row["bc"]
 
-    # Fallback: backup code
     if not ok and len(code) >= 8:
         ok_bk, new_bc_after = _verify_backup_code(row["bc"], code)
         if ok_bk:
@@ -3174,6 +3304,174 @@ def login_2fa():
         "ok": True,
         "used_backup": used_backup,
         "backup_codes_remaining": (len(new_bc.split(",")) if new_bc else 0) if used_backup else None,
+    })
+
+
+@app.route("/api/auth/recover-2fa/request", methods=["POST"])
+@rate_limit("recover_2fa_req", 5, 900)
+def recover_2fa_request():
+    """S27B-3 (email-based) step 1 — request recovery code via email."""
+    d = request.json or {}
+    username = (d.get("username") or "").strip().lower()
+    password = d.get("password") or ""
+    GENERIC = "ভুল তথ্য। নিশ্চিত হয়ে আবার চেষ্টা করুন।"
+
+    if not username or not password:
+        return jsonify({"error": "সব তথ্য পূরণ করুন"}), 400
+
+    conn = db()
+    row = conn.execute(
+        """SELECT id, username, COALESCE(totp_enabled,0) AS tfa,
+                  salt, password_hash, email, COALESCE(email_verified,0) AS ev
+           FROM users WHERE LOWER(username)=?""",
+        (username,)
+    ).fetchone()
+    if not row:
+        conn.close()
+        time.sleep(0.3)
+        return jsonify({"error": GENERIC}), 400
+
+    pw_ok, _ = verify_password(password, row["password_hash"], row["salt"])
+    if not pw_ok:
+        conn.close()
+        _log_security_event("recover_2fa_req_fail", uid=row["id"], username=row["username"])
+        return jsonify({"error": GENERIC}), 400
+
+    if not row["tfa"]:
+        conn.close()
+        return jsonify({"error": "এই অ্যাকাউন্টে 2FA চালু নেই। সরাসরি login করুন।"}), 400
+
+    if not row["email"] or not row["ev"]:
+        conn.close()
+        return jsonify({"error": "এই অ্যাকাউন্টে verified email নেই। Admin-এর সাথে যোগাযোগ করুন।"}), 400
+
+    # Generate 6-digit code + store hash + expiry
+    code = str(secrets.randbelow(900000) + 100000)
+    code_hash = make_password_hash(code)
+    conn.execute("DELETE FROM password_resets WHERE user_id=? AND purpose='2fa_recovery'",
+                 (row["id"],))
+    conn.execute(
+        """INSERT INTO password_resets (user_id, token_hash, expires_at, purpose)
+           VALUES (?, ?, datetime('now', '+10 minutes'), '2fa_recovery')""",
+        (row["id"], code_hash)
+    )
+    conn.commit()
+    conn.close()
+
+    # Send email
+    try:
+        _NL = chr(10)
+        body = (
+            "হ্যালো " + str(row["username"]) + "," + _NL + _NL +
+            "আপনার JUKTOY অ্যাকাউন্টে 2FA রিকভারি অনুরোধ করা হয়েছে।" + _NL + _NL +
+            "আপনার কোড: " + code + _NL + _NL +
+            "কোডটি 10 মিনিটের জন্য বৈধ।" + _NL + _NL +
+            "⚠️ আপনি না করে থাকলে এই ইমেইল উপেক্ষা করুন এবং সাথে সাথে পাসওয়ার্ড পরিবর্তন করুন।" + _NL + _NL +
+            "— JUKTOY Security"
+        )
+        _send_email(row["email"], "JUKTOY — 2FA রিকভারি কোড", body)
+    except Exception as e:
+        print(f"[recover_2fa] send failed: {e}")
+
+    _log_security_event("recover_2fa_code_sent", uid=row["id"], username=row["username"])
+    return jsonify({
+        "ok": True,
+        "email_masked": _mask_email(row["email"]),
+        "message": "রিকভারি কোড আপনার verified email-এ পাঠানো হয়েছে।",
+    })
+
+
+def _mask_email(email):
+    try:
+        local, _, domain = email.partition("@")
+        if len(local) <= 2:
+            masked_local = local[0] + "*"
+        else:
+            masked_local = local[0] + "*" * (len(local) - 2) + local[-1]
+        return masked_local + "@" + domain
+    except Exception:
+        return "***"
+
+
+@app.route("/api/auth/recover-2fa/verify", methods=["POST"])
+@rate_limit("recover_2fa_ver", 10, 900)
+def recover_2fa_verify():
+    """S27B-3 (email-based) step 2 — submit email code → disable 2FA."""
+    d = request.json or {}
+    username = (d.get("username") or "").strip().lower()
+    email_code = (d.get("email_code") or "").strip()
+    GENERIC = "ভুল কোড বা মেয়াদ শেষ।"
+
+    if not username or not email_code:
+        return jsonify({"error": "সব তথ্য পূরণ করুন"}), 400
+
+    conn = db()
+    row = conn.execute(
+        "SELECT id, username FROM users WHERE LOWER(username)=?",
+        (username,)
+    ).fetchone()
+    if not row:
+        conn.close()
+        return jsonify({"error": GENERIC}), 400
+
+    # Find latest unused 2fa_recovery token for this user
+    tokens = conn.execute(
+        """SELECT id, token_hash FROM password_resets
+           WHERE user_id=? AND purpose='2fa_recovery' AND used=0
+             AND expires_at > datetime('now')
+           ORDER BY id DESC LIMIT 5""",
+        (row["id"],)
+    ).fetchall()
+
+    matched_id = None
+    for t in tokens:
+        try:
+            if _verify_secure_hash(email_code, t["token_hash"]):
+                matched_id = t["id"]
+                break
+        except Exception:
+            continue
+
+    if not matched_id:
+        conn.close()
+        _log_security_event("recover_2fa_verify_fail", uid=row["id"], username=row["username"])
+        return jsonify({"error": GENERIC}), 400
+
+    # Success — consume token, disable 2FA, rotate session_version
+    conn.execute("UPDATE password_resets SET used=1 WHERE id=?", (matched_id,))
+    conn.execute(
+        """UPDATE users SET totp_enabled=0, totp_secret=NULL, backup_codes='',
+                          session_version = COALESCE(session_version,0) + 1
+           WHERE id=?""",
+        (row["id"],)
+    )
+    conn.commit()
+
+    # Get display name + email for alert
+    u = conn.execute("SELECT display_name, email FROM users WHERE id=?", (row["id"],)).fetchone()
+    conn.close()
+
+    _log_security_event("recover_2fa_success_email", uid=row["id"], username=row["username"])
+
+    # Notify by email
+    try:
+        if u and u["email"] and _is_valid_email(u["email"]):
+            _NL = chr(10)
+            now = time.strftime("%d %b %Y, %H:%M", time.localtime())
+            body = (
+                "হ্যালো " + str(u["display_name"]) + "," + _NL + _NL +
+                "আপনার অ্যাকাউন্টে email verification দিয়ে 2FA বন্ধ করা হয়েছে।" + _NL + _NL +
+                "🕒 সময়: " + now + _NL + _NL +
+                "⚠️ আপনি না করে থাকলে সাথে সাথে পাসওয়ার্ড পরিবর্তন করুন।" + _NL + _NL +
+                "— JUKTOY Security"
+            )
+            _send_email(u["email"], "JUKTOY — 2FA বন্ধ করা হয়েছে", body)
+    except Exception as e:
+        print(f"[recover_2fa] alert failed: {e}")
+
+    return jsonify({
+        "ok": True,
+        "message": "2FA বন্ধ করা হয়েছে। এখন password দিয়ে login করে নতুন করে 2FA চালু করুন।",
     })
 
 
@@ -4376,8 +4674,26 @@ def logout_all_devices():
 @app.route("/api/me/2fa/setup", methods=["POST"])
 @login_required
 def setup_2fa():
-    """Generate a fresh TOTP secret (does not enable yet)."""
+    """Generate a fresh TOTP secret (does not enable yet).
+
+    S22 / Series 27B-2 — requires verified recovery email.
+    """
     uid = session["user_id"]
+
+    # S22 / Series 27B-2 — mandatory verified email before 2FA
+    _conn_check = db()
+    _row_check = _conn_check.execute(
+        "SELECT email, COALESCE(email_verified, 0) AS v FROM users WHERE id=?",
+        (uid,)
+    ).fetchone()
+    _conn_check.close()
+    if not _row_check or not _row_check["email"] or not _row_check["v"]:
+        return jsonify({
+            "error": "2FA চালু করার আগে একটি verified recovery email যোগ করুন। "
+                     "নাহলে device হারালে অ্যাকাউন্টে আর ঢুকতে পারবেন না।",
+            "needs_email": True,
+        }), 403
+
     secret_b32 = _gen_totp_secret()
     conn = db()
     row = conn.execute("SELECT username FROM users WHERE id=?", (uid,)).fetchone()
@@ -4407,6 +4723,19 @@ def verify_2fa_setup():
     d = request.json or {}
     code = (d.get("code") or "").strip()
     uid = session["user_id"]
+
+    # S22 / Series 27B-2 — defense in depth: also block verify without email
+    _conn_check = db()
+    _row_check = _conn_check.execute(
+        "SELECT email, COALESCE(email_verified, 0) AS v FROM users WHERE id=?",
+        (uid,)
+    ).fetchone()
+    _conn_check.close()
+    if not _row_check or not _row_check["email"] or not _row_check["v"]:
+        return jsonify({
+            "error": "2FA চালু করার আগে verified recovery email লাগবে।",
+            "needs_email": True,
+        }), 403
 
     conn = db()
     row = conn.execute("SELECT totp_secret FROM users WHERE id=?", (uid,)).fetchone()
@@ -4445,11 +4774,11 @@ def disable_2fa():
         return jsonify({"error": msg}), 400
 
     conn = db()
+    # S27B-4 — only clear TOTP; email 2FA has its own endpoint
     conn.execute("""UPDATE users SET totp_enabled=0, totp_secret=NULL,
                     backup_codes='' WHERE id=?""", (uid,))
     conn.commit()
     conn.close()
-    # S16.6 — log 2FA disable
     _log_security_event("2fa_disable", uid=uid)
     return jsonify({"ok": True})
 
@@ -4600,18 +4929,257 @@ def recovery_code_status():
     return jsonify({"has_code": bool(row and row["recovery_code_hash"])})
 
 
+@app.route("/api/me/2fa/email/enable", methods=["POST"])
+@login_required
+def enable_email_2fa():
+    """S27B-4 — enable email-based 2FA (requires verified email)."""
+    uid = session["user_id"]
+    d = request.json or {}
+    password = d.get("password") or ""
+    if not password:
+        return jsonify({"error": "পাসওয়ার্ড দিন"}), 400
+
+    # Verify password
+    ok, msg = _verify_sensitive_action(uid, password, None)
+    if not ok:
+        return jsonify({"error": msg}), 400
+
+    conn = db()
+    row = conn.execute(
+        "SELECT email, COALESCE(email_verified,0) AS ev FROM users WHERE id=?",
+        (uid,)
+    ).fetchone()
+    if not row:
+        conn.close()
+        return jsonify({"error": "ইউজার পাওয়া যায়নি"}), 404
+    if not row["email"] or not row["ev"]:
+        conn.close()
+        return jsonify({
+            "error": "আগে verified recovery email যোগ করুন।",
+            "needs_email": True,
+        }), 403
+
+    conn.execute("UPDATE users SET email_2fa_enabled=1 WHERE id=?", (uid,))
+    conn.commit()
+    conn.close()
+
+    _log_security_event("email_2fa_enabled", uid=uid)
+    return jsonify({
+        "ok": True,
+        "message": "Email 2FA চালু হয়েছে। এখন login-এ ইমেইলে কোড আসবে।",
+    })
+
+
+@app.route("/api/me/2fa/email/disable", methods=["POST"])
+@login_required
+def disable_email_2fa():
+    """S27B-4 — disable email-based 2FA."""
+    uid = session["user_id"]
+    d = request.json or {}
+    password = d.get("password") or ""
+    code = d.get("totp_code") or ""
+    if not password:
+        return jsonify({"error": "পাসওয়ার্ড দিন"}), 400
+
+    ok, msg = _verify_sensitive_action(uid, password, code)
+    if not ok:
+        return jsonify({"error": msg}), 400
+
+    conn = db()
+    conn.execute("UPDATE users SET email_2fa_enabled=0 WHERE id=?", (uid,))
+    conn.commit()
+    conn.close()
+
+    _log_security_event("email_2fa_disabled", uid=uid)
+    return jsonify({"ok": True, "message": "Email 2FA বন্ধ করা হয়েছে।"})
+
+
+@app.route("/api/me/recovery-kit")
+@login_required
+def recovery_kit():
+    """S27B-7 — generate a downloadable recovery kit (plain text)."""
+    uid = session["user_id"]
+    conn = db()
+    row = conn.execute("""
+        SELECT username, display_name, email,
+               COALESCE(email_verified,0) AS ev,
+               COALESCE(backup_codes,'') AS bc,
+               recovery_code_hash,
+               COALESCE(totp_enabled,0) AS totp,
+               COALESCE(email_2fa_enabled,0) AS email2fa,
+               created_at
+        FROM users WHERE id=?
+    """, (uid,)).fetchone()
+    conn.close()
+    if not row:
+        return jsonify({"error": "ইউজার পাওয়া যায়নি"}), 404
+
+    NL = chr(10)
+    SEP = "=" * 60
+
+    backup_count = len([c for c in (row["bc"] or "").split(",") if c])
+    methods = []
+    if row["totp"]: methods.append("Authenticator App (TOTP)")
+    if row["email2fa"]: methods.append("Email 2FA")
+    methods_str = ", ".join(methods) if methods else "None"
+
+    lines = [
+        SEP,
+        "JUKTOY ACCOUNT RECOVERY KIT",
+        SEP,
+        "",
+        "Generated: " + time.strftime("%d %b %Y, %H:%M", time.localtime()),
+        "",
+        "ACCOUNT INFO",
+        "-" * 60,
+        "Username:      " + str(row["username"]),
+        "Display Name:  " + str(row["display_name"] or ""),
+        "Recovery Email: " + str(row["email"] or "(not set)")
+            + (" (verified)" if row["ev"] else ""),
+        "Account Created: " + str(row["created_at"]),
+        "",
+        "SECURITY STATUS",
+        "-" * 60,
+        "2FA Methods:   " + methods_str,
+        "Backup Codes:  " + str(backup_count) + " remaining",
+        "Recovery Code: " + ("SET (stored in DB)" if row["recovery_code_hash"]
+                             else "NOT SET"),
+        "",
+        "RECOVERY INSTRUCTIONS",
+        "-" * 60,
+        "",
+        "If you lose your 2FA device:",
+        "  1. Go to the login page",
+        "  2. Click '2FA device হারিয়ে ফেলেছেন?'",
+        "  3. Enter your username + password",
+        "  4. Enter a backup code OR wait for email code",
+        "  5. 2FA will be disabled — then login and re-enable",
+        "",
+        "IMPORTANT SAFETY RULES:",
+        "  * NEVER share this file with anyone",
+        "  * Store in a password manager OR print & lock away",
+        "  * If you suspect compromise, change password immediately",
+        "",
+        "If you have lost ALL methods (2FA device, backup codes,",
+        "recovery code, AND email access), your account CANNOT",
+        "be recovered. This is by design for your security.",
+        "",
+        SEP,
+        "Generated by JUKTOY — " + str(row["username"]),
+        SEP,
+    ]
+    body = NL.join(lines)
+    return body, 200, {
+        "Content-Type": "text/plain; charset=utf-8",
+        "Content-Disposition": 'attachment; filename="juktoy-recovery-"'
+                               + str(row["username"]) + '.txt"',
+    }
+
+
+@app.route("/api/me/phone/set", methods=["POST"])
+@login_required
+def set_phone():
+    """S27B-8 — phone placeholder (coming soon)."""
+    return jsonify({
+        "error": "SMS ভেরিফিকেশন শীঘ্রই আসছে (Twilio integration pending)।",
+        "coming_soon": True,
+    }), 501
+
+
+@app.route("/api/me/phone/status")
+@login_required
+def phone_status():
+    """S27B-8 — report SMS provider availability."""
+    provider = os.environ.get("JUKTOY_SMS_PROVIDER") or ""
+    twilio = bool(os.environ.get("JUKTOY_TWILIO_ACCOUNT_SID"))
+    return jsonify({
+        "available": bool(provider or twilio),
+        "coming_soon": not bool(provider or twilio),
+    })
+
+
+@app.route("/api/me/backup-email/set", methods=["POST"])
+@login_required
+def set_backup_email():
+    """S27B-9 — set secondary recovery email."""
+    uid = session["user_id"]
+    d = request.json or {}
+    email = (d.get("email") or "").strip().lower()
+    password = d.get("password") or ""
+
+    if not email or not _is_valid_email(email):
+        return jsonify({"error": "বৈধ ইমেইল দিন"}), 400
+    if not password:
+        return jsonify({"error": "পাসওয়ার্ড দিন"}), 400
+
+    ok, msg = _verify_sensitive_action(uid, password, None)
+    if not ok:
+        return jsonify({"error": msg}), 400
+
+    conn = db()
+    # Prevent duplicate with primary email
+    row = conn.execute("SELECT email FROM users WHERE id=?", (uid,)).fetchone()
+    if row and row["email"] and row["email"].lower() == email:
+        conn.close()
+        return jsonify({"error": "এটি আপনার primary email — ভিন্ন ইমেইল দিন"}), 400
+
+    # Save (unverified until they click link)
+    conn.execute("UPDATE users SET backup_email=?, backup_email_verified=0 WHERE id=?",
+                 (email, uid))
+    conn.commit()
+    conn.close()
+
+    _log_security_event("backup_email_set", uid=uid, metadata={"email": email})
+    return jsonify({"ok": True, "email": email,
+                    "message": "Backup email সেট হয়েছে। যাচাইয়ের ইমেইল পাঠানো হবে।"})
+
+
+@app.route("/api/me/backup-email/remove", methods=["POST"])
+@login_required
+def remove_backup_email():
+    """S27B-9 — remove backup email."""
+    uid = session["user_id"]
+    d = request.json or {}
+    password = d.get("password") or ""
+    if not password:
+        return jsonify({"error": "পাসওয়ার্ড দিন"}), 400
+    ok, msg = _verify_sensitive_action(uid, password, None)
+    if not ok:
+        return jsonify({"error": msg}), 400
+
+    conn = db()
+    conn.execute("UPDATE users SET backup_email=NULL, backup_email_verified=0 WHERE id=?",
+                 (uid,))
+    conn.commit()
+    conn.close()
+    _log_security_event("backup_email_removed", uid=uid)
+    return jsonify({"ok": True})
+
+
 @app.route("/api/me/2fa/status")
 @login_required
 def status_2fa():
     uid = session["user_id"]
     conn = db()
     row = conn.execute("""SELECT COALESCE(totp_enabled,0) AS en,
-                                COALESCE(backup_codes,'') AS bc
+                                COALESCE(backup_codes,'') AS bc,
+                                COALESCE(email_2fa_enabled,0) AS email_en,
+                                email,
+                                COALESCE(email_verified,0) AS email_v
                           FROM users WHERE id=?""", (uid,)).fetchone()
     conn.close()
-    remaining = len([c for c in (row["bc"] or "").split(",") if c]) if row else 0
-    return jsonify({"enabled": bool(row["en"]) if row else False,
-                    "backup_codes_remaining": remaining})
+    if not row:
+        return jsonify({"enabled": False, "email_2fa_enabled": False,
+                        "backup_codes_remaining": 0, "email_verified": False})
+    remaining = len([c for c in (row["bc"] or "").split(",") if c])
+    email_ok = bool(row["email"] and row["email_v"])
+    return jsonify({
+        "enabled": bool(row["en"]) or bool(row["email_en"]),
+        "totp_enabled": bool(row["en"]),
+        "email_2fa_enabled": bool(row["email_en"]),
+        "email_verified": email_ok,
+        "backup_codes_remaining": remaining,
+    })
 
 
 @app.route("/api/me/bio", methods=["POST"])
@@ -5410,22 +5978,30 @@ def admin_security_events():
 @app.route("/api/admin/check")
 @login_required
 def admin_check():
-    """Returns whether current user is admin + 2FA status."""
+    """Returns whether current user is admin + 2FA status (TOTP or email)."""
     uid = session["user_id"]
     is_adm = _is_admin(uid)
-    two_fa = False
+    totp_on = False
+    email2fa_on = False
     if is_adm:
         conn = db()
         row = conn.execute(
-            "SELECT COALESCE(totp_enabled, 0) AS en FROM users WHERE id=?",
+            "SELECT COALESCE(totp_enabled, 0) AS totp, "
+            "COALESCE(email_2fa_enabled, 0) AS email2fa "
+            "FROM users WHERE id=?",
             (uid,)
         ).fetchone()
         conn.close()
-        two_fa = bool(row and row["en"])
+        if row:
+            totp_on = bool(row["totp"])
+            email2fa_on = bool(row["email2fa"])
+    has_2fa = totp_on or email2fa_on
     return jsonify({
         "is_admin": is_adm,
-        "has_2fa": two_fa,
-        "needs_2fa_setup": bool(is_adm and ADMIN_2FA_ENFORCED and not two_fa),
+        "has_2fa": has_2fa,
+        "has_totp": totp_on,
+        "has_email_2fa": email2fa_on,
+        "needs_2fa_setup": bool(is_adm and ADMIN_2FA_ENFORCED and not has_2fa),
     })
 
 
@@ -6068,8 +6644,10 @@ def get_messages(username):
         WHERE ((m.sender_id=? AND m.receiver_id=?)
            OR (m.sender_id=? AND m.receiver_id=?))
           AND (COALESCE(m.hidden_for,'') = '' OR m.hidden_for NOT LIKE ?)
-        ORDER BY m.created_at ASC LIMIT 500""",
+        ORDER BY m.created_at DESC LIMIT 500""",
         (uid, uid, uid, other_id, other_id, uid, "%,"+str(uid)+",%")).fetchall()
+    # S22 batch — reverse to chronological order (we fetched newest first)
+    rows = list(reversed(rows))
 
     # New: real presence (seconds since last_seen)
     pres = conn.execute("""
@@ -6420,6 +6998,7 @@ def get_chat_settings(username):
 @app.route("/api/chats/<username>/clear", methods=["POST"])
 @login_required
 def clear_chat(username):
+    """S22 batch — clear ONLY for current user (hide, not delete both)."""
     uid = session["user_id"]
     conn = db()
     other = conn.execute("SELECT id FROM users WHERE username=?", (username,)).fetchone()
@@ -6427,15 +7006,18 @@ def clear_chat(username):
         conn.close()
         return jsonify({"error": "ইউজার পাওয়া যায়নি"}), 404
     other_id = other["id"]
-    # Delete reactions to messages between these two
-    conn.execute("""DELETE FROM message_reactions WHERE message_id IN (
-        SELECT id FROM messages WHERE (sender_id=? AND receiver_id=?) OR (sender_id=? AND receiver_id=?)
-    )""", (uid, other_id, other_id, uid))
-    conn.execute("DELETE FROM messages WHERE (sender_id=? AND receiver_id=?) OR (sender_id=? AND receiver_id=?)",
-                 (uid, other_id, other_id, uid))
+    # Mark all messages in this conversation as hidden for ME only
+    rows = conn.execute("""SELECT id, COALESCE(hidden_for,'') AS hf FROM messages
+        WHERE (sender_id=? AND receiver_id=?) OR (sender_id=? AND receiver_id=?)""",
+        (uid, other_id, other_id, uid)).fetchall()
+    for r in rows:
+        hidden = set(x.strip() for x in (r["hf"] or "").split(",") if x.strip())
+        hidden.add(str(uid))
+        new_hf = "," + ",".join(sorted(hidden)) + ","
+        conn.execute("UPDATE messages SET hidden_for=? WHERE id=?", (new_hf, r["id"]))
     conn.commit()
     conn.close()
-    return jsonify({"ok": True})
+    return jsonify({"ok": True, "cleared": len(rows)})
 
 
 @app.route("/api/messages/<username>/voice", methods=["POST"])
@@ -7368,6 +7950,19 @@ def toggle_reel_like(rid):
     if _blk: return _blk
     uid = session["user_id"]
     conn = db()
+    # S22 batch — reel existence + block
+    rr = conn.execute("SELECT user_id FROM reels WHERE id=?", (rid,)).fetchone()
+    if not rr:
+        conn.close()
+        return jsonify({"error": "রিল পাওয়া যায়নি"}), 404
+    if rr["user_id"] != uid:
+        _bid = rr["user_id"]
+        _bc = conn.execute("""SELECT 1 FROM blocks
+            WHERE (blocker_id=? AND blocked_id=?) OR (blocker_id=? AND blocked_id=?)
+            LIMIT 1""", (uid, _bid, _bid, uid)).fetchone()
+        if _bc:
+            conn.close()
+            return jsonify({"error": "রিল পাওয়া যায়নি"}), 404
     exists = conn.execute("SELECT 1 FROM reel_likes WHERE user_id=? AND reel_id=?",
                           (uid, rid)).fetchone()
     if exists:
@@ -7405,9 +8000,23 @@ def add_reel_comment(rid):
         return jsonify({"error": "খালি কমেন্ট নয়"}), 400
     if len(content) > 2_000:
         return jsonify({"error": "কমেন্ট ২,০০০ অক্ষরের বেশি হতে পারবে না"}), 400
+    uid = session["user_id"]
     conn = db()
+    # S22 batch-2 — reel existence + block
+    rr = conn.execute("SELECT user_id FROM reels WHERE id=?", (rid,)).fetchone()
+    if not rr:
+        conn.close()
+        return jsonify({"error": "রিল পাওয়া যায়নি"}), 404
+    if rr["user_id"] != uid:
+        _bid = rr["user_id"]
+        _bc = conn.execute("""SELECT 1 FROM blocks
+            WHERE (blocker_id=? AND blocked_id=?) OR (blocker_id=? AND blocked_id=?)
+            LIMIT 1""", (uid, _bid, _bid, uid)).fetchone()
+        if _bc:
+            conn.close()
+            return jsonify({"error": "রিল পাওয়া যায়নি"}), 404
     conn.execute("INSERT INTO reel_comments (reel_id, user_id, content) VALUES (?,?,?)",
-                 (rid, session["user_id"], content))
+                 (rid, uid, content))
     conn.commit()
     conn.close()
     return jsonify({"ok": True})
