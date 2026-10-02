@@ -2467,6 +2467,23 @@ def _get_client_ip_key():
     return ":".join(parts[:4])                   # IPv6 /64
 
 
+def _is_admin_id(target_uid):
+    """S22 / Series 27A-2 — check if a user_id belongs to an admin.
+    Used to hide admin profiles from non-admin viewers everywhere."""
+    if not target_uid:
+        return False
+    try:
+        conn = db()
+        row = conn.execute(
+            "SELECT COALESCE(is_admin, 0) AS a FROM users WHERE id=?",
+            (target_uid,)
+        ).fetchone()
+        conn.close()
+        return bool(row and row["a"])
+    except Exception:
+        return False
+
+
 def _is_public_action_blocked_for_admin():
     """S22 / Series 27A — admin account cannot perform public actions.
 
@@ -3733,11 +3750,11 @@ def search_all():
             SELECT username, display_name, profile_pic FROM users
             WHERE (LOWER(username) LIKE ? OR LOWER(display_name) LIKE ?)
               AND id != ?
-              AND LOWER(username) != ?
+              AND COALESCE(is_admin, 0) = 0
               AND id NOT IN (SELECT blocked_id FROM blocks WHERE blocker_id=?)
               AND id NOT IN (SELECT blocker_id FROM blocks WHERE blocked_id=?)
             LIMIT 20
-        """, (like_lower, like_lower, uid, ADMIN_USERNAME, uid, uid)).fetchall()
+        """, (like_lower, like_lower, uid, uid, uid)).fetchall()
         users_out = [dict(r) for r in rows]
 
     if stype in ("all", "posts"):
@@ -3820,11 +3837,11 @@ def search_users():
     rows = conn.execute("""
         SELECT username, display_name, profile_pic FROM users
         WHERE (username LIKE ? OR display_name LIKE ?)
-          AND LOWER(username) != ?
+          AND COALESCE(is_admin, 0) = 0
           AND id NOT IN (SELECT blocked_id FROM blocks WHERE blocker_id=?)
           AND id NOT IN (SELECT blocker_id FROM blocks WHERE blocked_id=?)
         LIMIT 20
-    """, (q, q, ADMIN_USERNAME, uid, uid)).fetchall()
+    """, (q, q, uid, uid)).fetchall()
     conn.close()
     return jsonify([dict(r) for r in rows])
 
@@ -3840,6 +3857,12 @@ def profile(username):
         return jsonify({"error": "ইউজার পাওয়া যায়নি"}), 404
 
     uid = session["user_id"]
+
+    # S22 / Series 27A-2 — hide admin profile from non-admin viewers
+    # Return same 404 as nonexistent — no info leak
+    if _is_admin(u["id"]) and not _is_admin(uid):
+        conn.close()
+        return jsonify({"error": "ইউজার পাওয়া যায়নি"}), 404
 
     # Block check — return generic 404 to avoid info leak
     if _is_blocked_either_way(uid, u["id"]):
@@ -3968,6 +3991,10 @@ def toggle_block(username):
     if target_id == uid:
         conn.close()
         return jsonify({"error": "নিজেকে ব্লক করা যাবে না"}), 400
+    # S22 / Series 27A-2 — hide admin from block targets
+    if _is_admin(target_id) and not _is_admin(uid):
+        conn.close()
+        return jsonify({"error": "ইউজার পাওয়া যায়নি"}), 404
 
     exists = conn.execute("SELECT 1 FROM blocks WHERE blocker_id=? AND blocked_id=?",
                           (uid, target_id)).fetchone()
@@ -4101,6 +4128,10 @@ def get_mutual_followers(username):
     if not user:
         conn.close()
         return jsonify({"error": "ইউজার পাওয়া যায়নি"}), 404
+    # S22 / Series 27A-2 — hide admin mutual followers
+    if _is_admin(user["id"]) and not _is_admin(uid):
+        conn.close()
+        return jsonify({"error": "ইউজার পাওয়া যায়নি"}), 404
     rows = conn.execute("""
         SELECT DISTINCT u2.username, u2.display_name, u2.profile_pic
         FROM follows f1
@@ -4125,6 +4156,10 @@ def get_followers(username):
     if not user:
         conn.close()
         return jsonify({"error": "ইউজার পাওয়া যায়নি"}), 404
+    # S22 / Series 27A-2 — hide admin followers
+    if _is_admin(user["id"]) and not _is_admin(session["user_id"]):
+        conn.close()
+        return jsonify({"error": "ইউজার পাওয়া যায়নি"}), 404
     rows = conn.execute("""SELECT u.username, u.display_name, u.profile_pic
         FROM follows f JOIN users u ON u.id = f.follower_id
         WHERE f.following_id=?
@@ -4141,6 +4176,10 @@ def get_following(username):
     conn = db()
     user = conn.execute("SELECT id FROM users WHERE username=?", (username,)).fetchone()
     if not user:
+        conn.close()
+        return jsonify({"error": "ইউজার পাওয়া যায়নি"}), 404
+    # S22 / Series 27A-2 — hide admin following list
+    if _is_admin(user["id"]) and not _is_admin(session["user_id"]):
         conn.close()
         return jsonify({"error": "ইউজার পাওয়া যায়নি"}), 404
     rows = conn.execute("""SELECT u.username, u.display_name, u.profile_pic
