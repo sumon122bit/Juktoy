@@ -2291,6 +2291,42 @@ def _bootstrap_admin_if_missing():
         print(f"[BOOTSTRAP] ❌ Failed: {e}")
 
 
+def _run_startup_migrations():
+    """S27B hotfix — ensure ALL schema migrations applied at startup.
+    Render's ephemeral DB may not have latest schema."""
+    try:
+        conn = sqlite3.connect(DB, timeout=10.0)
+        c = conn.cursor()
+        migrations = [
+            ("password_resets", "purpose",             "TEXT NOT NULL DEFAULT 'password_reset'"),
+            ("users",           "email_2fa_enabled",   "INTEGER DEFAULT 0"),
+            ("users",           "phone",               "TEXT"),
+            ("users",           "phone_verified",      "INTEGER DEFAULT 0"),
+            ("users",           "phone_verified_at",   "TIMESTAMP"),
+            ("users",           "recovery_code_hash",  "TEXT"),
+            ("users",           "backup_email",        "TEXT"),
+            ("users",           "backup_email_verified","INTEGER DEFAULT 0"),
+            ("users",           "last_seen",           "TIMESTAMP"),
+            ("call_sessions",   "caller_last_seen",    "TIMESTAMP"),
+            ("call_sessions",   "callee_last_seen",    "TIMESTAMP"),
+        ]
+        added = 0
+        for table, col, typ in migrations:
+            try:
+                existing = [r[1] for r in c.execute(f"PRAGMA table_info({table})").fetchall()]
+                if col not in existing:
+                    c.execute(f"ALTER TABLE {table} ADD COLUMN {col} {typ}")
+                    added += 1
+                    print(f"[MIGRATE] added {table}.{col}")
+            except Exception as e:
+                print(f"[MIGRATE] {table}.{col} skipped: {e}")
+        conn.commit()
+        conn.close()
+        print(f"[MIGRATE] {added} column(s) added" if added else "[MIGRATE] schema up to date")
+    except Exception as e:
+        print(f"[MIGRATE] error: {e}")
+
+
 def _purge_old_sessions():
     """Remove sessions older than 30 days."""
     try:
@@ -8143,6 +8179,7 @@ def add_reel_comment(rid):
 
 # Initialize DB at import time so gunicorn/waitress also work
 init_db()
+_run_startup_migrations()   # S27B hotfix — ensure all columns exist
 _ensure_upload_dirs()   # S17.1 — create upload folders
 _load_state()           # S17.2p — restore rate-limit buckets
 _start_state_persister()  # S17.2p — save every 60s + on exit
