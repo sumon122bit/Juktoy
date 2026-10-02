@@ -151,8 +151,13 @@ import os as _os
 # ============================================
 
 from werkzeug.middleware.proxy_fix import ProxyFix
-# Trust one layer of proxy (nginx/gunicorn) — X-Forwarded-Proto, X-Forwarded-Host, X-Forwarded-For
-app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1, x_for=1)
+# S22 / Series 28 — trust TWO proxy hops for X-Forwarded-For.
+# Render's stack has 2 layers (LB + internal router), each adding one
+# XFF entry. With x_for=1, ProxyFix stops at Render's internal IP
+# (10.x.x.x) which rotates on every request → session fingerprint
+# mismatch → non-stop logouts. x_for=2 makes ProxyFix skip both
+# internal IPs and expose the REAL client IP from XFF.
+app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1, x_for=2)
 
 # ============================================================
 # S22 / Series 19 — trusted client IP helper
@@ -7137,3 +7142,16 @@ _purge_old_sessions()   # S22 / Series 9A — cleanup stale sessions (>30d)
 
 if __name__ == "__main__":
     app.run(host='0.0.0.0', debug=False, port=5000)
+
+
+@app.route("/debug/whoami")
+def _debug_whoami():
+    from flask import request
+    return jsonify({
+        "remote_addr": request.remote_addr,
+        "X-Forwarded-For": request.headers.get("X-Forwarded-For"),
+        "X-Real-IP": request.headers.get("X-Real-IP"),
+        "X-Forwarded-Proto": request.headers.get("X-Forwarded-Proto"),
+        "X-Forwarded-Host": request.headers.get("X-Forwarded-Host"),
+        "User-Agent": (request.headers.get("User-Agent") or "")[:80],
+    })
