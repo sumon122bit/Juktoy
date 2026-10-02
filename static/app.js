@@ -6388,6 +6388,9 @@ async function openSettingsPage() {
   if (!page) return;
   if (!page.classList.contains("hidden")) return;
 
+  // S22 / Series 27B-1 — load security dashboard
+  _loadSecurityDashboard().catch(() => {});
+
   // S18.9h3 — refresh state.me so privacy toggle shows correct value
   try {
     const fresh = await api("/api/me");
@@ -13350,3 +13353,125 @@ function _openDeleteMessageSheet(msgId, msgEl, isMine) {
 
   console.log("[S4B] call history ready");
 })();
+
+// S22 / Series 27B-1 — Security Dashboard
+async function _loadSecurityDashboard() {
+  const container = document.getElementById("security-dashboard");
+  if (!container) return;
+  container.innerHTML = '<p style="text-align:center;color:var(--muted);padding:20px">লোড হচ্ছে...</p>';
+  try {
+    const data = await api("/api/me/security-overview");
+    container.innerHTML = _renderSecurityDashboard(data);
+    _bindSecurityDashboardEvents();
+  } catch (err) {
+    container.innerHTML = '<p style="color:var(--danger);text-align:center;padding:20px">লোড করা যায়নি</p>';
+  }
+}
+
+function _renderSecurityDashboard(d) {
+  const c = d.checks || {};
+  const score = d.score || 0;
+  const risk = d.risk || "weak";
+  const riskLabel = d.risk_label || "Unknown";
+  const colors = { excellent:"#22c55e", good:"#10b981", moderate:"#f59e0b", weak:"#ef4444" };
+  const color = colors[risk] || "#ef4444";
+
+  const check = (label, ok, hint, extra = "") => `
+    <div class="sd-check ${ok ? 'ok' : 'warn'}">
+      <div class="sd-check-icon">${ok ? '✅' : '⚠️'}</div>
+      <div class="sd-check-body">
+        <div class="sd-check-label">${escapeHtml(label)}</div>
+        <div class="sd-check-hint">${escapeHtml(hint || "")}</div>
+        ${extra}
+      </div>
+    </div>`;
+
+  return `
+    <div class="sd-score-card">
+      <div class="sd-score-ring" style="--sd-color:${color};--score:${score}">
+        <div class="sd-score-value">${score}</div>
+        <div class="sd-score-max">/100</div>
+      </div>
+      <div class="sd-score-info">
+        <div class="sd-score-label" style="color:${color}">${escapeHtml(riskLabel)}</div>
+        <div class="sd-score-sub">আপনার অ্যাকাউন্ট সুরক্ষার স্কোর</div>
+      </div>
+    </div>
+    <div class="sd-checks">
+      ${check(c.password?.label, c.password?.ok, c.password?.hint)}
+      ${check(c.two_factor?.label, c.two_factor?.ok, c.two_factor?.hint,
+        c.two_factor?.ok ? '' : '<button type="button" class="sd-action-btn" data-action="enable-2fa">2FA চালু করুন</button>')}
+      ${check(c.email?.label, c.email?.ok,
+        (c.email?.email ? c.email.email + ' — ' + c.email.hint : c.email?.hint),
+        c.email?.ok ? '' : '<button type="button" class="sd-action-btn" data-action="verify-email">Email যাচাই করুন</button>')}
+      ${check(c.backup_codes?.label, c.backup_codes?.ok, c.backup_codes?.hint)}
+      ${check(c.recovery_code?.label, c.recovery_code?.ok, c.recovery_code?.hint,
+        c.recovery_code?.ok ? '' : '<button type="button" class="sd-action-btn" data-action="gen-recovery">Recovery Code তৈরি করুন</button>')}
+      ${check(c.phone?.label, c.phone?.ok, c.phone?.hint + (c.phone?.coming_soon ? ' (Coming soon)' : ''))}
+      ${check(c.backup_email?.label, c.backup_email?.ok, c.backup_email?.hint)}
+    </div>
+    <div class="sd-footer-tip">
+      💡 <strong>টিপস:</strong> 2FA চালু করলে এবং recovery code সংরক্ষণ করলে আপনার অ্যাকাউন্ট সর্বোচ্চ সুরক্ষিত থাকবে।
+    </div>`;
+}
+
+function _bindSecurityDashboardEvents() {
+  document.querySelectorAll('.sd-action-btn').forEach(btn => {
+    btn.addEventListener('click', async function () {
+      const act = this.dataset.action;
+      if (act === 'enable-2fa') {
+        const b = document.getElementById('btn-enable-2fa');
+        if (b) b.click();
+      } else if (act === 'verify-email') {
+        const b = document.getElementById('btn-add-email') || document.getElementById('btn-change-email');
+        if (b) b.click();
+      } else if (act === 'gen-recovery') {
+        await _openRecoveryCodeModal();
+      }
+    });
+  });
+}
+
+async function _openRecoveryCodeModal() {
+  const password = prompt("নিশ্চিত করতে আপনার পাসওয়ার্ড দিন:");
+  if (!password) return;
+  const has2FA = await api("/api/me/2fa/status").then(r => r.enabled).catch(() => false);
+  let totpCode = "";
+  if (has2FA) {
+    totpCode = prompt("আপনার 2FA কোড (অথবা backup code) দিন:") || "";
+    if (!totpCode) return;
+  }
+  try {
+    const res = await api("/api/me/recovery-code/regenerate", {
+      method: "POST",
+      body: JSON.stringify({ password: password, totp_code: totpCode }),
+    });
+    const old = document.getElementById("recovery-code-modal");
+    if (old) old.remove();
+    const modal = document.createElement("div");
+    modal.id = "recovery-code-modal";
+    modal.className = "modal";
+    modal.style.zIndex = "99999";
+    modal.innerHTML = `
+      <div class="modal-content" style="max-width:480px">
+        <h3 style="margin-bottom:10px;font-size:19px">🎫 Recovery Code</h3>
+        <p style="background:rgba(245,158,11,.1);border-left:3px solid #f59e0b;padding:10px 12px;border-radius:8px;font-size:13px;line-height:1.5;margin-bottom:14px">
+          ⚠️ এই কোড <strong>শুধু একবার</strong> দেখানো হবে। Device হারালে এই কোড দিয়ে 2FA বন্ধ করতে পারবেন।
+        </p>
+        <div style="background:var(--card-2);border:1px dashed var(--accent);border-radius:12px;padding:18px;text-align:center;font-family:'Courier New',monospace;font-size:17px;font-weight:800;letter-spacing:1px;user-select:all;margin-bottom:14px">
+          ${escapeHtml(res.recovery_code)}
+        </div>
+        <div class="edit-actions">
+          <button class="btn-secondary" id="rc-copy" style="flex:1">📋 কপি</button>
+          <button class="btn-primary" id="rc-done" style="flex:1">✅ সংরক্ষণ করেছি</button>
+        </div>
+      </div>`;
+    document.body.appendChild(modal);
+    document.getElementById("rc-copy").onclick = () => {
+      navigator.clipboard.writeText(res.recovery_code).then(() => showToast("📋 কপি হয়েছে"));
+    };
+    document.getElementById("rc-done").onclick = () => { modal.remove(); _loadSecurityDashboard(); };
+    modal.addEventListener("click", (e) => { if (e.target === modal) modal.remove(); });
+  } catch (err) { alert(err.message); }
+}
+console.log("[S27B-1] security dashboard ready ✅");

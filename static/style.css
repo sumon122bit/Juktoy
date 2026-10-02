@@ -10599,3 +10599,25 @@ body.dark .admin-report-card.resolved { border-left-color: #22c55e; }
   transform: scale(1.15);
 }
 .session-revoke:active { transform: scale(0.9); }
+
+/* S22 / Series 27B-1 — Security Dashboard */
+.sd-score-card { display:flex; align-items:center; gap:18px; padding:18px 20px; background:linear-gradient(135deg, var(--card-2), var(--card)); border:1px solid var(--border); border-radius:16px; margin-bottom:16px; }
+.sd-score-ring { width:90px; height:90px; border-radius:50%; background:conic-gradient(var(--sd-color, #22c55e) 0deg, var(--sd-color, #22c55e) calc(var(--score, 0) * 3.6deg), var(--card-2) calc(var(--score, 0) * 3.6deg), var(--card-2) 360deg); display:flex; flex-direction:column; align-items:center; justify-content:center; position:relative; flex-shrink:0; }
+.sd-score-ring::before { content:""; position:absolute; inset:6px; border-radius:50%; background:var(--card); }
+.sd-score-value { position:relative; font-size:26px; font-weight:800; color:var(--text); line-height:1; }
+.sd-score-max { position:relative; font-size:11px; color:var(--muted); font-weight:600; margin-top:2px; }
+.sd-score-info { flex:1; min-width:0; }
+.sd-score-label { font-size:18px; font-weight:800; margin-bottom:4px; }
+.sd-score-sub { font-size:13px; color:var(--muted); line-height:1.5; }
+.sd-checks { display:flex; flex-direction:column; gap:8px; margin-bottom:14px; }
+.sd-check { display:flex; align-items:center; gap:12px; padding:12px 14px; background:var(--card-2); border:1px solid var(--border); border-radius:12px; }
+.sd-check.ok { border-left:3px solid #22c55e; }
+.sd-check.warn { border-left:3px solid #f59e0b; }
+.sd-check-icon { font-size:18px; flex-shrink:0; width:24px; text-align:center; }
+.sd-check-body { flex:1; min-width:0; }
+.sd-check-label { font-size:14px; font-weight:700; color:var(--text); margin-bottom:2px; }
+.sd-check-hint { font-size:12.5px; color:var(--muted); line-height:1.4; word-break:break-word; }
+.sd-action-btn { margin-top:8px; padding:6px 12px; background:var(--accent); color:#fff; border:none; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer; font-family:inherit; }
+.sd-action-btn:hover { background:var(--accent-hover); }
+.sd-footer-tip { padding:12px 14px; background:linear-gradient(135deg, rgba(139,92,246,0.08), rgba(236,72,153,0.05)); border:1px solid rgba(139,92,246,0.2); border-radius:12px; font-size:13px; color:var(--text-dim); line-height:1.5; }
+.sd-footer-tip strong { color:var(--accent); font-weight:800; }

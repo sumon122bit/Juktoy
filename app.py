@@ -332,6 +332,42 @@ def _verify_totp(secret_b32, code, window=1):
     return False
 
 
+def _generate_recovery_code():
+    """S22 / Series 27B — permanent recovery code.
+
+    Format: JKT-RCV-XXXX-XXXX-XXXX-XXXX (Crockford base32, no 0/O/1/I/L)
+    This is a ONE-TIME-PERMANENT code — survives backup code regeneration.
+    Only regenerating the recovery code invalidates it.
+    """
+    alphabet = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"  # 31 chars
+    groups = []
+    for _ in range(4):
+        groups.append("".join(secrets.choice(alphabet) for _ in range(4)))
+    plain = "JKT-RCV-" + "-".join(groups)
+    # Hash with scrypt (same as backup codes — strong)
+    hashed = make_password_hash(plain)
+    return plain, hashed
+
+
+def _verify_recovery_code(stored_hash, code):
+    """S22 / Series 27B — verify recovery code (case + separator tolerant)."""
+    if not stored_hash or not code:
+        return False
+    # Normalize: uppercase, remove non-alphanumeric, keep JKT + 16 chars
+    raw = str(code).upper().strip()
+    cleaned = "".join(c for c in raw if c.isalnum())
+    # Expected: JKTRCV + 16 chars = 22 alphanumeric
+    if not cleaned.startswith("JKTRCV") or len(cleaned) != 22:
+        return False
+    # Reformat into canonical: JKT-RCV-XXXX-XXXX-XXXX-XXXX
+    body = cleaned[6:]
+    canonical = "JKT-RCV-" + "-".join(body[i:i+4] for i in range(0, 16, 4))
+    try:
+        return _verify_secure_hash(canonical, stored_hash)
+    except Exception:
+        return False
+
+
 def _generate_backup_codes(n=10):
     """S16.4 — generate 2FA backup codes hashed with scrypt.
 
@@ -643,6 +679,20 @@ def init_db():
         c.execute("ALTER TABLE users ADD COLUMN last_seen TIMESTAMP")
     except sqlite3.OperationalError:
         pass
+
+    # S22 / Series 27B — recovery & phone fields
+    for _col, _type in [
+        ("phone", "TEXT"),
+        ("phone_verified", "INTEGER DEFAULT 0"),
+        ("phone_verified_at", "TIMESTAMP"),
+        ("recovery_code_hash", "TEXT"),
+        ("backup_email", "TEXT"),
+        ("backup_email_verified", "INTEGER DEFAULT 0"),
+    ]:
+        try:
+            c.execute(f"ALTER TABLE users ADD COLUMN {_col} {_type}")
+        except sqlite3.OperationalError:
+            pass
 
     c.execute("""CREATE TABLE IF NOT EXISTS posts (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -4402,6 +4452,152 @@ def disable_2fa():
     # S16.6 — log 2FA disable
     _log_security_event("2fa_disable", uid=uid)
     return jsonify({"ok": True})
+
+
+@app.route("/api/me/security-overview")
+@login_required
+def security_overview():
+    """S22 / Series 27B-1 — one-glance security posture for current user."""
+    uid = session["user_id"]
+    conn = db()
+    row = conn.execute("""
+        SELECT COALESCE(totp_enabled, 0) AS tfa,
+               COALESCE(backup_codes, '') AS bc,
+               recovery_code_hash,
+               email,
+               COALESCE(email_verified, 0) AS email_v,
+               phone,
+               COALESCE(phone_verified, 0) AS phone_v,
+               backup_email,
+               COALESCE(backup_email_verified, 0) AS backup_email_v,
+               password_hash,
+               created_at,
+               last_seen
+        FROM users WHERE id=?
+    """, (uid,)).fetchone()
+    conn.close()
+    if not row:
+        return jsonify({"error": "ইউজার পাওয়া যায়নি"}), 404
+
+    backup_count = len([c for c in (row["bc"] or "").split(",") if c])
+    has_password = bool(row["password_hash"])
+
+    # Simple risk scoring
+    score = 0
+    score += 30 if has_password else 0
+    score += 40 if row["tfa"] else 0
+    score += 10 if row["email_v"] else 0
+    score += 10 if backup_count >= 5 else (5 if backup_count > 0 else 0)
+    score += 10 if row["recovery_code_hash"] else 0
+    score = min(score, 100)
+
+    if score >= 90:
+        risk = "excellent"
+        risk_label = "দুর্দান্ত সুরক্ষিত"
+    elif score >= 70:
+        risk = "good"
+        risk_label = "ভালো সুরক্ষিত"
+    elif score >= 40:
+        risk = "moderate"
+        risk_label = "মাঝারি সুরক্ষিত"
+    else:
+        risk = "weak"
+        risk_label = "দুর্বল সুরক্ষা"
+
+    return jsonify({
+        "score": score,
+        "risk": risk,
+        "risk_label": risk_label,
+        "checks": {
+            "password": {
+                "ok": has_password,
+                "label": "পাসওয়ার্ড",
+                "hint": "শক্তিশালী পাসওয়ার্ড সেট আছে" if has_password else "পাসওয়ার্ড সেট করুন",
+            },
+            "two_factor": {
+                "ok": bool(row["tfa"]),
+                "label": "Two-Factor Authentication",
+                "hint": "চালু আছে" if row["tfa"] else "এখনো চালু করা হয়নি — অ্যাকাউন্ট বেশি সুরক্ষিত করুন",
+            },
+            "email": {
+                "ok": bool(row["email_v"]),
+                "label": "Recovery Email",
+                "email": row["email"] or "",
+                "hint": "যাচাইকৃত" if row["email_v"] else ("ইমেইল যুক্ত আছে কিন্তু verify হয়নি" if row["email"] else "কোনো recovery email নেই"),
+            },
+            "backup_codes": {
+                "ok": backup_count > 0,
+                "label": "Backup Codes",
+                "count": backup_count,
+                "hint": f"{backup_count}টি কোড বাকি" if backup_count else "কোনো backup code নেই",
+            },
+            "recovery_code": {
+                "ok": bool(row["recovery_code_hash"]),
+                "label": "Recovery Code",
+                "hint": "সেট আছে — device হারালে এটা দিয়ে 2FA বন্ধ করতে পারবেন" if row["recovery_code_hash"] else "এখনো সেট করা হয়নি",
+            },
+            "phone": {
+                "ok": bool(row["phone_v"]),
+                "label": "Phone (SMS)",
+                "phone": row["phone"] or "",
+                "coming_soon": not bool(os.environ.get("JUKTOY_SMS_PROVIDER") or os.environ.get("JUKTOY_TWILIO_ACCOUNT_SID")),
+                "hint": "যুক্ত আছে" if row["phone_v"] else "শীঘ্রই আসছে",
+            },
+            "backup_email": {
+                "ok": bool(row["backup_email_v"]),
+                "label": "Backup Email",
+                "email": row["backup_email"] or "",
+                "hint": "যাচাইকৃত" if row["backup_email_v"] else ("যুক্ত আছে, verify হয়নি" if row["backup_email"] else "এখনো সেট করা হয়নি"),
+            },
+        },
+        "account_created_at": row["created_at"],
+        "last_seen": row["last_seen"],
+    })
+
+
+@app.route("/api/me/recovery-code/regenerate", methods=["POST"])
+@login_required
+@rate_limit("recovery_regen", 3, 3600)
+def regenerate_recovery_code():
+    """S22 / Series 27B — generate a new permanent recovery code.
+
+    Requires password + (if 2FA on) TOTP/backup code.
+    Returns plaintext code ONCE — user must save it.
+    """
+    d = request.json or {}
+    password = d.get("password") or ""
+    code = d.get("totp_code") or ""
+    if not password:
+        return jsonify({"error": "পাসওয়ার্ড দিন"}), 400
+
+    uid = session["user_id"]
+    ok, msg = _verify_sensitive_action(uid, password, code)
+    if not ok:
+        return jsonify({"error": msg}), 400
+
+    plain, hashed = _generate_recovery_code()
+    conn = db()
+    conn.execute("UPDATE users SET recovery_code_hash=? WHERE id=?", (hashed, uid))
+    conn.commit()
+    conn.close()
+
+    _log_security_event("recovery_code_regenerated", uid=uid)
+    return jsonify({
+        "ok": True,
+        "recovery_code": plain,
+        "warning": "এই কোড শুধু একবার দেখানো হবে। এখনই নিরাপদে সংরক্ষণ করুন।",
+    })
+
+
+@app.route("/api/me/recovery-code/status")
+@login_required
+def recovery_code_status():
+    """Check if user has a recovery code set."""
+    uid = session["user_id"]
+    conn = db()
+    row = conn.execute("SELECT recovery_code_hash FROM users WHERE id=?", (uid,)).fetchone()
+    conn.close()
+    return jsonify({"has_code": bool(row and row["recovery_code_hash"])})
 
 
 @app.route("/api/me/2fa/status")
