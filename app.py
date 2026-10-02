@@ -1749,8 +1749,15 @@ def _app_url():
         return "http://127.0.0.1:5000"
 
 
+_LAST_EMAIL_ERROR = {"err": None, "at": 0}
+
+
 def _send_email(to_addr, subject, text_body, html_body=None):
-    """Send email via SMTP if configured, otherwise print to console."""
+    """Send email via SMTP if configured, otherwise print to console.
+
+    S27B — tracks last error in _LAST_EMAIL_ERROR for diagnostics.
+    """
+    import time as _tm
     cfg = _smtp_config()
     if not cfg:
         print("\n" + "=" * 60)
@@ -1761,6 +1768,8 @@ def _send_email(to_addr, subject, text_body, html_body=None):
         print("-" * 60)
         print(text_body)
         print("=" * 60 + "\n")
+        _LAST_EMAIL_ERROR["err"] = "SMTP not configured (env vars missing)"
+        _LAST_EMAIL_ERROR["at"] = _tm.time()
         return True
 
     try:
@@ -1776,9 +1785,14 @@ def _send_email(to_addr, subject, text_body, html_body=None):
             smtp.starttls()
             smtp.login(cfg["user"], cfg["password"])
             smtp.send_message(msg)
+        _LAST_EMAIL_ERROR["err"] = None
+        _LAST_EMAIL_ERROR["at"] = _tm.time()
         return True
     except Exception as e:
-        print(f"[JUKTOY EMAIL ERROR] {e}")
+        err_str = f"{type(e).__name__}: {str(e)[:300]}"
+        print(f"[JUKTOY EMAIL ERROR] {err_str}")
+        _LAST_EMAIL_ERROR["err"] = err_str
+        _LAST_EMAIL_ERROR["at"] = _tm.time()
         return False
 
 
@@ -5307,6 +5321,65 @@ def remove_backup_email():
     conn.close()
     _log_security_event("backup_email_removed", uid=uid)
     return jsonify({"ok": True})
+
+
+@app.route("/api/admin/debug/smtp")
+@admin_required
+def admin_debug_smtp():
+    """S27B — SMTP diagnostic (admin only)."""
+    cfg = _smtp_config()
+    if not cfg:
+        return jsonify({
+            "configured": False,
+            "error": "SMTP env vars missing on server",
+            "env_check": {
+                "HOST": bool(_os.environ.get("JUKTOY_SMTP_HOST")),
+                "USER": bool(_os.environ.get("JUKTOY_SMTP_USER")),
+                "PASS": bool(_os.environ.get("JUKTOY_SMTP_PASS")),
+                "PASS_LEN": len(_os.environ.get("JUKTOY_SMTP_PASS") or ""),
+            }
+        })
+    return jsonify({
+        "configured": True,
+        "host": cfg["host"],
+        "port": cfg["port"],
+        "user": cfg["user"],
+        "pass_len": len(cfg["password"]),
+        "pass_has_space": " " in cfg["password"],
+        "from_addr": cfg["from_addr"],
+        "last_error": _LAST_EMAIL_ERROR.get("err"),
+        "last_error_at": _LAST_EMAIL_ERROR.get("at"),
+    })
+
+
+@app.route("/api/admin/debug/test-email", methods=["POST"])
+@admin_required
+@rate_limit("test_email", 3, 3600)
+def admin_debug_test_email():
+    """S27B — send a test email (admin only)."""
+    d = request.json or {}
+    to = (d.get("to") or "").strip()
+    if not to or not _is_valid_email(to):
+        return jsonify({"error": "বৈধ ইমেইল দিন"}), 400
+    ok = _send_email(to, "JUKTOY SMTP test",
+                     "This is a test email from JUKTOY admin panel.")
+    return jsonify({
+        "ok": ok,
+        "error": _LAST_EMAIL_ERROR.get("err") if not ok else None,
+    })
+
+
+@app.route("/api/admin/debug/reset-email-verified", methods=["POST"])
+@admin_required
+def admin_debug_reset_verified():
+    """S27B — reset own email_verified to 0 for testing."""
+    uid = session["user_id"]
+    conn = db()
+    conn.execute("UPDATE users SET email_verified=0 WHERE id=?", (uid,))
+    conn.commit()
+    conn.close()
+    _log_security_event("admin_reset_email_verified", uid=uid)
+    return jsonify({"ok": True, "message": "email_verified reset to 0"})
 
 
 @app.route("/api/me/2fa/status")
