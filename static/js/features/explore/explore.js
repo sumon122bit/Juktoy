@@ -224,3 +224,24 @@ function explorePostHTML(p) {
     </div>
   `;
 }
+
+// ---------- Self-wrap: page-stack integration ----------
+if (typeof _pushPage === "function") {
+  const _origOpenExplorePage = openExplorePage;
+  openExplorePage = async function () {
+    await _origOpenExplorePage();
+    const page = document.getElementById("explore-page");
+    if (page && !page.classList.contains("hidden")) {
+      _pushPage("explore");
+    }
+  };
+
+  const _origOpenHashtag = openHashtag;
+  openHashtag = async function (tag) {
+    await _origOpenHashtag(tag);
+    const page = document.getElementById("hashtag-page");
+    if (page && !page.classList.contains("hidden")) {
+      _pushPage("hashtag");
+    }
+  };
+}
