@@ -1,4 +1,4 @@
-function showToast(msg) {
+export function showToast(msg) {
   let toast = document.getElementById("app-toast");
   if (!toast) {
     toast = document.createElement("div");
@@ -35,3 +35,6 @@ function showToast(msg) {
     toast.style.transform = "translateX(-50%) translateY(80px)";
   }, 2200);
 }
+
+// ---------- Temporary bridge (remove after full ESM migration) ----------
+window.showToast = showToast;
