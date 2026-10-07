@@ -20,7 +20,7 @@ function _resolveBaseUrl() {
   // Capacitor mobile app OR Electron desktop OR local file
   if (proto === "capacitor:" || proto === "file:") {
     // Absolute production URL required (no same-origin available)
-    return "https://juktoy.onrender.com";
+    return localStorage.getItem("juktoy_prod_url") || "https://juktoy.onrender.com";
   }
 
   // Everything else (http/https) → relative URLs
@@ -1460,7 +1460,8 @@ async function openProfile(username) {
     document.getElementById("profile-page-name").textContent = u.display_name;
     document.getElementById("profile-page-username").textContent = "@" + u.username;
     document.getElementById("profile-page-bio").textContent = u.bio || "বায়ো নেই";
-    document.getElementById("about-bio").textContent = u.bio || "বায়ো নেই";
+    var _aboutBio = document.getElementById("about-bio");
+    if (_aboutBio) _aboutBio.textContent = u.bio || "বায়ো নেই";
 
     // Profile completion bar (only on own profile)
     var compEl = document.getElementById("profile-completion");
@@ -1527,7 +1528,8 @@ async function openProfile(username) {
     } else if (joinedEl) {
       joinedEl.style.display = "none";
     }
-    document.getElementById("about-username").textContent = "@" + u.username;
+    var _aboutUname = document.getElementById("about-username");
+    if (_aboutUname) _aboutUname.textContent = "@" + u.username;
 
     // Update all 3 stats (posts / followers / following)
     const statEls = document.querySelectorAll(".profile-stats .stat-item .stat-num");
@@ -1541,6 +1543,16 @@ async function openProfile(username) {
       statEls[2].onclick = () => showFollowList(u.username, "following");
     }
 
+    // S39 — Msg button: hide on own profile, show on other's
+    var _msgBtn = document.getElementById("profile-msg-btn");
+    if (_msgBtn) {
+      if (isMe) {
+        _msgBtn.classList.add("hidden");
+      } else {
+        _msgBtn.classList.remove("hidden");
+      }
+    }
+
     if (isMe) {
       editIcon.classList.remove("hidden");
       editIcon.onclick = openEditProfile;
@@ -1551,58 +1563,64 @@ async function openProfile(username) {
     const btns = document.getElementById("profile-buttons");
     if (isMe) {
       btns.innerHTML = `
-        <button id="btn-edit-profile"><i class="fa-solid fa-pen"></i> প্রোফাইল এডিট</button>
+        <button id="btn-edit-profile"><i class="fa-solid fa-pen"></i> এডিট</button>
         <button id="btn-share-profile"><i class="fa-solid fa-share"></i> শেয়ার</button>
+        <button id="profile-menu-btn" class="btn-menu-circle" title="আরও" aria-label="Menu"><i class="fa-solid fa-ellipsis-vertical"></i></button>
       `;
+      btns.dataset.b3 = "0";
       document.getElementById("btn-edit-profile").onclick = openEditProfile;
-      document.getElementById("btn-share-profile").onclick = () => showToast("শীঘ্রই আসছে! ✨");
+      document.getElementById("btn-share-profile").onclick = function() { showToast("শীঘ্রই আসছে! ✨"); };
     } else {
-      const followLabel = data.is_following ? "আনফলো" : "ফলো করুন";
-      const followClass = data.is_following ? "" : "btn-follow";
-      const followIcon = data.is_following ? "fa-user-check" : "fa-user-plus";
-      btns.innerHTML = `
-        <button class="${followClass}" id="btn-follow"
-          data-username="${escapeHtml(u.username)}"
-          data-following="${data.is_following ? "1" : "0"}">
-          <i class="fa-solid ${followIcon}"></i>
-          <span>${followLabel}</span>
-        </button>
-        <button id="btn-msg"><i class="fa-regular fa-comment"></i> মেসেজ</button>
-        <button id="btn-block" class="btn-block" data-username="${escapeHtml(u.username)}" data-blocked="0" title="ব্লক করুন">
-          <i class="fa-solid fa-ban"></i>
-        </button>
-        <button id="btn-report-user" class="btn-block btn-report" data-username="${escapeHtml(u.username)}" data-userid="${u.id}" title="রিপোর্ট করুন">
-          <i class="fa-solid fa-flag"></i>
-        </button>
-      `;
-      document.getElementById("btn-follow").onclick = toggleFollow;
-      document.getElementById("btn-msg").onclick = () => {
-        document.getElementById("profile-page").classList.add("hidden");
-        openMessagesPage().then(() => openChat(u.username));
+      var _renderBtnHtml = function(flw) {
+        var icon = flw ? "fa-user-check" : "fa-user-plus";
+        var lbl = flw ? "ফলোয়িং" : "ফলো";
+        var _h = '<button id="btn-follow" data-username="' + escapeHtml(u.username) + '" data-following="' + (flw ? "1" : "0") + '">' +
+                 '<i class="fa-solid ' + icon + '"></i><span>' + lbl + '</span></button>';
+        if (flw) {
+          _h += '<button id="btn-msg"><i class="fa-regular fa-comment"></i> মেসেজ</button>';
+          _h += '<button id="btn-profile-wave" class="btn-icon-sm" title="Wave"><i class="fa-regular fa-hand"></i></button>';
+        }
+        _h += '<button id="profile-menu-btn" class="btn-menu-circle" title="আরও" aria-label="Menu"><i class="fa-solid fa-ellipsis-vertical"></i></button>';
+        return _h;
       };
-      document.getElementById("btn-block").onclick = toggleBlock;
-      const rbtn = document.getElementById("btn-report-user");
-      if (rbtn) rbtn.onclick = () => openReportModal("user", parseInt(rbtn.dataset.userid), u.username);
 
-      // Fetch block status async
-      api("/api/users/" + encodeURIComponent(u.username) + "/block-status")
-        .then((st) => {
-          const bb = document.getElementById("btn-block");
-          if (!bb) return;
-          bb.dataset.blocked = st.blocked ? "1" : "0";
-          bb.classList.toggle("blocked", st.blocked);
-          bb.innerHTML = st.blocked
-            ? '<i class="fa-solid fa-unlock"></i>'
-            : '<i class="fa-solid fa-ban"></i>';
-          bb.title = st.blocked ? "আনব্লক করুন" : "ব্লক করুন";
+      var _attachOtherHandlers = function() {
+        var followBtn = document.getElementById("btn-follow");
+        if (followBtn) {
+          followBtn.onclick = function(ev) {
+            var fb = ev.currentTarget;
+            var uname = fb.dataset.username;
+            fb.disabled = true;
+            api("/api/users/" + encodeURIComponent(uname) + "/follow", { method: "POST" })
+              .then(function(res) {
+                var nowFollowing = res.is_following;
+                btns.innerHTML = _renderBtnHtml(nowFollowing);
+                _attachOtherHandlers();
+                var statEls = document.querySelectorAll(".profile-stats .stat-item .stat-num");
+                if (statEls.length >= 3) statEls[1].textContent = res.followers;
+                if (typeof showToast === "function") {
+                  showToast(nowFollowing ? "✅ ফলো করা হয়েছে" : "আনফলো করা হয়েছে");
+                }
+              })
+              .catch(function(err) { alert(err.message); fb.disabled = false; });
+          };
+        }
+        var mBtn = document.getElementById("btn-msg");
+        if (mBtn) mBtn.onclick = function() {
+          document.getElementById("profile-page").classList.add("hidden");
+          openMessagesPage().then(function() { openChat(u.username); });
+        };
+        var wBtn = document.getElementById("btn-profile-wave");
+        if (wBtn) wBtn.onclick = function() {
+          api("/api/users/" + encodeURIComponent(u.username) + "/wave", { method: "POST" })
+            .then(function() { showToast("👋 Wave পাঠানো হয়েছে"); })
+            .catch(function(e) { alert(e.message); });
+        };
+      };
 
-          // If blocked, hide follow/message buttons
-          if (st.blocked) {
-            document.getElementById("btn-follow")?.classList.add("hidden");
-            document.getElementById("btn-msg")?.classList.add("hidden");
-          }
-        })
-        .catch(() => {});
+      btns.innerHTML = _renderBtnHtml(data.is_following);
+      btns.dataset.b3 = "0";
+      _attachOtherHandlers();
     }
 
     const postsEl = document.getElementById("profile-tab-posts");
@@ -1622,10 +1640,11 @@ async function openProfile(username) {
     }
 
     document.querySelectorAll(".profile-tab").forEach((t) => t.classList.remove("active"));
-    document.querySelector('.profile-tab[data-tab="posts"]').classList.add("active");
+    var _pt_default = document.querySelector('.profile-tab[data-tab="posts"]');
+    if (_pt_default) _pt_default.classList.add("active");
     document.getElementById("profile-tab-posts").classList.remove("hidden");
-    document.getElementById("profile-tab-photos").classList.add("hidden");
-    document.getElementById("profile-tab-about").classList.add("hidden");
+    var _p_photos = document.getElementById("profile-tab-photos"); if (_p_photos) _p_photos.classList.add("hidden");
+    var _p_about = document.getElementById("profile-tab-about"); if (_p_about) _p_about.classList.add("hidden");
 
     page.classList.remove("hidden");
     page.scrollTop = 0;
@@ -2457,6 +2476,20 @@ function stopChatPolling() {
     clearInterval(chatPollTimer);
     chatPollTimer = null;
   }
+  // S39.15 — cleanup voice recorder stream on chat close
+  try {
+    if (typeof _vr !== "undefined" && _vr.active) {
+      _vrStop(true);
+    }
+    if (typeof _vr !== "undefined" && _vr.rawStream) {
+      _vr.rawStream.getTracks().forEach(function (t) { try { t.stop(); } catch (e) {} });
+      _vr.rawStream = null;
+    }
+    if (typeof _vr !== "undefined" && _vr.stream) {
+      _vr.stream.getTracks().forEach(function (t) { try { t.stop(); } catch (e) {} });
+      _vr.stream = null;
+    }
+  } catch (e) {}
 }
 
 function startChatPolling() {
@@ -7172,11 +7205,9 @@ async function loadBlockedUsers() {
 }
 
 // Extend openSettingsPage to load blocked list
-const _origOpenSettingsForBlock = openSettingsPage;
-openSettingsPage = async function () {
-  await _origOpenSettingsForBlock();
-  loadBlockedUsers();
-};
+// S39 — exposed for unified loader
+window._loadBlockedUsers = loadBlockedUsers;
+// S39 — wrapper disabled (unified loader at end of file)
 
 
 // ==================================================
@@ -7582,11 +7613,9 @@ async function loadMyReports() {
 }
 
 // Extend openSettingsPage to load reports too
-const _origOpenSettingsReports = openSettingsPage;
-openSettingsPage = async function () {
-  await _origOpenSettingsReports();
-  loadMyReports();
-};
+// S39 — exposed for unified loader
+window._loadMyReports = loadMyReports;
+// S39 — wrapper disabled (unified loader at end of file)
 
 
 // ==================================================
@@ -10011,7 +10040,8 @@ _closeTopPage = function() {
   }
 
   function _close() {
-    if (!_isOpen) return;
+    // S39 — idempotent close (was: `if (!_isOpen) return;` blocked close
+    // when search was opened via profile-search-btn which doesn't set _isOpen)
     _isOpen = false;
     page.classList.add("hidden");
     document.body.classList.remove("overlay-open");
@@ -10063,7 +10093,13 @@ _closeTopPage = function() {
     pageBack.addEventListener("click", function (e) {
       e.preventDefault();
       e.stopPropagation();
-      try { history.back(); } catch (err) { _close(); }
+      // S39 — direct close (simplest, always works)
+      // Also clean up the page stack if it has our entry
+      if (typeof _PageStack !== "undefined") {
+        var idx = _PageStack.lastIndexOf("search-page");
+        if (idx !== -1) _PageStack.splice(idx, 1);
+      }
+      _close();
     });
   }
 
@@ -10092,6 +10128,9 @@ _closeTopPage = function() {
       try { history.back(); } catch (err) { _close(); }
     }
   });
+
+  // S39 — expose _close globally for _closeTopPage
+  window._closeSearchPage = _close;
 
   console.log("[Search] full-page " + MARK + " ready ✅");
 })();
@@ -10149,29 +10188,10 @@ async function showMutualFollowers(username) {
 // PROFILE PHOTOS TAB
 // ==================================================
 
+// S39 — Profile photos renderer (exposed globally for unified handler).
+// Old tab click handler was removed; unified handler at end of file
+// handles all tab clicks and calls this when "photos" tab is selected.
 (function () {
-  var tabsWrap = document.querySelector(".profile-tabs");
-  if (!tabsWrap || tabsWrap.dataset.bound === "1") return;
-  tabsWrap.dataset.bound = "1";
-
-  tabsWrap.addEventListener("click", function (e) {
-    var tab = e.target.closest(".profile-tab");
-    if (!tab) return;
-    e.preventDefault();
-    var target = tab.dataset.tab;
-    if (!target) return;
-
-    tabsWrap.querySelectorAll(".profile-tab").forEach(function (t) {
-      t.classList.toggle("active", t === tab);
-    });
-
-    ["posts", "photos", "about"].forEach(function (name) {
-      var pane = document.getElementById("profile-tab-" + name);
-      if (pane) pane.classList.toggle("hidden", name !== target);
-    });
-
-    if (target === "photos") _renderProfilePhotos();
-  });
 
   function _renderProfilePhotos() {
     var pane = document.getElementById("profile-tab-photos");
@@ -11347,11 +11367,9 @@ window._pending2fa = { token: null };
   }
 
   // Load when settings opens
-  var origOpen = openSettingsPage;
-  openSettingsPage = async function () {
-    await origOpen();
-    refresh();
-  };
+  // S39 — exposed for unified loader
+  window._load2FAStatus = refresh;
+  // S39 — wrapper disabled (unified loader at end of file)
 
   // ---- Enable flow ----
   document.getElementById("btn-enable-2fa").addEventListener("click", async function () {
@@ -11499,11 +11517,9 @@ window._pending2fa = { token: null };
     }
   }
 
-  var origOpen = openSettingsPage;
-  openSettingsPage = async function () {
-    await origOpen();
-    refresh();
-  };
+  // S39 — exposed for unified loader
+  window._loadEmailStatus = refresh;
+  // S39 — wrapper disabled (unified loader at end of file)
 
   function openEditModal() {
     document.getElementById("email-input-field").value = "";
@@ -12446,11 +12462,9 @@ console.log("[S15.1] strong password check attached ✅");
   }
 
   // Load when settings opens
-  var origOpen = openSettingsPage;
-  openSettingsPage = async function () {
-    await origOpen();
-    load();
-  };
+  // S39 — exposed for unified loader
+  window._loadLoginHistory = load;
+  // S39 — wrapper disabled (unified loader at end of file)
 
   // Clear button
   document.getElementById("btn-clear-logins").addEventListener("click", async function () {
@@ -12521,11 +12535,9 @@ console.log("[S15.1] strong password check attached ✅");
   }
 
   // Load on settings open
-  var origOpen = openSettingsPage;
-  openSettingsPage = async function () {
-    await origOpen();
-    load();
-  };
+  // S39 — exposed for unified loader
+  window._loadSessions = load;
+  // S39 — wrapper disabled (unified loader at end of file)
 
   // Revoke all others
   document.getElementById("btn-revoke-others").addEventListener("click", async function () {
@@ -14588,11 +14600,9 @@ console.log("[S27B-3] recovery flow ready ✅");
 
     // Initial
     refreshToggles();
-    const _origOpen = openSettingsPage;
-    openSettingsPage = async function () {
-      await _origOpen();
-      refreshToggles();
-    };
+    // S39 — exposed for unified loader
+    window._load2FAToggles = refreshToggles;
+    // S39 — wrapper disabled (unified loader at end of file)
 
     // ---- Email 2FA toggle ----
     emailSwitch.addEventListener("click", async () => {
@@ -14896,6 +14906,15 @@ _closeTopPage = function _closeTopPageUnified() {
     "settings": function () {
       var el = document.getElementById("settings-page");
       if (el) el.classList.add("hidden");
+    },
+    "search-page": function () {
+      // S39 — close search page via exposed _close
+      if (typeof window._closeSearchPage === "function") {
+        window._closeSearchPage();
+      } else {
+        var el = document.getElementById("search-page");
+        if (el) el.classList.add("hidden");
+      }
     },
     "admin": function () {
       try { if (typeof closeAdminPage === "function") closeAdminPage(); } catch (e) {}
@@ -15865,21 +15884,8 @@ window._reloadSheetComments = _reloadSheetComments;
   if (window.__batch1Profile) return;
   window.__batch1Profile = true;
 
-  // ---- 2. Close: back to home feed ----
-  document.addEventListener("click", function (e) {
-    if (!e.target.closest("#profile-close-btn")) return;
-    e.preventDefault();
-    var p = document.getElementById("profile-page");
-    if (p) p.classList.add("hidden");
-    var av = document.getElementById("app-view");
-    if (av) av.classList.remove("hidden");
-    if (typeof _PageStack !== "undefined") {
-      var idx = _PageStack.lastIndexOf("profile");
-      if (idx !== -1) _PageStack.splice(idx, 1);
-    }
-    if (typeof loadFeed === "function") loadFeed();
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  }, true);
+  // S39 — Close button (#profile-close-btn) removed from HTML.
+  // Its behavior is now handled by the standard back button only.
 
   // ---- 3. Search in profile ----
   document.addEventListener("click", function (e) {
@@ -15888,6 +15894,8 @@ window._reloadSheetComments = _reloadSheetComments;
     var page = document.getElementById("search-page");
     var pageInput = document.getElementById("search-page-input");
     if (page && pageInput) {
+      // S39 — push to page stack so back button works
+      if (typeof _pushPage === "function") _pushPage("search-page");
       page.classList.remove("hidden");
       pageInput.value = "";
       setTimeout(function () { try { pageInput.focus(); } catch (err) {} }, 60);
@@ -16339,7 +16347,11 @@ window._reloadSheetComments = _reloadSheetComments;
     e.preventDefault();
     var data = window._currentProfileData;
     if (!data || !data.user) return;
-    if (window.state && state.me && state.me.username === data.user.username) return;
+    // S39 — button is hidden on own profile (see openProfile), so this
+    // only fires on others. Safety check kept just in case:
+    if (window.state && state.me && state.me.username === data.user.username) {
+      return;
+    }
     // close profile, open chat
     var p = document.getElementById("profile-page");
     if (p) p.classList.add("hidden");
@@ -16358,6 +16370,8 @@ window._reloadSheetComments = _reloadSheetComments;
   if (typeof _origOpenProfileB2b === "function") {
     window.openProfile = async function (username) {
       await _origOpenProfileB2b(username);
+      return;   // S39 — disabled: voice/video injection removed (handled by main openProfile)
+      // eslint-disable-next-line no-unreachable
       var data = window._currentProfileData;
       if (!data || !data.user) return;
       var isMe = window.state && state.me && state.me.username === data.user.username;
@@ -16829,6 +16843,8 @@ window._reloadSheetComments = _reloadSheetComments;
   if (typeof _origOpenProfileB3 === "function") {
     window.openProfile = async function (username) {
       await _origOpenProfileB3(username);
+      return;   // S39 — disabled: wave/save/bell injection removed (handled by main openProfile)
+      // eslint-disable-next-line no-unreachable
       var data = window._currentProfileData;
       if (!data || !data.user) return;
       var isMe = window.state && state.me && state.me.username === data.user.username;
@@ -17021,29 +17037,6 @@ window._reloadSheetComments = _reloadSheetComments;
     }
   }
 
-  // Tab click delegation
-  document.addEventListener("click", function (e) {
-    var t = e.target.closest(".profile-tab");
-    if (!t) return;
-    e.preventDefault();
-    var name = t.dataset.tab;
-    if (!name) return;
-
-    document.querySelectorAll(".profile-tab").forEach(function (x) {
-      x.classList.toggle("active", x === t);
-    });
-    _hideAllPanes();
-    _showPane(name);
-
-    var data = window._currentProfileData;
-    var uname = data && data.user ? data.user.username : null;
-    if (!uname) return;
-
-    if (name === "reels")   _renderReels(uname);
-    if (name === "tagged")  _renderTagged(uname);
-    if (name === "liked")   _renderLiked();
-    if (name === "saved")   _renderSaved();
-  }, true);
 
   // Hide liked/saved tabs on OTHER profiles, show only on own
   var _origOpenProfileB4 = window.openProfile;
@@ -17105,6 +17098,14 @@ window._reloadSheetComments = _reloadSheetComments;
   };
 
   console.log("[Batch4] tabs + share-story + embed ready");
+  // S39 — Expose for unified profile tab handler
+  window._hideAllPanes = _hideAllPanes;
+  window._showPane = _showPane;
+  window._renderReels = _renderReels;
+  window._renderTagged = _renderTagged;
+  window._renderLiked = _renderLiked;
+  window._renderSaved = _renderSaved;
+
 })();
 
 
@@ -17166,22 +17167,6 @@ window._reloadSheetComments = _reloadSheetComments;
     } catch (e) { p.innerHTML = '<p class="empty-text">লোড করা যায়নি</p>'; }
   }
 
-  // tab click handler — extended
-  document.addEventListener("click", function (e) {
-    var t = e.target.closest(".profile-tab");
-    if (!t) return;
-    var name = t.dataset.tab;
-    if (!name) return;
-    document.querySelectorAll(".profile-tab").forEach(function (x) {
-      x.classList.toggle("active", x === t);
-    });
-    _hideAll(); _show(name);
-    var data = window._currentProfileData;
-    var uname = data && data.user ? data.user.username : null;
-    if (!uname) return;
-    if (name === "reposts")  _renderReposts(uname);
-    if (name === "archived") _renderArchived();
-  }, true);
 
   // enrich openProfile: highlights + similar + pinned + live + hide own-only tabs
   var _orig = window.openProfile;
@@ -17193,7 +17178,7 @@ window._reloadSheetComments = _reloadSheetComments;
       var isMe = window.state && state.me && state.me.username === data.user.username;
 
       // own-only tabs hide
-      ["pt-liked","pt-saved","pt-archived"].forEach(function(id){
+      ["pt-liked","pt-saved"].forEach(function(id){
         var el = document.getElementById(id);
         if (el) el.style.display = isMe ? "" : "none";
       });
@@ -17289,6 +17274,12 @@ window._reloadSheetComments = _reloadSheetComments;
   }
 
   console.log("[Batch5] highlights + similar + pinned + tabs ready");
+  // S39 — Expose for unified profile tab handler
+  window._hideAll = _hideAll;
+  window._show = _show;
+  window._renderReposts = _renderReposts;
+  window._renderArchived = _renderArchived;
+
 })();
 
 
@@ -17689,35 +17680,6 @@ window._reloadSheetComments = _reloadSheetComments;
     m.addEventListener("click", function (ev) { if (ev.target === m) m.remove(); });
   }, true);
 
-  // Inject Take a Break button into settings area (or topbar menu)
-  // We'll add a floating shortcut when user scrolls > 100 posts deep (soft-suggest)
-  var _breakShownThisSession = false;
-  window.addEventListener("scroll", function () {
-    if (_breakShownThisSession) return;
-    if (!window.state || !state.me) return;
-    if (window.scrollY < 2500) return;
-    _breakShownThisSession = true;
-    // Show a one-time floating hint
-    var hint = document.createElement("div");
-    hint.style.cssText =
-      "position:fixed;bottom:90px;left:50%;transform:translateX(-50%);" +
-      "background:var(--card);color:var(--text);border:1px solid var(--border);" +
-      "padding:10px 16px;border-radius:999px;font-size:13px;font-weight:700;" +
-      "box-shadow:0 8px 24px rgba(0,0,0,.15);z-index:9999;display:flex;gap:10px;align-items:center;" +
-      "font-family:inherit;cursor:pointer;";
-    hint.innerHTML = '🌿 একটু বিরতি নিন? <span style="color:var(--accent)">দেখুন</span>';
-    hint.addEventListener("click", function () {
-      hint.remove();
-      var tb = document.createElement("button");
-      tb.dataset.b7 = "take-break";
-      tb.style.display = "none";
-      document.body.appendChild(tb);
-      tb.click();
-      tb.remove();
-    });
-    document.body.appendChild(hint);
-    setTimeout(function(){ if (hint.parentNode) hint.remove(); }, 10000);
-  }, { passive: true });
 
   // ============ 66. Report imposter ============
   document.addEventListener("click", function (e) {
@@ -19309,4 +19271,180 @@ window._reloadSheetComments = _reloadSheetComments;
     }).observe(page, { attributes: true, attributeFilter: ["class"] });
   } catch (e) {}
   console.log("[PROFILE_CLEANUP] watching profile-page close");
+})();
+
+
+// ═══════════════════════════════════════════════
+// S39 — Unified profile tab handler
+// ═══════════════════════════════════════════════
+// Problem: 3 different click handlers (lines ~10172, ~17040, ~17185)
+// were all listening on .profile-tab, causing visibility conflicts.
+// This unified handler runs LAST (bubble phase on document) and
+// sets the FINAL correct state regardless of what the others did.
+(function () {
+  if (window.__s39UnifiedProfileTabs) return;
+  window.__s39UnifiedProfileTabs = true;
+
+  var ALL_PANES = ["posts", "reels", "photos", "tagged", "liked",
+                   "saved", "reposts", "archived", "about"];
+
+  document.addEventListener("click", function (e) {
+    var tab = e.target.closest(".profile-tab");
+    if (!tab) return;
+    var name = tab.dataset.tab;
+    if (!name) return;
+
+    // Force active state
+    document.querySelectorAll(".profile-tab").forEach(function (x) {
+      x.classList.toggle("active", x === tab);
+    });
+
+    // Force hide all panes, show only target
+    ALL_PANES.forEach(function (n) {
+      var el = document.getElementById("profile-tab-" + n);
+      if (!el) return;
+      if (n === name) el.classList.remove("hidden");
+      else el.classList.add("hidden");
+    });
+
+    // Load data for target tab
+    var data = window._currentProfileData;
+    var uname = data && data.user ? data.user.username : null;
+
+    try {
+      if (name === "reels" && uname && typeof _renderReels === "function") {
+        _renderReels(uname);
+      } else if (name === "liked" && typeof _renderLiked === "function") {
+        _renderLiked();
+      } else if (name === "saved" && typeof _renderSaved === "function") {
+        _renderSaved();
+      } else if (name === "reposts" && uname && typeof _renderReposts === "function") {
+        _renderReposts(uname);
+      }
+    } catch (err) {
+      console.warn("[S39 tab load]", name, err);
+    }
+  });  // bubble phase (default) → runs AFTER existing capture handlers
+})();
+
+
+// ═══════════════════════════════════════════════
+// S39 — Add "Notify" option to profile ⋮ menu
+// ═══════════════════════════════════════════════
+(function () {
+  if (window.__s39NotifyInMenu) return;
+  window.__s39NotifyInMenu = true;
+
+  document.addEventListener("click", function (e) {
+    if (!e.target.closest("#profile-menu-btn")) return;
+
+    setTimeout(function () {
+      var panel = document.querySelector("#profile-menu-sheet .sheet-menu-list");
+      if (!panel || panel.dataset.s39Notify === "1") return;
+      panel.dataset.s39Notify = "1";
+
+      var data = window._currentProfileData;
+      if (!data || !data.user) return;
+      var isMe = window.state && state.me && state.me.username === data.user.username;
+      if (isMe) return;
+
+      // Check notify status
+      var isNotifying = false;
+      api("/api/users/" + encodeURIComponent(data.user.username) + "/notify/status")
+        .then(function (r) {
+          isNotifying = !!(r && r.notify);
+          updateBtnLabel();
+        })
+        .catch(function () {});
+
+      // Create the button
+      var notifyBtn = document.createElement("button");
+      notifyBtn.type = "button";
+      notifyBtn.className = "sheet-menu-item";
+      notifyBtn.setAttribute("data-s39-notify", "1");
+      notifyBtn.innerHTML = '<i class="fa-regular fa-bell"></i><span>নোটিফিকেশন চালু করুন</span>';
+
+      function updateBtnLabel() {
+        var span = notifyBtn.querySelector("span");
+        var i = notifyBtn.querySelector("i");
+        if (isNotifying) {
+          span.textContent = "নোটিফিকেশন বন্ধ করুন";
+          i.className = "fa-solid fa-bell";
+          notifyBtn.classList.add("active");
+        } else {
+          span.textContent = "নোটিফিকেশন চালু করুন";
+          i.className = "fa-regular fa-bell";
+          notifyBtn.classList.remove("active");
+        }
+      }
+
+      notifyBtn.addEventListener("click", function () {
+        api("/api/users/" + encodeURIComponent(data.user.username) + "/notify", { method: "POST" })
+          .then(function (r) {
+            isNotifying = !!(r && r.notify);
+            updateBtnLabel();
+            if (typeof showToast === "function") {
+              showToast(isNotifying ? "🔔 নোটিফিকেশন চালু" : "🔕 নোটিফিকেশন বন্ধ");
+            }
+          })
+          .catch(function (err) { alert(err.message); });
+      });
+
+      // Insert before the last item (usually Block or Report)
+      panel.appendChild(notifyBtn);
+    }, 80);
+  }, true);
+
+  console.log("[S39] notify option added to ⋮ menu");
+})();
+
+
+// ═══════════════════════════════════════════════
+// S39 — Unified settings loader
+// Replaces 7 separate wrapper functions with one.
+// Runs after base openSettingsPage, then calls
+// every loader in parallel.
+// ═══════════════════════════════════════════════
+(function () {
+  if (window.__s39SettingsLoader) return;
+  window.__s39SettingsLoader = true;
+
+  var LOADERS = [
+    "_loadBlockedUsers",
+    "_loadMyReports",
+    "_load2FAStatus",
+    "_loadEmailStatus",
+    "_loadSessions",
+    "_loadLoginHistory",
+    "_load2FAToggles"
+  ];
+
+  async function runAllLoaders() {
+    var tasks = [];
+    for (var i = 0; i < LOADERS.length; i++) {
+      var name = LOADERS[i];
+      var fn = window[name];
+      if (typeof fn !== "function") continue;
+      try {
+        tasks.push(
+          Promise.resolve(fn()).catch(function (e) {
+            console.error("[S39 settings] " + name + " failed:", e);
+          })
+        );
+      } catch (e) {
+        console.error("[S39 settings] " + name + " threw:", e);
+      }
+    }
+    await Promise.all(tasks);
+  }
+
+  var _origOpenSettings = window.openSettingsPage;
+  if (typeof _origOpenSettings === "function") {
+    window.openSettingsPage = async function () {
+      await _origOpenSettings.apply(this, arguments);
+      await runAllLoaders();
+    };
+  }
+
+  console.log("[S39] unified settings loader ready");
 })();
