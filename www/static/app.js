@@ -1,4 +1,34 @@
-const BASE_URL = "https://juktoy.onrender.com";
+// ==================================================
+// SMART BASE URL RESOLVER
+// - Localhost / Render / any hosting  → relative URLs (auto)
+// - Capacitor (APK) / Electron / file://  → absolute production URL
+// - Override anytime from console:
+//     localStorage.setItem("juktoy_api_base", "https://staging.example.com")
+//     (then reload)
+//     localStorage.removeItem("juktoy_api_base")   ← revert
+// ==================================================
+function _resolveBaseUrl() {
+  try {
+    const override = localStorage.getItem("juktoy_api_base");
+    if (override && override.trim()) {
+      return override.trim().replace(/\/$/, "");
+    }
+  } catch (e) { /* private mode — ignore */ }
+
+  const proto = window.location.protocol;
+
+  // Capacitor mobile app OR Electron desktop OR local file
+  if (proto === "capacitor:" || proto === "file:") {
+    // Absolute production URL required (no same-origin available)
+    return "https://juktoy.onrender.com";
+  }
+
+  // Everything else (http/https) → relative URLs
+  // Works on: localhost, Render, Vercel, Railway, VPS, any domain
+  return "";
+}
+const BASE_URL = _resolveBaseUrl();
+console.log("[JUKTOY] API base:", BASE_URL || "(same-origin)");
 // ==================================================
 // JUKTOY — Complete JavaScript
 // All features: auth, feed, profile, theme, messages
@@ -6,6 +36,11 @@ const BASE_URL = "https://juktoy.onrender.com";
 
 // ---------- State ----------
 const state = { me: null };
+// FIX: expose to window (const doesn't auto-expose like var)
+if (typeof window !== "undefined") {
+  window.state = state;
+  window.__juktoyState = state;
+}
 
 // ==================================================
 // HELPERS
@@ -29,18 +64,63 @@ async function api(url, options = {}) {
     if (token) opts.headers["X-CSRF-Token"] = token;
   }
 
-  const res = await fetch(BASE_URL + url, opts);
+  // S30.14 — 30s timeout via AbortController
+  // (was: infinite wait if server hangs → UI stuck on "লোড হচ্ছে...")
+  var _ac = null;
+  var _tid = null;
+  if (typeof AbortController !== "undefined") {
+    _ac = new AbortController();
+    // preserve any existing signal from caller
+    if (options && options.signal) {
+      try {
+        options.signal.addEventListener("abort", function () { _ac.abort(); });
+      } catch (e) {}
+    }
+    opts.signal = _ac.signal;
+    _tid = setTimeout(function () { try { _ac.abort(); } catch (e) {} }, 30000);
+  }
+
+  let res;
+  try {
+    res = await fetch(BASE_URL + url, opts);
+  } catch (err) {
+    if (_tid) clearTimeout(_tid);
+    // AbortError → friendly message
+    if (err && (err.name === "AbortError" || /abort/i.test(err.message || ""))) {
+      const _toErr = new Error("সার্ভার সময়মতো সাড়া দেয়নি। আবার চেষ্টা করুন।");
+      _toErr.isTimeout = true;
+      throw _toErr;
+    }
+    throw err;
+  } finally {
+    if (_tid) clearTimeout(_tid);
+  }
+
   const data = await res.json().catch(() => ({}));
 
-  // S16.5 — idle timeout: auto-logout and reload
-  if (res.status === 401 && data.idle_timeout) {
+  // 401 handling (unchanged)
+  if (res.status === 401) {
+    var _isMeCheck = (url === "/api/me");
+    var _wasLoggedIn = false;
     try {
-      if (typeof showToast === "function") {
-        showToast("⏱️ নিষ্ক্রিয়তার কারণে লগআউট হয়েছেন");
-      }
+      _wasLoggedIn = !!(window.state && window.state.me);
     } catch (e) {}
-    setTimeout(function () { window.location.reload(); }, 1500);
-    throw new Error(data.error || "Session expired");
+
+    if (data && data.idle_timeout) {
+      try {
+        if (typeof showToast === "function") {
+          showToast("⏱️ নিষ্ক্রিয়তার কারণে লগআউট হয়েছেন");
+        }
+      } catch (e) {}
+      setTimeout(function () { window.location.reload(); }, 1500);
+    } else if (!_isMeCheck && _wasLoggedIn) {
+      try {
+        if (typeof showToast === "function") {
+          showToast(data.error || "সেশন শেষ হয়ে গেছে। আবার লগইন করুন।");
+        }
+      } catch (e) {}
+      setTimeout(function () { window.location.reload(); }, 1500);
+    }
   }
 
   if (!res.ok) throw new Error(data.error || "কিছু ভুল হয়েছে");
@@ -49,8 +129,13 @@ async function api(url, options = {}) {
 
 function parseISO(iso) {
   if (!iso) return new Date(0);
-  // SQLite returns "2024-01-01 12:00:00" (space); Safari needs "T" + "Z"
-  return new Date(String(iso).replace(" ", "T") + "Z");
+  var str = String(iso);
+  // If already has timezone info, use as-is
+  if (/[Zz]$/.test(str) || /[+-]\d{2}:?\d{2}$/.test(str)) {
+    return new Date(str);
+  }
+  // SQLite "2024-01-01 12:00:00" — treat as UTC
+  return new Date(str.replace(" ", "T") + "Z");
 }
 
 function timeAgo(iso) {
@@ -75,12 +160,24 @@ function initial(name) {
   return (name || "?").charAt(0).toUpperCase();
 }
 
+// S30.15 — Unicode-safe truncation (bengali conjuncts + emoji safe)
+function _trunc(str, maxChars) {
+  if (!str) return "";
+  // Use Array.from to iterate code points, preserving emoji/variation selectors
+  // Then join and append ellipsis only if actually trimmed.
+  var arr = Array.from(String(str));
+  if (arr.length <= maxChars) return String(str);
+  return arr.slice(0, maxChars).join("").replace(/[\s\u200B-\u200D\uFEFF]+$/g, "") + "…";
+}
+
+
 function escapeHtml(s) {
   return String(s)
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 function showMessage(text, type = "") {
@@ -90,53 +187,8 @@ function showMessage(text, type = "") {
   el.className = "message " + type;
 }
 
-
-function _fixUrl(u) {
-  if (!u) return u;
-  if (u.startsWith("http") || u.startsWith("data:") || u.startsWith("blob:")) return u;
-  if (u.startsWith("/")) return BASE_URL + u;
-  return BASE_URL + "/" + u;
-}
-
-// ============================================
-// GLOBAL IMAGE URL FIXER
-// ============================================
-function _fixAllMedia(root) {
-  (root || document).querySelectorAll("img, video, source").forEach((el) => {
-    const src = el.getAttribute("src");
-    if (src && !src.startsWith("http") && !src.startsWith("data:") && !src.startsWith("blob:") && !src.startsWith("capacitor:")) {
-      el.setAttribute("src", BASE_URL + (src.startsWith("/") ? src : "/" + src));
-    }
-  });
-}
-
-if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", () => _fixAllMedia());
-} else {
-  _fixAllMedia();
-}
-
-const _mediaObserver = new MutationObserver((mutations) => {
-  for (const m of mutations) {
-    for (const node of m.addedNodes) {
-      if (node.nodeType === 1) _fixAllMedia(node);
-    }
-  }
-});
-
-function _startObserver() {
-  if (document.body) {
-    _mediaObserver.observe(document.body, { childList: true, subtree: true });
-    _fixAllMedia();
-  } else {
-    document.addEventListener("DOMContentLoaded", _startObserver);
-  }
-}
-_startObserver();
-
 function avatarInner(name, pic) {
-  pic = _fixUrl(pic);
-  if (pic) return `<img src="${escapeHtml(pic)}" alt="${escapeHtml(name)}">`;
+  if (pic) return `<img src="${escapeHtml(pic)}" alt="${escapeHtml(name)}" loading="lazy" decoding="async">`;
   return initial(name);
 }
 
@@ -148,9 +200,8 @@ function avatarHTML(name, pic, className = "avatar", dataUser = "") {
 
 function setAvatar(el, name, pic) {
   if (!el) return;
-  pic = _fixUrl(pic);
   if (pic) {
-    el.innerHTML = `<img src="${escapeHtml(pic)}" alt="${escapeHtml(name)}">`;
+    el.innerHTML = `<img src="${escapeHtml(pic)}" alt="${escapeHtml(name)}" loading="lazy" decoding="async">`;
   } else {
     el.textContent = initial(name);
   }
@@ -389,7 +440,42 @@ if (logoutBtn) {
     try {
       await api("/api/logout", { method: "POST" });
     } catch (e) {}
+    // S30.29 — full state wipe (was: only state.me null → previous data leaked)
     state.me = null;
+    window._currentProfileData = null;
+    window._pendingImages = [];
+    // Clear feed
+    try {
+      var _fl = document.getElementById("feed-list");
+      if (_fl) _fl.innerHTML = "";
+    } catch (e) {}
+    // Clear conversations
+    try {
+      var _ci = document.getElementById("conv-items");
+      if (_ci) _ci.innerHTML = "";
+      var _gi = document.getElementById("group-items");
+      if (_gi) _gi.innerHTML = "";
+    } catch (e) {}
+    // Close chat / chat polling
+    try { if (typeof stopChatPolling === "function") stopChatPolling(); } catch (e) {}
+    try { if (typeof stopGroupPolling === "function") stopGroupPolling(); } catch (e) {}
+    // Hide any open overlay pages
+    try {
+      ["profile-page","messages-page","explore-page","hashtag-page",
+       "notifications-page","saved-page","reels-page","story-viewer",
+       "settings-page","chat-window","group-chat-window"].forEach(function(id){
+        var el = document.getElementById(id);
+        if (el) el.classList.add("hidden");
+      });
+      document.body.classList.remove("messages-chat-open","overlay-open","reels-active");
+    } catch (e) {}
+    // Reset composer
+    try {
+      var _pc = document.getElementById("post-content");
+      if (_pc) _pc.value = "";
+      if (typeof resetComposerImages === "function") resetComposerImages();
+    } catch (e) {}
+    // Now switch views
     document.getElementById("app-view").classList.add("hidden");
     document.getElementById("auth-view").classList.remove("hidden");
     closeSidebar();
@@ -485,6 +571,9 @@ document.querySelectorAll(".nav-item").forEach((item) => {
 // ==================================================
 
 const _enterAppHooks = [];
+// S22 / Series 6 — expose to window so call.js, stats pill, and any
+// external module can register hooks reliably (const is NOT on window).
+window._enterAppHooks = _enterAppHooks;
 
 async function enterApp() {
   const { user } = await api("/api/me");
@@ -541,6 +630,10 @@ function refreshProfileUI() {
 async function loadFeed() {
   const list = document.getElementById("feed-list");
   if (!list) return;
+
+  // S30.15 — dedup guard: if a load is already in flight, don't start another
+  // (was: rapid nav or double mount would fire 2-3 parallel fetches)
+  if (list.dataset.feedLoading === "1") return;
 
   list.dataset.feedLoading = "1";
   try {
@@ -600,13 +693,65 @@ function renderQuotedPost(p) {
         </div>
       </div>
       ${p.content ? `<div class="quoted-content">${escapeHtml(p.content)}</div>` : ""}
-      ${media.length ? `<div class="quoted-media">${media.slice(0, 1).map((src) => `<img src="${escapeHtml(src)}" alt="">`).join("")}</div>` : ""}
+      ${media.length ? `<div class="quoted-media">${media.slice(0, 1).map((src) => `<img src="${escapeHtml(src)}" alt="" loading="lazy" decoding="async">`).join("")}</div>` : ""}
     </div>
   `;
 }
 
 function postHTML(p) {
   const isOwn = state.me && state.me.username === p.username;
+
+  // ---- S31 — reactions stack ----
+  const _counts = p.reaction_counts || {};
+  const _order = ["like", "love", "haha", "wow", "sad", "angry"];
+  const _top = _order.filter(function (r) { return _counts[r] > 0; }).slice(0, 3);
+  const _emojiMap = { like: "👍", love: "❤️", haha: "😆", wow: "😮", sad: "😢", angry: "😡" };
+  const _stackHTML = _top.length
+    ? _top.map(function (r) {
+        return '<span class="prs-emoji reaction-' + r + '" data-r="' + r + '">' + _emojiMap[r] + '</span>';
+      }).join("")
+    : '<span class="prs-emoji reaction-love">❤️</span>';
+
+  const _likes = p.likes || 0;
+  const _comments = p.comments || 0;
+  const _shares = p.repost_count || 0;
+
+  // S32.6 — compact number formatter
+  function _fmtNum(n) {
+    n = Number(n) || 0;
+    if (n < 1000) return String(n);
+    if (n < 1000000) {
+      var k = n / 1000;
+      return (k >= 10 ? Math.floor(k) : k.toFixed(1).replace(/\.0$/, "")) + "k";
+    }
+    var m = n / 1000000;
+    return (m >= 10 ? Math.floor(m) : m.toFixed(1).replace(/\.0$/, "")) + "M";
+  }
+  function _fmtBn(n) {
+    return String(Number(n) || 0).replace(/[0-9]/g, function (d) {
+      return "০১২৩৪৫৬৭৮৯"[d];
+    });
+  }
+
+  const summaryHTML = (p.likes > 0 || _comments > 0 || _shares > 0) ? `
+    <div class="post-reaction-summary">
+      <div class="prs-left">
+        ${p.likes > 0 ? `<span class="prs-stack">${_stackHTML}</span>` : ""}
+        ${p.likes > 0 ? `<span class="prs-count">${_fmtNum(_likes)}</span>` : ""}
+      </div>
+      <div class="prs-right">
+        ${_comments > 0 ? `<span>${_fmtBn(_comments)} মন্তব্য</span>` : ""}
+        ${(_comments > 0 && _shares > 0) ? '<span class="prs-sep">·</span>' : ""}
+        ${_shares > 0 ? `<span>${_fmtBn(_shares)} শেয়ার</span>` : ""}
+      </div>
+    </div>
+    <div class="post-actions-divider"></div>
+  ` : "";
+
+  // ---- action buttons with labels ----
+  const likeLabel = p.my_reaction ? "রিঅ্যাক্ট" : "লাইক";
+  const repostLabel = p.is_reposted ? "রিপোস্টেড" : "রিপোস্ট";
+
   return `
   <div class="post" data-id="${p.id}">
     <div class="post-header">
@@ -621,32 +766,33 @@ function postHTML(p) {
     </div>
     ${p.edited_at ? '<div class="post-edited-mark">(সম্পাদিত)</div>' : ""}
     <div class="post-content-wrap">
-      ${p.content ? (p.content.length > 280
-        ? `<div class="post-content truncate">${linkifyHashtags(p.content.slice(0, 280))}...</div>
+      ${p.content ? (Array.from(p.content).length > 400
+        ? `<div class="post-content truncate">${linkifyHashtags(_trunc(p.content, 400))}</div>
            <button class="post-see-more" data-expand="${p.id}">আরও দেখুন</button>`
         : `<div class="post-content">${linkifyHashtags(p.content)}</div>`) : ""}
     </div>
     ${renderCarousel(p.media)}
     ${p.quoted_post ? renderQuotedPost(p.quoted_post) : ""}
-    ${p.likes > 0 ? `<div class="post-likes-line" data-post-id="${p.id}">
-      <span class="likes-line-heart">❤️</span>
-      <span class="likes-line-text">${p.likes} জন লাইক দিয়েছেন</span>
-    </div>` : ""}
+    ${summaryHTML}
     <div class="post-actions">
       <button class="action-btn like-btn" data-reaction="${p.my_reaction || ""}" data-id="${p.id}">
         ${renderReactionIcon(p.my_reaction)}
+        <span>${likeLabel}</span>
         <span class="like-count">${p.likes}</span>
       </button>
       <button class="action-btn comment-btn">
         <i class="fa-regular fa-comment"></i>
-        <span>${p.comments}</span>
+        <span>মন্তব্য</span>
+        <span class="comment-count">${p.comments}</span>
       </button>
       <button class="action-btn repost-btn" data-id="${p.id}" data-owner="${escapeHtml(p.username)}" data-reposted="${p.is_reposted ? "1" : "0"}">
         <i class="fa-solid fa-retweet"></i>
+        <span>${repostLabel}</span>
         <span class="repost-count">${p.repost_count || 0}</span>
       </button>
       <button class="action-btn save-btn" data-id="${p.id}" data-saved="${p.is_saved ? "1" : "0"}">
         <i class="${p.is_saved ? "fa-solid" : "fa-regular"} fa-bookmark"></i>
+        <span>সেভ</span>
       </button>
     </div>
     <div class="comments-section hidden">
@@ -687,8 +833,8 @@ function bindPostEvents() {
           });
           input.value = "";
           await loadComments(id, post.querySelector(".comments-section"));
-          const countSpan = post.querySelector(".comment-btn span");
-          if (countSpan) countSpan.textContent = parseInt(countSpan.textContent) + 1;
+          const countSpan = post.querySelector(".comment-btn .comment-count");
+          if (countSpan) countSpan.textContent = parseInt(countSpan.textContent || "0", 10) + 1;
         } catch (err) {
           alert(err.message);
         }
@@ -710,10 +856,15 @@ function bindPostEvents() {
 }
 
 async function loadComments(postId, section) {
+  // S32.1 — bail out if section is gone (sheet may have closed)
+  if (!section) return;
   const list = section.querySelector(".comments-list");
+  if (!list) return;
+  _cmtSerial = 0;   // S32.2 — reset serial for this render
   list.innerHTML = '<p style="color:var(--muted);font-size:13px;padding:6px 0">লোড হচ্ছে...</p>';
   try {
     const comments = await api(`/api/posts/${postId}/comments`);
+    if (window._s323CacheComments) window._s323CacheComments(postId, comments);
     if (!comments.length) {
       list.innerHTML = `<p style="color:var(--muted);font-size:14px;padding:6px 0">কোনো কমেন্ট নেই। প্রথম কমেন্ট আপনিই করুন!</p>`;
       return;
@@ -727,46 +878,52 @@ async function loadComments(postId, section) {
 
 const REPLIES_VISIBLE = 2; // কতটা reply ডিফল্টে দেখাবে
 
+// S32.2 — comment serial counter + mention linkifier
+let _cmtSerial = 0;
+
+function _linkifyMentions(escaped) {
+  // S32.4 — produce clickable mention links (no navigation until JS handler)
+  return String(escaped).replace(
+    /(^|[\s(])@([\w\u0980-\u09FF\u200c\u200d_]{1,50})/g,
+    '$1<a class="mention" href="#" data-mention="$2">@$2</a>'
+  );
+}
+
 function commentHTML(c, postId, isReply = false) {
+  const _serial = ++_cmtSerial;   // S32.2 — sequential number
   const isMine = state.me && state.me.username === c.username;
   const liked = c.i_liked ? "liked" : "";
   const icon = c.i_liked ? "fa-solid" : "fa-regular";
 
+  // S32.3 — flat replies + sheet-opener button
   const allReplies = c.replies || [];
-  const hasMore = allReplies.length > REPLIES_VISIBLE;
-  const visibleReplies = hasMore ? allReplies.slice(0, REPLIES_VISIBLE) : allReplies;
-  const hiddenCount = allReplies.length - REPLIES_VISIBLE;
+  const replyCount = allReplies.length;
 
   let repliesHTML = "";
-  if (allReplies.length) {
-    const visibleHTML = visibleReplies.map((r) => commentHTML(r, postId, true)).join("");
-    const hiddenHTML = hasMore
-      ? `<div class="comment-replies-hidden hidden" data-parent="${c.id}">
-           ${allReplies.slice(REPLIES_VISIBLE).map((r) => commentHTML(r, postId, true)).join("")}
-         </div>`
-      : "";
-    const moreBtn = hasMore
-      ? `<button class="load-more-replies" data-parent="${c.id}" data-count="${hiddenCount}">
-           <i class="fa-solid fa-arrow-turn-down"></i>
-           আরও ${hiddenCount}টি উত্তর দেখুন
-         </button>`
-      : "";
-
-    repliesHTML = `
-      <div class="comment-replies">
-        ${visibleHTML}
-        ${hiddenHTML}
-        ${moreBtn}
-      </div>
-    `;
+  if (replyCount > 0) {
+    // Show inline only 0-1 reply. >=2 replies → show button instead.
+    if (replyCount <= 1) {
+      repliesHTML = `
+        <div class="comment-replies flat">
+          ${allReplies.map((r) => commentHTML(r, postId, true)).join("")}
+        </div>`;
+    } else {
+      repliesHTML = `
+        <button type="button" class="view-replies-btn"
+                data-parent="${c.id}"
+                data-post="${postId}">
+          <i class="fa-solid fa-comment-dots"></i>
+          ${replyCount} টি উত্তর দেখুন
+        </button>`;
+    }
   }
 
   return `
     <div class="comment ${isReply ? "is-reply" : ""}" data-cid="${c.id}">
       ${avatarHTML(c.display_name, c.profile_pic, "avatar")}
       <div class="comment-body">
-        <div class="cname">${escapeHtml(c.display_name)}</div>
-        <div class="ctext">${escapeHtml(c.content)}</div>
+        <div class="cname" data-user="${escapeHtml(c.username || '')}">${escapeHtml(c.display_name)}</div>
+        <div class="ctext">${_linkifyMentions(escapeHtml(c.content))}</div>
         <div class="comment-actions">
           <button class="c-like-btn ${liked}" data-cid="${c.id}">
             <i class="${icon} fa-heart"></i>
@@ -814,15 +971,28 @@ function bindCommentEvents(container, postId) {
     });
   });
 
-  // Reply toggle
+  // Reply toggle — S32.2 auto-prefill @mention
   container.querySelectorAll(".c-reply-btn").forEach((btn) => {
     btn.addEventListener("click", (e) => {
       e.stopPropagation();
       const cid = btn.dataset.cid;
+      const name = btn.dataset.name || "";
       const form = container.querySelector(`.c-reply-form[data-cid="${cid}"]`);
       if (!form) return;
+      const input = form.querySelector("input");
+      const willOpen = form.classList.contains("hidden");
+      if (willOpen && input && name) {
+        // auto-prepend @name, remove existing leading @tag if any
+        const tag = "@" + name + " ";
+        const stripped = input.value.replace(/^@[^\s]+\s+/, "");
+        input.value = tag + stripped;
+      }
       form.classList.toggle("hidden");
-      if (!form.classList.contains("hidden")) form.querySelector("input").focus();
+      if (!form.classList.contains("hidden") && input) {
+        input.focus();
+        const len = input.value.length;
+        try { input.setSelectionRange(len, len); } catch (err) {}
+      }
     });
   });
 
@@ -832,7 +1002,9 @@ function bindCommentEvents(container, postId) {
       e.stopPropagation();
       const cid = btn.dataset.cid;
       const form = container.querySelector(`.c-reply-form[data-cid="${cid}"]`);
+      if (!form) return;  // S32.1b — sheet may have closed
       const input = form.querySelector("input");
+      if (!input) return;
       const text = input.value.trim();
       if (!text) return;
       btn.disabled = true;
@@ -844,12 +1016,17 @@ function bindCommentEvents(container, postId) {
         input.value = "";
         form.classList.add("hidden");
         const section = container.closest(".comments-section");
-        await loadComments(postId, section);
+        // S32.1 — in a sheet there's no .comments-section; reload sheet body
+        if (section) {
+          await loadComments(postId, section);
+        } else {
+          await _reloadSheetComments(postId);
+        }
         // Update comment count on post
         const postEl = container.closest(".post");
         if (postEl) {
-          const countSpan = postEl.querySelector(".comment-btn span");
-          if (countSpan) countSpan.textContent = parseInt(countSpan.textContent) + 1;
+          const countSpan = postEl.querySelector(".comment-btn .comment-count");
+          if (countSpan) countSpan.textContent = parseInt(countSpan.textContent || "0", 10) + 1;
         }
       } catch (err) {
         alert(err.message);
@@ -889,11 +1066,16 @@ function bindCommentEvents(container, postId) {
       try {
         await api(`/api/comments/${cid}`, { method: "DELETE" });
         const section = container.closest(".comments-section");
-        await loadComments(postId, section);
+        // S32.1 — sheet context guard
+        if (section) {
+          await loadComments(postId, section);
+        } else {
+          await _reloadSheetComments(postId);
+        }
         const postEl = container.closest(".post");
         if (postEl) {
-          const countSpan = postEl.querySelector(".comment-btn span");
-          if (countSpan) countSpan.textContent = Math.max(0, parseInt(countSpan.textContent) - 1);
+          const countSpan = postEl.querySelector(".comment-btn .comment-count");
+          if (countSpan) countSpan.textContent = Math.max(0, parseInt(countSpan.textContent || "0", 10) - 1);
         }
       } catch (err) {
         alert(err.message);
@@ -930,7 +1112,8 @@ function triggerBurst(btn) {
 // CREATE POST
 // ==================================================
 
-const postBtn = document.getElementById("post-btn");
+// S30.29 — use let (was: const) so we can update after clone/replace
+let postBtn = document.getElementById("post-btn");
 const postContent = document.getElementById("post-content");
 
 function updateComposerState() {
@@ -1297,7 +1480,7 @@ async function openProfile(username) {
         var avatarsHTML = preview.map(function (m) {
           return '<div class="pm-av">' +
             (m.profile_pic
-              ? '<img src="' + escapeHtml(m.profile_pic) + '" alt="">'
+              ? '<img src="' + escapeHtml(m.profile_pic) + '" alt="" loading="lazy" decoding="async">'
               : initial(m.display_name)) +
             '</div>';
         }).join("");
@@ -1500,7 +1683,7 @@ function openEditProfile() {
   if (coverPreview) {
     if (state.me.cover_pic) {
       coverPreview.innerHTML =
-        `<img src="${escapeHtml(state.me.cover_pic)}" alt="Cover preview">`;
+        `<img src="${escapeHtml(state.me.cover_pic)}" alt="Cover preview" loading="lazy" decoding="async">`;
     } else {
       coverPreview.innerHTML =
         `<div class="cover-preview-placeholder">🖼️ কভার ফটো</div>`;
@@ -1573,7 +1756,7 @@ if (coverInput) {
 
       if (coverPreview) {
         coverPreview.innerHTML =
-          `<img src="${escapeHtml(pendingCover)}" alt="Cover preview">`;
+          `<img src="${escapeHtml(pendingCover)}" alt="Cover preview" loading="lazy" decoding="async">`;
       }
     } catch (err) {
       alert("কভার ছবি লোড করা যায়নি");
@@ -1826,6 +2009,42 @@ let currentChatUser = null;
 let chatPollTimer = null;
 let lastMsgCount = 0;
 
+// S29.5 - chat settings cache.
+// These values (theme/nickname/wallpaper/pinned/muted) only change when
+// the user taps a menu action. Previously loadChatMessages() re-fetched
+// them every 3 seconds. Now: fetch once per chat-open (or after a write),
+// then read from cache. In-flight dedupe prevents duplicate fetches.
+let _chatSettingsCache = {};
+let _chatSettingsInflight = {};
+
+function _invalidateChatSettings(username) {
+  if (!username) return;
+  delete _chatSettingsCache[username];
+  delete _chatSettingsInflight[username];
+}
+
+function _getChatSettings(username) {
+  if (!username) return Promise.resolve(null);
+  if (_chatSettingsCache[username]) {
+    return Promise.resolve(_chatSettingsCache[username]);
+  }
+  if (_chatSettingsInflight[username]) {
+    return _chatSettingsInflight[username];
+  }
+  var p = api("/api/chats/" + encodeURIComponent(username) + "/settings")
+    .then(function (st) {
+      _chatSettingsCache[username] = st || {};
+      delete _chatSettingsInflight[username];
+      return _chatSettingsCache[username];
+    })
+    .catch(function () {
+      delete _chatSettingsInflight[username];
+      return {};
+    });
+  _chatSettingsInflight[username] = p;
+  return p;
+}
+
 async function openMessagesPage() {
   if (!messagesPage) return;
   messagesPage.classList.remove("hidden");
@@ -1873,7 +2092,7 @@ async function _loadMsgStoryRow() {
     // ==== Self tile — "Your story" if exists, else "Add story" ====
     if (me) {
       var myAv = me.profile_pic
-        ? '<img src="' + escapeHtml(me.profile_pic) + '" alt="">'
+        ? '<img src="' + escapeHtml(me.profile_pic) + '" alt="" loading="lazy" decoding="async">'
         : initial(me.display_name || "?");
       var hasMyStory = (me.story_count || 0) > 0;
 
@@ -1899,7 +2118,7 @@ async function _loadMsgStoryRow() {
         var secs = c.secs || 0;
         var isOnline = secs < 300;
         var av = c.profile_pic
-          ? '<img src="' + escapeHtml(c.profile_pic) + '" alt="">'
+          ? '<img src="' + escapeHtml(c.profile_pic) + '" alt="" loading="lazy" decoding="async">'
           : initial(c.display_name);
         var hasStory = (c.story_count || 0) > 0;
         var hasUnreadStory = (c.unread_story || 0) > 0;
@@ -2017,8 +2236,15 @@ async function openChat(username) {
 
 async function loadChatMessages(scrollToBottom = false) {
   if (!currentChatUser) return;
+  // S30.2 - snapshot the user we're loading for; if the chat changes mid-flight,
+  // abandon this render (was: results from old user could render into new chat)
+  var _myUser = currentChatUser;
+
   try {
-    const data = await api("/api/messages/" + encodeURIComponent(currentChatUser));
+    const data = await api("/api/messages/" + encodeURIComponent(_myUser));
+    // bail if user changed while we were awaiting
+    if (currentChatUser !== _myUser) return;
+
     const u = data.user;
 
     const _pres = _presenceText(data.other_seconds_ago);
@@ -2033,20 +2259,27 @@ async function loadChatMessages(scrollToBottom = false) {
     }
     var _headerName = u.display_name;
     try {
-      var _st = await api("/api/chats/" + encodeURIComponent(u.username) + "/settings");
+      var _st = await _getChatSettings(u.username);
+      if (currentChatUser !== _myUser) return;
       if (_st && _st.nickname && _st.nickname.trim()) {
-        _headerName = _st.nickname;               // my private name for them (highest)
+        _headerName = _st.nickname;
       } else if (data.their_self_nickname && data.their_self_nickname.trim()) {
-        _headerName = data.their_self_nickname;   // their self-chosen name
+        _headerName = data.their_self_nickname;
       }
     } catch (e) {}
-    chatUserInfo.innerHTML = `
+    if (currentChatUser !== _myUser) return;
+
+    // S30.2 - only rewrite header if content actually changed (stop 3s flicker)
+    var _newHeaderHTML = `
       <div class="chat-user-avatar">${avatarInner(_headerName, u.profile_pic)}</div>
       <div style="min-width:0;flex:1">
         <div class="chat-user-name">${escapeHtml(_headerName)}</div>
         <div class="chat-user-status">${_statusHTML}</div>
-      </div>
-    `;
+      </div>`;
+    if (chatUserInfo.dataset.sig !== _newHeaderHTML) {
+      chatUserInfo.innerHTML = _newHeaderHTML;
+      chatUserInfo.dataset.sig = _newHeaderHTML;
+    }
     chatUserInfo.onclick = () => {
       stopChatPolling();
       messagesPage.classList.add("hidden");
@@ -2054,12 +2287,15 @@ async function loadChatMessages(scrollToBottom = false) {
     };
 
     const msgs = data.messages;
-    if (msgs.length === lastMsgCount && !scrollToBottom) return;
+    // S30.2 - use msg id (not count) to detect changes (was: delete/edit kept count same)
+    var _lastId = msgs.length ? String(msgs[msgs.length - 1].id) : "0";
+    var _sig = _lastId + ":" + msgs.length + ":" + (data.other_is_typing ? "1" : "0");
+
+    if (chatMessages.dataset.sig === _sig && !scrollToBottom) return;
 
     const wasAtBottom =
       chatMessages.scrollHeight - chatMessages.scrollTop - chatMessages.clientHeight < 120;
 
-    // S19.11 — insert date separators between days
     let _lastDay = "";
     const _parts = msgs.map(function (m) {
       const d = parseISO(m.created_at);
@@ -2072,13 +2308,23 @@ async function loadChatMessages(scrollToBottom = false) {
       return sep + _chatMsgHTML(m, data.me_id);
     });
     chatMessages.innerHTML = _parts.join("");
+    chatMessages.dataset.sig = _sig;
     lastMsgCount = msgs.length;
 
     if (scrollToBottom || wasAtBottom) {
       chatMessages.scrollTop = chatMessages.scrollHeight;
     }
   } catch (err) {
-    chatMessages.innerHTML = '<div class="conv-empty"><p>লোড করা যায়নি</p></div>';
+    // S30.2 - do NOT wipe existing messages on transient error.
+    // Show inline indicator instead. Next successful poll will recover.
+    if (currentChatUser !== _myUser) return;
+    if (!chatMessages.dataset.sig) {
+      // truly empty — show placeholder
+      chatMessages.innerHTML = '<div class="conv-empty" style="padding:40px 20px"><p>লোড করা যায়নি</p></div>';
+    }
+    // reset signature so next poll ALWAYS re-renders (was: count matched → early return → stuck)
+    chatMessages.dataset.sig = "";
+    console.warn("[CHAT] load failed, will retry:", err && err.message);
   }
 }
 
@@ -2228,9 +2474,12 @@ async function _openChatMenu() {
   const old = document.getElementById("chat-menu");
   if (old) old.remove();
 
-  // Fetch current settings
+  // S29.5 - read from cache (populated by openChat / prior menu open)
   let settings = { pinned: false, muted: false };
-  try { settings = await api("/api/chats/" + encodeURIComponent(currentChatUser) + "/settings"); } catch (e) {}
+  try {
+    var _s = await _getChatSettings(currentChatUser);
+    if (_s) settings = _s;
+  } catch (e) {}
 
   const menu = document.createElement("div");
   menu.id = "chat-menu";
@@ -2303,6 +2552,7 @@ async function _openChatMenu() {
             method: "POST",
             body: JSON.stringify({ pinned: !settings.pinned, muted: settings.muted }),
           });
+          _invalidateChatSettings(u);   // S29.5
           showToast(r.pinned ? "📌 পিন করা হয়েছে" : "পিন সরানো হয়েছে");
           loadConversations();
         } catch (e) { alert(e.message); }
@@ -2312,6 +2562,7 @@ async function _openChatMenu() {
             method: "POST",
             body: JSON.stringify({ pinned: settings.pinned, muted: !settings.muted }),
           });
+          _invalidateChatSettings(u);   // S29.5
           showToast(r.muted ? "🔕 মিউট করা হয়েছে" : "🔔 আনমিউট");
           loadConversations();
         } catch (e) { alert(e.message); }
@@ -2555,9 +2806,7 @@ async function updateUnreadBadge() {
   } catch (e) {}
 }
 
-setInterval(() => {
-  if (state.me && !document.hidden) updateUnreadBadge();
-}, 8000);
+// S30.11 - merged into _badgePoll below
 
 // ==================================================
 // STORIES
@@ -2853,7 +3102,7 @@ async function loadStories() {
         <div class="story-hex ${group.has_unseen ? "unseen" : "seen"}">
           <div class="story-hex-content">
             ${group.user.profile_pic
-              ? `<img src="${escapeHtml(group.user.profile_pic)}" alt="${escapeHtml(group.user.display_name)}">`
+              ? `<img src="${escapeHtml(group.user.profile_pic)}" alt="${escapeHtml(group.user.display_name)}" loading="lazy" decoding="async">`
               : generateAvatarSVG(group.user.username, group.user.display_name)}
           </div>
         </div>
@@ -2892,7 +3141,7 @@ async function renderCurrentStory() {
   // Header
   const av = document.getElementById("sv-avatar");
   if (group.user.profile_pic) {
-    av.innerHTML = `<img src="${escapeHtml(group.user.profile_pic)}" alt="">`;
+    av.innerHTML = `<img src="${escapeHtml(group.user.profile_pic)}" alt="" loading="lazy" decoding="async">`;
   } else {
     av.textContent = initial(group.user.display_name);
   }
@@ -3121,15 +3370,47 @@ function closeStoryViewer() {
   clearTimeout(storyTimer);
   const viewer = document.getElementById("story-viewer");
   if (viewer) viewer.classList.add("hidden");
+
+  // S30.33 — explicitly pause any playing video before clearing
   const media = document.getElementById("sv-media");
-  if (media) media.innerHTML = "";
+  if (media) {
+    try {
+      media.querySelectorAll("video").forEach(function (v) {
+        try { v.pause(); v.src = ""; v.load(); } catch (e) {}
+      });
+    } catch (e) {}
+    media.innerHTML = "";
+  }
+
   const bar = document.getElementById("sv-reactions-bar");
   if (bar) bar.classList.add("hidden");
   const rbar = document.getElementById("sv-reply-bar");
   if (rbar) rbar.classList.add("hidden");
   currentGroupIdx = 0;
   currentStoryIdx = 0;
-  loadStories();
+
+  // S30.33 — do NOT call loadStories() here (was: row rebuilt → scroll reset)
+  // Just mark viewed stories as viewed in the existing row data + refresh the
+  // story ring classes to reflect new state, without rebuilding the row.
+  try {
+    var row = document.querySelector(".stories-row");
+    if (row && Array.isArray(storyGroups)) {
+      var idx = 0;
+      row.querySelectorAll(".story-card").forEach(function (card) {
+        if (card.classList.contains("story-add")) return;
+        var g = storyGroups[idx];
+        idx++;
+        if (!g) return;
+        var hex = card.querySelector(".story-hex");
+        if (!hex) return;
+        if (g.has_unseen) hex.classList.add("unseen");
+        else hex.classList.remove("unseen");
+        if (g.user && g.user.username === (window.state && state.me && state.me.username)) {
+          // skip self
+        }
+      });
+    }
+  } catch (e) {}
 }
 
 async function deleteCurrentStory(sid) {
@@ -3207,7 +3488,11 @@ function resetStoryUpload() {
   if (storyPreviewImg) storyPreviewImg.src = "";
   const cap = document.getElementById("story-caption");
   if (cap) cap.value = "";
-  if (publishStoryBtn) publishStoryBtn.disabled = true;
+  // S30.27 — reset button HTML too (was: spinner stuck after first success)
+  if (publishStoryBtn) {
+    publishStoryBtn.disabled = true;
+    publishStoryBtn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> পোস্ট করুন';
+  }
   if (storyUploadModal) storyUploadModal.classList.add("hidden");
 }
 
@@ -3267,17 +3552,56 @@ document.getElementById("sv-next")?.addEventListener("click", nextStory);
 document.getElementById("sv-prev")?.addEventListener("click", prevStory);
 
 // Tap zones on the media
-document.getElementById("sv-media")?.addEventListener("click", (e) => {
-  const rect = e.currentTarget.getBoundingClientRect();
-  const x = e.clientX - rect.left;
-  if (x < rect.width / 3) prevStory();
-  else nextStory();
-});
+// S30.31 — story tap: guard against accidental next after a hold-release
+(function () {
+  var _svHoldStart = 0;
+  var _svHoldMoved = false;
+  var _svLastHoldEnd = 0;
+  var media = document.getElementById("sv-media");
+  if (!media) return;
+
+  media.addEventListener("touchstart", function (e) {
+    _svHoldStart = Date.now();
+    _svHoldMoved = false;
+  }, { passive: true });
+
+  media.addEventListener("touchmove", function (e) {
+    if (Date.now() - _svHoldStart > 200) _svHoldMoved = true;
+  }, { passive: true });
+
+  media.addEventListener("touchend", function (e) {
+    var held = Date.now() - _svHoldStart;
+    _svLastHoldEnd = Date.now();
+    if (_svHoldMoved || held > 500) {
+      // it was a long press → don't navigate
+      e.stopPropagation();
+      e.preventDefault();
+      return false;
+    }
+  }, true);
+
+  media.addEventListener("click", function (e) {
+    // discard click that fires right after a long hold (browser ghost click)
+    if (Date.now() - _svLastHoldEnd < 300) {
+      e.stopPropagation();
+      e.preventDefault();
+      return false;
+    }
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    if (x < rect.width / 3) prevStory();
+    else nextStory();
+  }, true);
+})();
 
 // Keyboard
 document.addEventListener("keydown", (e) => {
   const viewer = document.getElementById("story-viewer");
   if (!viewer || viewer.classList.contains("hidden")) return;
+  // S30.29 — ignore keyboard nav when typing in an input/textarea
+  // (was: space + arrows in reply input triggered story navigation)
+  var t = e.target;
+  if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
   if (e.key === "ArrowRight" || e.key === " ") { e.preventDefault(); nextStory(); }
   else if (e.key === "ArrowLeft") { e.preventDefault(); prevStory(); }
   else if (e.key === "Escape") closeStoryViewer();
@@ -3385,10 +3709,17 @@ async function showFollowList(username, type) {
 // ==================================================
 
 function linkifyHashtags(text) {
-  const escaped = escapeHtml(text);
-  return escaped.replace(/#([\w\u0980-\u09FF]+)/g, function(match, tag) {
-    return `<a href="#" class="hashtag-link" data-tag="${tag}">#${tag}</a>`;
-  });
+  // S30.15/30.27 — ReDoS cap + apostrophe-safe hashtag detection
+  if (!text) return "";
+  var s = String(text);
+  if (s.length > 20000) s = s.slice(0, 20000);
+  const escaped = escapeHtml(s);
+  // S30.27 — require # to be preceded by whitespace/punctuation (NOT & from entity)
+  // was: "#39" from &#39; was being treated as a hashtag → "it&#39;s" broke
+  return escaped.replace(/(^|[\s\u00A0.,!?;:()\[\]"—–-])#([\w\u0980-\u09FF\u200c\u200d]{1,50})/g,
+    function(match, prefix, tag) {
+      return prefix + `<a href="#" class="hashtag-link" data-tag="${tag}">#${tag}</a>`;
+    });
 }
 
 function attachHashtagListeners(container) {
@@ -4016,7 +4347,7 @@ function groupNotifications(notifs) {
 // ---------- Group rendering ----------
 
 function _notifAvatarMini(actorName, actorPic) {
-  if (actorPic) return `<img src="${escapeHtml(actorPic)}" alt="">`;
+  if (actorPic) return `<img src="${escapeHtml(actorPic)}" alt="" loading="lazy" decoding="async">`;
   return initial(actorName);
 }
 
@@ -4108,7 +4439,7 @@ function notifGroupHTML(g) {
 
 function notifHTML(n) {
   const avatar = n.actor_pic
-    ? `<img src="${escapeHtml(n.actor_pic)}" alt="">`
+    ? `<img src="${escapeHtml(n.actor_pic)}" alt="" loading="lazy" decoding="async">`
     : initial(n.actor_name);
 
   let icon, action;
@@ -4280,9 +4611,7 @@ if (_origNavNotif) {
 }
 
 // Poll unread count every 8s (in addition to messages)
-setInterval(() => {
-  if (state.me && !document.hidden) updateNotifBadge();
-}, 8000);
+// S30.11 - merged into _badgePoll below
 
 // Initial call when entering app
 _enterAppHooks.push(() => updateNotifBadge());
@@ -4377,7 +4706,7 @@ async function loadReels() {
 function reelHTML(r, idx) {
   const isOwn = state.me && state.me.username === r.username;
   const avatar = r.profile_pic
-    ? `<img src="${escapeHtml(r.profile_pic)}" alt="">`
+    ? `<img src="${escapeHtml(r.profile_pic)}" alt="" loading="lazy" decoding="async">`
     : initial(r.display_name);
 
   return `
@@ -4791,23 +5120,58 @@ function setupReelObserver() {
   const feed = document.getElementById("reels-feed");
   if (!feed) return;
 
+  // S30.7 - track when each video left the viewport so we only reset
+  // currentTime if it was gone for a while (was: reset on every partial scroll).
+  var _outSince = {};
+
   _reelObserver = new IntersectionObserver(
     (entries) => {
       entries.forEach((entry) => {
         const video = entry.target.querySelector(".reel-video");
         if (!video) return;
+        var idxKey = entry.target.dataset.idx;
 
         if (entry.isIntersecting && entry.intersectionRatio > 0.6) {
-          _currentReelIdx = parseInt(entry.target.dataset.idx);
+          _currentReelIdx = parseInt(idxKey);
+          // came back into view — clear the "out" marker
+          delete _outSince[idxKey];
+
           video.muted = false;
           video.play().catch(() => {
-            // Autoplay blocked → try muted
+            // S30.7 - autoplay blocked → mute and sync button state
             video.muted = true;
             video.play().catch(() => {});
+            // sync mute button if present
+            const item = video.closest(".reel-item");
+            const muteBtn = item && item.querySelector(".reel-mute");
+            if (muteBtn) {
+              muteBtn.dataset.muted = "1";
+              const mi = muteBtn.querySelector("i");
+              if (mi) mi.className = "fa-solid fa-volume-xmark";
+            }
           });
         } else {
           video.pause();
-          video.currentTime = 0;
+          // S30.7 - don't reset currentTime immediately.
+          // Only reset if the video stays out of view for >1.5s.
+          if (!_outSince[idxKey]) {
+            _outSince[idxKey] = Date.now();
+            setTimeout(function () {
+              // still out of view after timeout? then reset
+              if (_outSince[idxKey] &&
+                  (Date.now() - _outSince[idxKey]) >= 1400) {
+                // check if still not visible
+                var r = entry.target.getBoundingClientRect();
+                var h = window.innerHeight || 0;
+                var visible = Math.max(0, Math.min(r.bottom, h) - Math.max(r.top, 0));
+                var ratio = visible / Math.max(1, r.height);
+                if (ratio < 0.5) {
+                  try { video.currentTime = 0; } catch (e) {}
+                }
+                delete _outSince[idxKey];
+              }
+            }, 1500);
+          }
         }
       });
     },
@@ -4982,7 +5346,10 @@ function resetReelUpload() {
   }
   const cap = document.getElementById("reel-caption");
   if (cap) cap.value = "";
-  if (publishReelBtn) publishReelBtn.disabled = true;
+  if (publishReelBtn) {
+    publishReelBtn.disabled = true;
+    publishReelBtn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> পোস্ট করুন';
+  }
   if (reelUploadModal) reelUploadModal.classList.add("hidden");
 }
 
@@ -5119,7 +5486,7 @@ function renderImagePreviewGrid() {
 
   let html = _pendingImages.map((src, i) => `
     <div class="image-preview-item" data-idx="${i}">
-      <img src="${src}" alt="">
+      <img src="${src}" alt="" loading="lazy" decoding="async">
       <button class="image-preview-remove" data-idx="${i}" title="মুছুন">
         <i class="fa-solid fa-xmark"></i>
       </button>
@@ -5184,6 +5551,7 @@ updateComposerState = function() {
 if (postBtn) {
   const newPostBtn = postBtn.cloneNode(true);
   postBtn.parentNode.replaceChild(newPostBtn, postBtn);
+  postBtn = newPostBtn;   // S30.29 — reassign so const-holder keeps working
 
   newPostBtn.addEventListener("click", async () => {
     if (!postContent) return;
@@ -5227,7 +5595,7 @@ function renderCarousel(media) {
       <div class="post-carousel">
         <div class="post-carousel-track">
           <div class="post-carousel-slide">
-            <img src="${escapeHtml(media[0])}" alt="">
+            <img src="${escapeHtml(media[0])}" alt="" loading="lazy" decoding="async">
           </div>
         </div>
       </div>
@@ -5237,7 +5605,7 @@ function renderCarousel(media) {
   // Multiple — full carousel
   const slides = media.map((src) => `
     <div class="post-carousel-slide">
-      <img src="${escapeHtml(src)}" alt="">
+      <img src="${escapeHtml(src)}" alt="" loading="lazy" decoding="async">
     </div>
   `).join("");
 
@@ -5454,7 +5822,11 @@ function _syncPostBtnState() {
 }
 
 // Poll every 250ms — bulletproof, JS-reference-safe
-setInterval(_syncPostBtnState, 250);
+// S30.4 - polling removed; call _syncPostBtnState on input events instead
+// (was: setInterval 250ms = constant CPU/battery drain on every page)
+document.addEventListener("input", function(e){
+  if (e.target && e.target.id === "post-content") _syncPostBtnState();
+}, true);
 
 // Initial calls
 setTimeout(_syncPostBtnState, 100);
@@ -5651,16 +6023,24 @@ function _finBuildGlobalPicker() {
 
   // Attach click with onclick for guaranteed binding
   picker.querySelectorAll(".rp-emoji").forEach((btn) => {
-    btn.onclick = (e) => {
-      e.preventDefault();
-      e.stopPropagation();
+    // S30.34 — use touchstart + mousedown for reliable mobile response
+    const doPick = (e) => {
+      if (e) { e.preventDefault(); e.stopPropagation(); }
       const reaction = btn.dataset.reaction;
       const target = _finPickerTargetBtn;
-      _finHideGlobalPicker();
-      if (target && reaction) {
-        _finDoReaction(target, reaction);
-      }
+      if (!target || !reaction) return;
+      // hide but KEEP target reference so _finDoReaction works
+      if (_finGlobalPicker) _finGlobalPicker.style.display = "none";
+      _finPickerCooldown = Date.now() + 300;
+      _finPickerTargetBtn = null;
+      _finDoReaction(target, reaction);
     };
+    btn.onclick = doPick;
+    // fallback for browsers that don't fire click on touch
+    btn.addEventListener("touchend", function (e) {
+      // small delay so click doesn't double-fire
+      setTimeout(function () { doPick(e); }, 10);
+    }, { passive: false });
   });
 
   document.body.appendChild(picker);
@@ -5719,21 +6099,34 @@ function _finHideGlobalPicker() {
   }
   _finPickerTargetBtn = null;
   // Cooldown — block re-open for 1.2 seconds
-  _finPickerCooldown = Date.now() + 1200;
+  _finPickerCooldown = Date.now() + 300;   // S30.31 — was 1200ms (too long after hide)
 }
 
 // ---------- Apply reaction ----------
 
-let _finProcessing = false;
-async function _finDoReaction(likeBtn, reaction) {
-  if (_finProcessing) return;
-  _finProcessing = true;
+// S29.9 - per-post lock (was: single global _finProcessing flag).
+// Global lock dropped rapid reactions on DIFFERENT posts (any
+// second click within 200ms was silently discarded, regardless of
+// which post it targeted). Per-post map allows independent reactions
+// while still preventing a duplicate POST on the SAME post.
+let _finProcessingByPost = Object.create(null);
 
-  const postId = likeBtn.dataset.id;
+async function _finDoReaction(likeBtn, reaction) {
+  console.log('[T1] _finDoReaction called, reaction=', reaction);
+  // S30.34 — fallback: find postId from parent .post element if button lacks it
+  let postId = likeBtn.dataset.id;
   if (!postId) {
-    _finProcessing = false;
+    const postEl = likeBtn.closest(".post");
+    if (postEl && postEl.dataset.id) postId = postEl.dataset.id;
+  }
+  if (!postId) {
+    console.warn("[REACTION] no postId for button", likeBtn);
     return;
   }
+
+  console.log('[T2] postId=', postId);
+  if (_finProcessingByPost[postId]) { console.log('[T2b] already processing'); return; }
+  _finProcessingByPost[postId] = true;
 
   const current = likeBtn.dataset.reaction || "";
   const newReaction = current === reaction ? "" : reaction;
@@ -5746,40 +6139,152 @@ async function _finDoReaction(likeBtn, reaction) {
 
   // Optimistic update
   likeBtn.dataset.reaction = newReaction;
+  console.log('[T3] render start newReaction=', newReaction, 'newCount=', newCount);
   _finRenderReactionButton(likeBtn, newReaction, newCount);
+  console.log('[T4] render done innerHTML=', likeBtn.innerHTML.slice(0,100));
   _finFlashReaction(likeBtn, newReaction || oldReaction);
 
   try {
+    console.log("[T5] API POST start");
     const res = await api("/api/posts/" + postId + "/reaction", {
       method: "POST",
       body: JSON.stringify({ reaction: reaction }),
     });
+    console.log("[T6] API response:", res);
     const finalReaction = res.my_reaction || "";
     likeBtn.dataset.reaction = finalReaction;
+
+    // Reaction-fix — play once, only on real user action
+    if (finalReaction) {
+      likeBtn.classList.remove("just-reacted");
+      void likeBtn.offsetWidth;
+      likeBtn.classList.add("just-reacted");
+      setTimeout(function () {
+        likeBtn.classList.remove("just-reacted");
+      }, 750);
+    }
     _finRenderReactionButton(likeBtn, finalReaction, res.total || 0);
+
+    // S30.35 — update post-reaction-summary (was: never updated after reaction)
+    try { _finUpdatePostSummary(likeBtn, res); } catch (e) { console.warn("[SUMMARY]", e); }
   } catch (err) {
     likeBtn.dataset.reaction = oldReaction;
     _finRenderReactionButton(likeBtn, oldReaction, oldCount);
   } finally {
-    setTimeout(function () { _finProcessing = false; }, 200);
+    setTimeout(function () { delete _finProcessingByPost[postId]; }, 200);
   }
 }
 
 function _finRenderReactionButton(btn, reaction, count) {
-  let inner = "";
+  try {
+    var _r = btn.dataset.reaction || "";
+    var _emEl = btn.querySelector(".reaction-emoji");
+    var _heartI = btn.querySelector("i.fa-heart");
+    var _em = _emEl ? _emEl.textContent : (_heartI ? "HEART" : "");
+    var _want = (reaction && FIN_REACTION_DATA[reaction])
+      ? FIN_REACTION_DATA[reaction].emoji : "HEART";
+    var _cEl = btn.querySelector(".like-count");
+    var _c = _cEl ? _cEl.textContent : "";
+    if (_r === (reaction || "") && _em === _want && _c === String(count)) {
+      return;
+    }
+  } catch (e) {}
+
+  var labelText = reaction ? "রিঅ্যাক্ট" : "লাইক";
+  var html = "";
+
   if (reaction && FIN_REACTION_DATA[reaction]) {
-    inner += '<span class="reaction-emoji">' + FIN_REACTION_DATA[reaction].emoji + '</span>';
-    btn.classList.add("reaction-active");
-    btn.classList.add("reaction-" + reaction);
+    html += '<span class="reaction-emoji">' + FIN_REACTION_DATA[reaction].emoji + '</span>';
+    btn.classList.add("reaction-active", "reaction-" + reaction);
     btn.style.color = FIN_REACTION_DATA[reaction].color;
   } else {
-    inner += '<i class="fa-regular fa-heart"></i>';
+    html += '<i class="fa-regular fa-heart"></i>';
     btn.classList.remove("reaction-active", "reaction-like", "reaction-love",
                           "reaction-haha", "reaction-wow", "reaction-sad", "reaction-angry");
     btn.style.color = "";
   }
-  inner += '<span class="like-count">' + count + '</span>';
-  btn.innerHTML = inner;
+
+  html += '<span class="reaction-label">' + labelText + '</span>';
+  html += '<span class="like-count">' + count + '</span>';
+  btn.innerHTML = html;
+}
+
+
+
+// S30.35 — update the summary block at the bottom of the post
+function _finUpdatePostSummary(likeBtn, res) {
+  var postEl = likeBtn.closest(".post");
+  if (!postEl) return;
+
+  var counts = res.counts || {};
+  var total = res.total || 0;
+  var top = res.top || [];
+
+  var emojiMap = { like: "👍", love: "❤️", haha: "😆", wow: "😮", sad: "😢", angry: "😡" };
+  var stackHTML = "";
+  if (top && top.length) {
+    stackHTML = top.map(function (r) {
+      return '<span class="prs-emoji reaction-' + r + '" data-r="' + r + '">' +
+        (emojiMap[r] || "❤️") + '</span>';
+    }).join("");
+  } else {
+    stackHTML = '<span class="prs-emoji reaction-love">❤️</span>';
+  }
+
+  function _fmtNum(n) {
+    n = Number(n) || 0;
+    if (n < 1000) return String(n);
+    if (n < 1000000) {
+      var k = n / 1000;
+      return (k >= 10 ? Math.floor(k) : k.toFixed(1).replace(/\.0$/, "")) + "k";
+    }
+    var m = n / 1000000;
+    return (m >= 10 ? Math.floor(m) : m.toFixed(1).replace(/\.0$/, "")) + "M";
+  }
+  function _fmtBn(n) {
+    return String(Number(n) || 0).replace(/[0-9]/g, function (d) {
+      return "০১২৩৪৫৬৭৮৯"[d];
+    });
+  }
+
+  var commentBtn = postEl.querySelector(".comment-btn .comment-count");
+  var repostBtn = postEl.querySelector(".repost-btn .repost-count");
+  var commentCount = commentBtn ? parseInt(commentBtn.textContent || "0", 10) : 0;
+  var repostCount = repostBtn ? parseInt(repostBtn.textContent || "0", 10) : 0;
+
+  var summaryEl = postEl.querySelector(".post-reaction-summary");
+  var dividerEl = postEl.querySelector(".post-actions-divider");
+
+  if (total === 0 && commentCount === 0 && repostCount === 0) {
+    if (summaryEl) summaryEl.remove();
+    if (dividerEl) dividerEl.remove();
+    return;
+  }
+
+  var summaryHTML = `
+    <div class="post-reaction-summary">
+      <div class="prs-left">
+        ${total > 0 ? '<span class="prs-stack">' + stackHTML + '</span>' : ''}
+        ${total > 0 ? '<span class="prs-count">' + _fmtNum(total) + '</span>' : ''}
+      </div>
+      <div class="prs-right">
+        ${commentCount > 0 ? '<span>' + _fmtBn(commentCount) + ' মন্তব্য</span>' : ''}
+        ${(commentCount > 0 && repostCount > 0) ? '<span class="prs-sep">·</span>' : ''}
+        ${repostCount > 0 ? '<span>' + _fmtBn(repostCount) + ' শেয়ার</span>' : ''}
+      </div>
+    </div>
+    <div class="post-actions-divider"></div>
+  `;
+
+  if (summaryEl) {
+    summaryEl.outerHTML = summaryHTML;
+  } else {
+    // insert before .post-actions
+    var actionsEl = postEl.querySelector(".post-actions");
+    if (actionsEl) {
+      actionsEl.insertAdjacentHTML("beforebegin", summaryHTML);
+    }
+  }
 }
 
 function _finFlashReaction(btn, reaction) {
@@ -5811,7 +6316,8 @@ document.addEventListener("click", function (e) {
     return;
   }
 
-  if (Date.now() - _finLastTouch < 700) return; // Skip ghost click after touch
+  console.log('[T7] click handler hit');
+  if (Date.now() - _finLastTouch < 700) { console.log('[T7b] skip ghost click'); return; } // Skip ghost click after touch
 
   // Quick toggle
   const current = likeBtn.dataset.reaction || "";
@@ -5824,7 +6330,8 @@ document.addEventListener("click", function (e) {
 
 // Hover (desktop)
 document.addEventListener("mouseover", function (e) {
-  if ("ontouchstart" in window && window.innerWidth < 900) return;
+  // S30.34 — kill hover picker on ANY touch device (was: width<900 → tablets triggered)
+  if ("ontouchstart" in window || navigator.maxTouchPoints > 0) return;
   const likeBtn = e.target.closest(".like-btn");
   if (!likeBtn) return;
   if (_finCurrentHoverBtn === likeBtn) return;
@@ -5859,22 +6366,61 @@ document.addEventListener("mouseout", function (e) {
 });
 
 // Long-press (mobile)
+// S30.31 — touchmove scroll guard: cancel long-press + prevent accidental like
+var _finTouchStartX = 0;
+var _finTouchStartY = 0;
+var _finTouchMoved = false;
+
 document.addEventListener("touchstart", function (e) {
   const likeBtn = e.target.closest(".like-btn");
   if (!likeBtn) return;
   _finLastTouch = Date.now();
   _finLpBtn = likeBtn;
   _finLpDid = false;
+  _finTouchMoved = false;
+  _finTouchStartX = e.touches[0].clientX;
+  _finTouchStartY = e.touches[0].clientY;
   clearTimeout(_finLpTimer);
   _finLpTimer = setTimeout(function () {
+    if (_finTouchMoved) return;
     _finLpDid = true;
     if (navigator.vibrate) navigator.vibrate(15);
     _finShowGlobalPicker(likeBtn);
   }, 450);
 }, { passive: true });
 
+document.addEventListener("touchmove", function (e) {
+  if (!_finLpBtn) return;
+  var dx = Math.abs(e.touches[0].clientX - _finTouchStartX);
+  var dy = Math.abs(e.touches[0].clientY - _finTouchStartY);
+  if (dx > 10 || dy > 10) {
+    _finTouchMoved = true;
+    clearTimeout(_finLpTimer);
+    _finLpBtn = null;
+    _finLpDid = false;
+  }
+}, { passive: true });
+
 document.addEventListener("touchend", function (e) {
   if (!_finLpBtn) return;
+  // ignore if user was scrolling
+  if (_finTouchMoved) {
+    _finLpBtn = null;
+    _finLpDid = false;
+    _finTouchMoved = false;
+    return;
+  }
+  var endX = e.changedTouches[0].clientX;
+  var endY = e.changedTouches[0].clientY;
+  var finalDx = Math.abs(endX - _finTouchStartX);
+  var finalDy = Math.abs(endY - _finTouchStartY);
+  if (finalDx > 10 || finalDy > 10) {
+    // user scrolled and lifted on the button → don't react
+    _finLpBtn = null;
+    _finLpDid = false;
+    return;
+  }
+
   const wasLong = _finLpDid;
   clearTimeout(_finLpTimer);
   _finLastTouch = Date.now();
@@ -5883,6 +6429,7 @@ document.addEventListener("touchend", function (e) {
     const likeBtn = e.target.closest(".like-btn") || _finLpBtn;
     if (likeBtn === _finLpBtn) {
       const current = likeBtn.dataset.reaction || "";
+      console.log("[LIKE] tap → reaction:", current || "like");
       if (current) _finDoReaction(likeBtn, current);
       else _finDoReaction(likeBtn, "like");
     }
@@ -5898,9 +6445,21 @@ document.addEventListener("touchcancel", function () {
   _finLpDid = false;
 });
 
-// Hide picker on scroll or resize
-window.addEventListener("scroll", _finHideGlobalPicker, { passive: true });
-window.addEventListener("resize", _finHideGlobalPicker);
+// S30.31 — scroll/resize should HIDE picker but not lock the cooldown
+// (was: every scroll extended 1.2s cooldown → long-press after scroll didn't work)
+window.addEventListener("scroll", function () {
+  if (_finGlobalPicker && _finGlobalPicker.style.display !== "none") {
+    _finGlobalPicker.style.display = "none";
+    _finPickerTargetBtn = null;
+    // no cooldown set here
+  }
+}, { passive: true });
+window.addEventListener("resize", function () {
+  if (_finGlobalPicker && _finGlobalPicker.style.display !== "none") {
+    _finGlobalPicker.style.display = "none";
+    _finPickerTargetBtn = null;
+  }
+});
 
 // Escape key
 document.addEventListener("keydown", function (e) {
@@ -5915,6 +6474,8 @@ document.addEventListener("touchend", function (e) {
   const post = e.target.closest(".post");
   if (!post) return;
   if (e.target.closest("button, a, input, .reaction-picker-global")) return;
+  // S29.15 - don't fire love-reaction when double-tapping date separator
+  if (e.target.closest(".chat-date-sep")) return;
 
   const now = Date.now();
   if (_finDtPost === post && now - _finDtTime < 350) {
@@ -5934,6 +6495,8 @@ document.addEventListener("dblclick", function (e) {
   const post = e.target.closest(".post");
   if (!post) return;
   if (e.target.closest("button, a, input, .reaction-picker-global")) return;
+  // S29.15 - same guard for desktop dblclick
+  if (e.target.closest(".chat-date-sep")) return;
   const likeBtn = post.querySelector(".like-btn");
   if (!likeBtn) return;
   const current = likeBtn.dataset.reaction || "";
@@ -5951,7 +6514,10 @@ function _finInitExistingReactions() {
 
 // Run on load and after feed updates
 setTimeout(_finInitExistingReactions, 800);
-// setInterval removed — was causing re-render hover loop // Catch newly loaded posts
+// Reaction-fix — S29.20 observer disabled.
+// It caused an infinite loop: observer → _finInitExistingReactions
+// → DOM write → observer again. bindPostEvents() already styles
+// reactions after every feed render, so the observer is redundant.
 
 
 // ==================================================
@@ -5960,22 +6526,24 @@ setTimeout(_finInitExistingReactions, 800);
 // This removes any per-button event listeners that may have
 // been attached by older code. Document-level delegation still works.
 
-function _finStripButtonHandlers() {
-  document.querySelectorAll(".like-btn").forEach(function (btn) {
-    if (btn.dataset._finStripped === "1") return;
-    const clone = btn.cloneNode(true);
-    clone.dataset._finStripped = "1";
-    // Preserve dataset
-    clone.dataset.id = btn.dataset.id || clone.dataset.id;
-    clone.dataset.reaction = btn.dataset.reaction || "";
-    btn.parentNode.replaceChild(clone, btn);
-  });
-}
-
-// Run on load and periodically
-setTimeout(_finStripButtonHandlers, 500);
-setTimeout(_finStripButtonHandlers, 1500);
-// setInterval removed — was causing hover loop
+// S30.30 — _finStripButtonHandlers REMOVED.
+// Was: cloned every .like-btn on every DOM change → in-flight reactions
+// silently detached → ♥ never filled. Also reels use .like-btn class,
+// so feed reactions broke reels. Document-level delegation in the
+// FINAL REACTION SYSTEM handles all buttons without needing this hack.
+function _finStripButtonHandlers() { /* no-op */ }
+// No setTimeout calls — delegation does the work.
+// S29.14 - catch late-loaded posts (infinite scroll, profile, search, feed refresh)
+// Old approach only ran twice at 500ms + 1500ms; posts rendered after that
+// never got their handlers stripped. MutationObserver on #feed-list (and any
+// future container) re-runs on new .post insertions.
+// S30.30 — MutationObserver for _finStripButtonHandlers REMOVED.
+// Was calling the strip function on every DOM mutation — combined with
+// the function itself, this created a self-triggering loop. Document-level
+// reaction delegation in FINAL REACTION SYSTEM doesn't need this.
+(function () {
+  window.__s2914Observer = true;   // marker so old external refs are no-ops
+})();
 
 
 // ==================================================
@@ -6401,6 +6969,12 @@ async function openSettingsPage() {
   if (!page) return;
   if (!page.classList.contains("hidden")) return;
 
+  // S22 / Series 27B-1 — load security dashboard
+  _loadSecurityDashboard().catch(() => {});
+
+  // S22 / Series 27B-2 — check email verified before 2FA enable
+  _checkEmailGateFor2FA().catch(() => {});
+
   // S18.9h3 — refresh state.me so privacy toggle shows correct value
   try {
     const fresh = await api("/api/me");
@@ -6536,8 +7110,20 @@ async function toggleBlock(e) {
     }
 
     showToast(res.blocked ? "🚫 ব্লক করা হয়েছে" : "✅ আনব্লক করা হয়েছে");
-    // Refresh feed to exclude/include their posts
+    // Refresh feed + conversations to exclude/include their content
     setTimeout(() => loadFeed(), 300);
+    // S30.18 — refresh conversation list, close chat if blocking
+    try {
+      if (typeof loadConversations === "function") loadConversations();
+      if (res.blocked && typeof currentChatUser !== "undefined" && currentChatUser === username) {
+        if (typeof stopChatPolling === "function") stopChatPolling();
+        var cw = document.getElementById("chat-window");
+        if (cw) cw.classList.add("hidden");
+        document.body.classList.remove("messages-chat-open");
+        currentChatUser = null;
+        lastMsgCount = 0;
+      }
+    } catch (e) {}
   } catch (err) {
     alert(err.message);
   } finally {
@@ -7779,13 +8365,18 @@ function _resumeStoryProgressBar(remaining) {
 
 // ---- Event wiring ----
 
-// Reset timer on story reaction tap
+// S30.33 — reset timer on reaction, but ONLY for image stories
+// (was: video stories got a 5s timer after reacting → advanced before video ended)
 document.addEventListener("click", function(e) {
   var btn = e.target.closest(".sv-react");
-  if (btn) {
-    // Give user full 5 more seconds after reacting
-    _storyTimerReset();
-  }
+  if (!btn) return;
+  var group = storyGroups[currentGroupIdx];
+  if (!group) return;
+  var story = group.stories[currentStoryIdx];
+  if (!story) return;
+  // skip for video stories — they use onended
+  if (story.media_type === "video") return;
+  _storyTimerReset();
 }, true);
 
 // Pause on keyboard open (input focus)
@@ -7798,11 +8389,14 @@ document.addEventListener("focusin", function(e) {
 // Resume on keyboard close (input blur)
 document.addEventListener("focusout", function(e) {
   if (e.target && e.target.id === "sv-reply-input") {
-    // Small delay so user sees story before it advances
     setTimeout(function() {
+      // S30.29 — only reset timer if viewer is still OPEN
+      // (was: viewer close via X triggered focusout → timer restart → next story opened)
+      var v = document.getElementById("story-viewer");
+      if (!v || v.classList.contains("hidden")) return;
       if (document.getElementById("sv-reply-input") &&
           document.activeElement !== document.getElementById("sv-reply-input")) {
-        _storyTimerReset(); // reset gives a fresh full timer after typing
+        _storyTimerReset();
       }
     }, 100);
   }
@@ -7866,7 +8460,7 @@ function _obGoStep(n) {
     if (av && state.me) setAvatar(av, state.me.display_name, state.me.profile_pic);
     var cov = document.getElementById("ob-cover");
     if (cov && state.me && state.me.cover_pic) {
-      cov.innerHTML = '<img src="' + state.me.cover_pic + '" alt="">';
+      cov.innerHTML = '<img src="' + state.me.cover_pic + '" alt="" loading="lazy" decoding="async">';
       cov.classList.add("has-image");
     }
   }
@@ -7936,6 +8530,14 @@ async function _obFinish(skipped) {
         });
         state.me.profile_pic = r.avatar;
       }
+      // S22 / Series 7 — onboarding cover photo was being lost
+      if (_obState.pendingCover) {
+        var rc = await api("/api/me/cover", {
+          method: "POST",
+          body: JSON.stringify({ cover: _obState.pendingCover })
+        });
+        state.me.cover_pic = rc.cover;
+      }
     } catch (e) {}
   }
 
@@ -8002,7 +8604,7 @@ if (_obAvatarInput) {
       var resized = await resizeImage(file, 400, 0.85);
       _obState.pendingAvatar = resized;
       var av = document.getElementById("ob-avatar");
-      av.innerHTML = '<img src="' + resized + '" alt="">';
+      av.innerHTML = '<img src="' + resized + '" alt="" loading="lazy" decoding="async">';
     } catch (err) {} finally {
       document.getElementById("ob-avatar-btn").innerHTML = '<i class="fa-solid fa-camera"></i>';
       _obAvatarInput.value = "";
@@ -8022,7 +8624,7 @@ if (_obCoverInput) {
       var resized = await resizeImage(file, 1200, 0.82);
       _obState.pendingCover = resized;
       var cov = document.getElementById("ob-cover");
-      cov.innerHTML = '<img src="' + resized + '" alt="">';
+      cov.innerHTML = '<img src="' + resized + '" alt="" loading="lazy" decoding="async">';
       cov.classList.add("has-image");
     } catch (err) {
       alert("কভার লোড করা যায়নি");
@@ -8114,7 +8716,7 @@ document.addEventListener("submit", async function(e) {
   if (_chatReplyTo) {
     tempHTML += '<div class="chat-msg-reply"><div class="cmr-name">' + escapeHtml(_chatReplyTo.name || "") + '</div><div class="cmr-text">' + escapeHtml(_chatReplyTo.text || "") + '</div></div>';
   }
-  if (image) tempHTML += '<div class="chat-msg-image"><img src="' + escapeHtml(image) + '" alt=""></div>';
+  if (image) tempHTML += '<div class="chat-msg-image"><img src="' + escapeHtml(image) + '" alt="" loading="lazy" decoding="async"></div>';
   if (text) tempHTML += '<div class="chat-msg-text">' + escapeHtml(text) + '</div>';
   tempHTML += '<div class="chat-msg-time">এইমাত্র</div>';
   temp.innerHTML = tempHTML;
@@ -8939,7 +9541,7 @@ function openImageViewer(src) {
         '<i class="fa-solid fa-xmark"></i>' +
       '</button>' +
     '</div>' +
-    '<img class="img-viewer-img" src="' + src + '" alt="">';
+    '<img class="img-viewer-img" src="' + src + '" alt="" loading="lazy" decoding="async">';
 
   document.body.appendChild(viewer);
 
@@ -9172,6 +9774,10 @@ _closeTopPage = function() {
     _bindClicks();
   }
 
+  // S30.30 — request counter prevents stale-response race
+  // (was: slow old request could overwrite faster new one's results)
+  var _reqSerial = 0;
+
   async function fetchAndRender() {
     var q = input.value.trim();
     if (!q) {
@@ -9182,12 +9788,16 @@ _closeTopPage = function() {
       return;
     }
     lastQ = q;
+    var _myReq = ++_reqSerial;
     try {
       var data = await api("/api/search?q=" + encodeURIComponent(q) + "&type=all");
+      if (_myReq !== _reqSerial) return;   // stale — newer request already landed
+      if (input.value.trim() !== q) return; // input changed
       lastData = data;
       results.classList.remove("hidden");
       renderResults();
     } catch (err) {
+      if (_myReq !== _reqSerial) return;
       body.innerHTML = '<div class="search-result"><span class="uname">লোড করা যায়নি</span></div>';
       results.classList.remove("hidden");
     }
@@ -9357,6 +9967,8 @@ _closeTopPage = function() {
     } catch (e) {}
   }
 
+  var _fsSerial = 0;
+
   async function _fetch() {
     var q = pageInput.value.trim();
     if (!q) {
@@ -9367,13 +9979,16 @@ _closeTopPage = function() {
       return;
     }
     lastQ = q;
+    var _myReq = ++_fsSerial;
     if (pageClear) pageClear.classList.remove("hidden");
     pageBody.innerHTML = '<div class="search-empty"><i class="fa-solid fa-spinner fa-spin"></i><p>খোঁজা হচ্ছে...</p></div>';
     try {
       var data = await api("/api/search?q=" + encodeURIComponent(q) + "&type=all");
+      if (_myReq !== _fsSerial) return;
       lastData = data;
       _render();
     } catch (err) {
+      if (_myReq !== _fsSerial) return;
       pageBody.innerHTML = '<div class="search-empty"><i class="fa-solid fa-triangle-exclamation"></i><p>লোড করা যায়নি</p></div>';
     }
   }
@@ -9779,7 +10394,7 @@ async function openPostFromNotif(postId) {
           '<div class="notif-post-text">' + escapeHtml(p.content || "") + '</div>' +
           (Array.isArray(p.media) && p.media.length
             ? '<div class="notif-post-media">' + p.media.slice(0, 3).map(function (m) {
-                return '<img src="' + escapeHtml(m) + '" alt="">';
+                return '<img src="' + escapeHtml(m) + '" alt="" loading="lazy" decoding="async">';
               }).join("") + '</div>'
             : '') +
           '<div class="notif-post-stats">' +
@@ -10047,7 +10662,7 @@ async function loadGroups() {
     wrap.innerHTML = groups.map(function (g) {
       var avHTML = (g.members || []).slice(0, 3).map(function (m) {
         return '<div class="conv-avatar mini">' +
-          (m.profile_pic ? '<img src="' + escapeHtml(m.profile_pic) + '" alt="">' : initial(m.display_name)) +
+          (m.profile_pic ? '<img src="' + escapeHtml(m.profile_pic) + '" alt="" loading="lazy" decoding="async">' : initial(m.display_name)) +
           '</div>';
       }).join("");
       return '<div class="conv-item group-item" data-group-id="' + g.id + '">' +
@@ -10105,7 +10720,7 @@ async function refreshGroupChat(scrollToBottom) {
     if (headerEl) {
       var avHTML = members.slice(0, 3).map(function (m) {
         return '<div class="chat-user-avatar mini">' +
-          (m.profile_pic ? '<img src="' + escapeHtml(m.profile_pic) + '" alt="">' : initial(m.display_name)) +
+          (m.profile_pic ? '<img src="' + escapeHtml(m.profile_pic) + '" alt="" loading="lazy" decoding="async">' : initial(m.display_name)) +
           '</div>';
       }).join("");
       headerEl.innerHTML =
@@ -10124,7 +10739,7 @@ async function refreshGroupChat(scrollToBottom) {
       var mine = m.sender_id === data.me_id;
       return '<div class="chat-msg group-msg ' + (mine ? "outgoing" : "incoming") + '">' +
         (!mine ? '<div class="group-msg-sender">' + escapeHtml(m.display_name) + '</div>' : '') +
-        (m.attachment ? '<div class="chat-msg-image"><img src="' + escapeHtml(m.attachment) + '" alt=""></div>' : '') +
+        (m.attachment ? '<div class="chat-msg-image"><img src="' + escapeHtml(m.attachment) + '" alt="" loading="lazy" decoding="async"></div>' : '') +
         (m.content ? '<div class="chat-msg-text">' + escapeHtml(m.content) + '</div>' : '') +
         '<div class="chat-msg-time">' + shortTime(m.created_at) + '</div>' +
       '</div>';
@@ -10382,7 +10997,7 @@ function showGroupInfo(data) {
       '<div class="gi-avatars">' +
         data.members.slice(0, 5).map(function (m) {
           return '<div class="gi-av">' +
-            (m.profile_pic ? '<img src="' + escapeHtml(m.profile_pic) + '" alt="">' : initial(m.display_name)) +
+            (m.profile_pic ? '<img src="' + escapeHtml(m.profile_pic) + '" alt="" loading="lazy" decoding="async">' : initial(m.display_name)) +
           '</div>';
         }).join("") +
       '</div>' +
@@ -10394,7 +11009,7 @@ function showGroupInfo(data) {
         data.members.map(function (m) {
           return '<div class="gi-member" data-user="' + escapeHtml(m.username) + '">' +
             '<div class="gi-member-avatar">' +
-              (m.profile_pic ? '<img src="' + escapeHtml(m.profile_pic) + '" alt="">' : initial(m.display_name)) +
+              (m.profile_pic ? '<img src="' + escapeHtml(m.profile_pic) + '" alt="" loading="lazy" decoding="async">' : initial(m.display_name)) +
             '</div>' +
             '<div class="gi-member-name">' + escapeHtml(m.display_name) + '</div>' +
           '</div>';
@@ -10609,11 +11224,44 @@ window._pending2fa = { token: null };
       });
       if (res && res.needs_2fa) {
         window._pending2fa.token = res.temp_token;
+        window._pending2fa.method = res.method || "totp";
         showMessage("");
         loginForm.classList.add("hidden");
         twoForm.classList.remove("hidden");
         document.getElementById("footer-login").classList.add("hidden");
-        setTimeout(function () { document.getElementById("login-2fa-code").focus(); }, 80);
+
+        // S27B-4 fix — show correct hint based on method
+        var hintEl = document.getElementById("login-2fa-hint");
+        var emailLine = document.getElementById("login-2fa-email-line");
+        var emailMask = document.getElementById("login-2fa-email-mask");
+        var codeInput = document.getElementById("login-2fa-code");
+
+        var backupLine = document.getElementById("login-2fa-backup-line");
+
+        if (res.method === "email") {
+          if (hintEl) hintEl.textContent = "আপনার ইমেইলে পাঠানো ৬ ডিজিটের কোড দিন";
+          if (emailLine) emailLine.classList.remove("hidden");
+          if (emailMask) emailMask.textContent = res.email_masked || "your email";
+          if (backupLine) backupLine.style.display = "none";
+          if (codeInput) {
+            codeInput.placeholder = "123456";
+            codeInput.maxLength = 6;
+            codeInput.style.letterSpacing = "6px";
+            codeInput.style.fontSize = "18px";
+          }
+        } else {
+          if (backupLine) backupLine.style.display = "";
+          if (hintEl) hintEl.textContent = "আপনার authenticator app থেকে ৬ ডিজিটের কোড দিন";
+          if (emailLine) emailLine.classList.add("hidden");
+          if (codeInput) {
+            codeInput.placeholder = "123456";
+            codeInput.maxLength = 6;
+            codeInput.style.letterSpacing = "6px";
+            codeInput.style.fontSize = "18px";
+          }
+        }
+
+        setTimeout(function () { codeInput.focus(); }, 80);
         return;
       }
       showMessage("");
@@ -10889,13 +11537,23 @@ window._pending2fa = { token: null };
     btn.disabled = true;
     btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
     try {
-      await api("/api/me/email", {
+      const res = await api("/api/me/email", {
         method: "POST",
         body: JSON.stringify({ email: em, password: pw }),
       });
       closeEditModal();
-      showToast("✅ ইমেইল সেভ হয়েছে। যাচাইয়ের ইমেইল পাঠানো হয়েছে।");
+      if (res && res.already_verified) {
+        showToast("✅ ইমেইল ইতিমধ্যে যাচাইকৃত");
+      } else if (res && res.verify_required) {
+        // S27B fix — open code-input modal
+        showToast("📧 " + (res.message || "৬ ডিজিটের কোড পাঠানো হয়েছে"));
+        _openEmailCodeModal(em);
+      } else {
+        showToast("✅ ইমেইল সেভ হয়েছে।");
+      }
       refresh();
+      _loadSecurityDashboard().catch(() => {});
+      _checkEmailGateFor2FA().catch(() => {});
     } catch (err) {
       errEl.textContent = err.message;
       errEl.classList.remove("hidden");
@@ -10904,6 +11562,101 @@ window._pending2fa = { token: null };
       btn.innerHTML = '<i class="fa-solid fa-check"></i> সেভ করুন';
     }
   });
+
+  // ═══════════════════════════════════════════════
+  // S27B fix — Email verification code modal
+  // ═══════════════════════════════════════════════
+  function _openEmailCodeModal(emailAddr) {
+    var old = document.getElementById("email-code-modal");
+    if (old) old.remove();
+
+    var modal = document.createElement("div");
+    modal.id = "email-code-modal";
+    modal.className = "modal";
+    modal.style.zIndex = "99999";
+    modal.innerHTML = `
+      <div class="modal-content" style="max-width:440px">
+        <button class="close-btn" id="ec-close" type="button">×</button>
+        <h3 style="margin-bottom:10px;font-size:19px">📧 Email যাচাই করুন</h3>
+        <p style="background:rgba(24,119,242,.08);border-left:3px solid var(--accent);padding:10px 12px;border-radius:8px;font-size:13px;line-height:1.5;margin-bottom:14px">
+          <strong>${escapeHtml(emailAddr)}</strong> এ ৬ ডিজিটের কোড পাঠানো হয়েছে। কোডটি ১০ মিনিট বৈধ।
+        </p>
+        <label class="edit-label">৬ ডিজিটের কোড</label>
+        <div class="input-group" style="margin-bottom:14px">
+          <i class="fa-solid fa-key input-icon"></i>
+          <input type="text" id="ec-code" placeholder="123456" inputmode="numeric" maxlength="6"
+                 style="text-align:center;letter-spacing:8px;font-size:20px;font-weight:800">
+        </div>
+        <p id="ec-error" class="hidden" style="color:var(--danger);font-size:13px;margin:0 0 10px;text-align:center;font-weight:600"></p>
+        <div class="edit-actions">
+          <button class="btn-secondary" id="ec-resend" type="button">📧 আবার পাঠান</button>
+          <button class="btn-primary" id="ec-submit" type="button" style="width:auto;padding:12px 24px">
+            <i class="fa-solid fa-check"></i> যাচাই করুন
+          </button>
+        </div>
+      </div>`;
+    document.body.appendChild(modal);
+
+    function close() { modal.remove(); }
+    function showErr(m) {
+      var el = document.getElementById("ec-error");
+      el.textContent = m; el.classList.remove("hidden");
+    }
+    function hideErr() {
+      var el = document.getElementById("ec-error");
+      if (el) el.classList.add("hidden");
+    }
+
+    document.getElementById("ec-close").onclick = close;
+    modal.addEventListener("click", function (e) { if (e.target === modal) close(); });
+    setTimeout(function () { document.getElementById("ec-code").focus(); }, 100);
+
+    document.getElementById("ec-code").addEventListener("keydown", function (e) {
+      if (e.key === "Enter") { e.preventDefault(); document.getElementById("ec-submit").click(); }
+    });
+
+    document.getElementById("ec-submit").onclick = async function () {
+      var code = (document.getElementById("ec-code").value || "").trim();
+      if (!/^\d{6}$/.test(code)) return showErr("৬ ডিজিটের কোড দিন");
+      hideErr();
+      var btn = this;
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+      try {
+        var r = await api("/api/me/email/confirm-code", {
+          method: "POST",
+          body: JSON.stringify({ code: code }),
+        });
+        close();
+        if (typeof showToast === "function") showToast("✅ " + (r.message || "Email যাচাই সম্পন্ন"));
+        if (typeof _loadSecurityDashboard === "function") _loadSecurityDashboard();
+        if (typeof _checkEmailGateFor2FA === "function") _checkEmailGateFor2FA();
+      } catch (err) {
+        showErr(err.message || "যাচাই ব্যর্থ");
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-check"></i> যাচাই করুন';
+      }
+    };
+
+    document.getElementById("ec-resend").onclick = async function () {
+      var btn = this;
+      btn.disabled = true;
+      var oldHtml = btn.innerHTML;
+      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+      try {
+        var r = await api("/api/me/email/resend-code", { method: "POST" });
+        hideErr();
+        if (typeof showToast === "function") {
+          showToast(r.already_verified ? "✅ ইমেইল ইতিমধ্যে যাচাইকৃত" : "📧 নতুন কোড পাঠানো হয়েছে");
+        }
+      } catch (err) {
+        showErr(err.message || "পাঠানো যায়নি");
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = oldHtml;
+      }
+    };
+  }
 
   document.getElementById("btn-remove-email").addEventListener("click", async function () {
     var pw = prompt("নিশ্চিতকরণের জন্য পাসওয়ার্ড দিন:");
@@ -11110,6 +11863,8 @@ window._pending2fa = { token: null };
       no_google_id: "Google আইডি পাওয়া যায়নি।",
       create_failed: "অ্যাকাউন্ট তৈরি করা যায়নি।",
       access_denied: "আপনি অনুমতি দেননি।",
+      // S22 / Series 13 — new error codes
+      "2fa_enabled": "এই ইমেইলের একটি অ্যাকাউন্টে 2FA চালু আছে। Google দিয়ে লগইন করা যাবে না — পাসওয়ার্ড দিয়ে লগইন করুন।",
     };
     var text = msgs[err] || ("Google error: " + err);
     setTimeout(function () {
@@ -11135,6 +11890,14 @@ async function _checkAdminStatus() {
     var navAdmin = document.getElementById("nav-admin");
     if (navAdmin) {
       navAdmin.classList.toggle("hidden", !_isAdmin);
+    }
+    // S22 / Layer 6 — 2FA warning for admin
+    if (_isAdmin && res.needs_2fa_setup) {
+      if (typeof showToast === "function") {
+        setTimeout(function () {
+          showToast("🛡️ অ্যাডমিন অ্যাক্সেসের জন্য 2FA চালু করুন — Settings → Two-Factor");
+        }, 800);
+      }
     }
   } catch (e) {
     _isAdmin = false;
@@ -11304,7 +12067,7 @@ function _adminReportHTML(r) {
     preview = '<div class="admin-report-preview">' + escapeHtml(target.content.slice(0, 200)) + '</div>';
     if (target.media && target.media.length) {
       preview += '<div class="admin-report-media">' + target.media.slice(0, 3).map(function (m) {
-        return '<img src="' + escapeHtml(m) + '" alt="">';
+        return '<img src="' + escapeHtml(m) + '" alt="" loading="lazy" decoding="async">';
       }).join("") + '</div>';
     }
   } else if (r.target_type === "comment" && target.content) {
@@ -11900,7 +12663,12 @@ async function _askSensitiveVerify(opts) {
   var tfaEnabled = false;
   try {
     var st = await api("/api/me/2fa/status");
-    tfaEnabled = !!(st && st.enabled);
+    // S29.4 - Only TOTP gates sensitive actions.
+    // Email-2FA protects LOGIN only. The backend verifier
+    // (_verify_sensitive_action) checks only totp_enabled, so
+    // asking for a code from email-2FA users would deadlock
+    // the flow (no code is ever sent for sensitive actions).
+    tfaEnabled = !!(st && st.totp_enabled);
   } catch (e) {}
 
   return new Promise(function (resolve) {
@@ -12738,12 +13506,12 @@ function _applyWallpaper(wp) {
 
 function _applyChatPrefs(username) {
   if (!username) return;
-  api("/api/chats/" + encodeURIComponent(username) + "/settings")
-    .then(function (st) {
-      _applyChatTheme(st.theme || "default");
-      _applyWallpaper(st.wallpaper || "default");
-    })
-    .catch(function () {});
+  // S29.5 - read from cache (fetches once, reuses for ~chat lifetime)
+  _getChatSettings(username).then(function (st) {
+    if (!st) return;
+    _applyChatTheme(st.theme || "default");
+    _applyWallpaper(st.wallpaper || "default");
+  });
 }
 
 function _openChatThemePicker(username) {
@@ -12824,6 +13592,7 @@ function _openChatThemePicker(username) {
           nickname_public: cur.nickname_public || false
         })
       });
+      _invalidateChatSettings(username);   // S29.5
       _applyChatTheme(selected);
       close();
       showToast("\u09a5\u09bf\u09ae \u09b8\u09c7\u09ad \u09b9\u09df\u09c7\u099b\u09c7");
@@ -12888,6 +13657,7 @@ async function _openNicknameModal(username) {
           nickname_public: true
         })
       });
+      _invalidateChatSettings(username);   // S29.5
       close();
       showToast(val ? "\u09a8\u09bf\u0995\u09a8\u09c7\u09ae \u09b8\u09c7\u09ad \u09b9\u09df\u09c7\u099b\u09c7" : "\u09a8\u09bf\u0995\u09a8\u09c7\u09ae \u09b8\u09b0\u09be\u09a8\u09cb \u09b9\u09df\u09c7\u099b\u09c7");
       await loadConversations();
@@ -12988,6 +13758,7 @@ function _openWallpaperPicker(username) {
           nickname_public: st.nickname_public || false
         })
       });
+      _invalidateChatSettings(username);   // S29.5
       close();
       showToast("\u0993\u09df\u09be\u09b2\u09aa\u09c7\u09aa\u09be\u09b0 \u09b8\u09c7\u09ad");
     } catch (e) { alert(e.message); }
@@ -13221,7 +13992,7 @@ function _openDeleteMessageSheet(msgId, msgEl, isMine) {
       var isOut = c.outgoing;
       var other = isOut ? c.callee : c.caller;
       var av = other.profile_pic
-        ? '<img src="' + _esc(other.profile_pic) + '" alt="">'
+        ? '<img src="' + _esc(other.profile_pic) + '" alt="" loading="lazy" decoding="async">'
         : _init(other.display_name);
 
       var missCls = c.is_missed ? "missed" : "";
@@ -13344,4 +14115,5198 @@ function _openDeleteMessageSheet(msgId, msgEl, isMine) {
   }, true);
 
   console.log("[S4B] call history ready");
+})();
+
+// S22 / Series 27B-1 — Security Dashboard
+async function _loadSecurityDashboard() {
+  const container = document.getElementById("security-dashboard");
+  if (!container) return;
+  container.innerHTML = '<p style="text-align:center;color:var(--muted);padding:20px">লোড হচ্ছে...</p>';
+  try {
+    const data = await api("/api/me/security-overview");
+    container.innerHTML = _renderSecurityDashboard(data);
+    _bindSecurityDashboardEvents();
+  } catch (err) {
+    container.innerHTML = '<p style="color:var(--danger);text-align:center;padding:20px">লোড করা যায়নি</p>';
+  }
+}
+
+function _renderSecurityDashboard(d) {
+  const c = d.checks || {};
+  const score = d.score || 0;
+  const risk = d.risk || "weak";
+  const riskLabel = d.risk_label || "Unknown";
+  const colors = { excellent:"#22c55e", good:"#10b981", moderate:"#f59e0b", weak:"#ef4444" };
+  const color = colors[risk] || "#ef4444";
+
+  const check = (label, ok, hint, extra = "") => `
+    <div class="sd-check ${ok ? 'ok' : 'warn'}">
+      <div class="sd-check-icon">${ok ? '✅' : '⚠️'}</div>
+      <div class="sd-check-body">
+        <div class="sd-check-label">${escapeHtml(label)}</div>
+        <div class="sd-check-hint">${escapeHtml(hint || "")}</div>
+        ${extra}
+      </div>
+    </div>`;
+
+  return `
+    <div class="sd-score-card">
+      <div class="sd-score-ring" style="--sd-color:${color};--score:${score}">
+        <div class="sd-score-value">${score}</div>
+        <div class="sd-score-max">/100</div>
+      </div>
+      <div class="sd-score-info">
+        <div class="sd-score-label" style="color:${color}">${escapeHtml(riskLabel)}</div>
+        <div class="sd-score-sub">আপনার অ্যাকাউন্ট সুরক্ষার স্কোর</div>
+      </div>
+    </div>
+    <div class="sd-checks">
+      ${check(c.password?.label, c.password?.ok, c.password?.hint)}
+      ${check(c.two_factor?.label, c.two_factor?.ok, c.two_factor?.hint,
+        c.two_factor?.ok ? '' : '<button type="button" class="sd-action-btn" data-action="enable-2fa">2FA চালু করুন</button>')}
+      ${check(c.email?.label, c.email?.ok,
+        (c.email?.email ? c.email.email + ' — ' + c.email.hint : c.email?.hint),
+        c.email?.ok ? '' : '<button type="button" class="sd-action-btn" data-action="verify-email">Email যাচাই করুন</button>')}
+      ${check(c.backup_codes?.label, c.backup_codes?.ok, c.backup_codes?.hint)}
+      ${check(c.recovery_code?.label, c.recovery_code?.ok, c.recovery_code?.hint,
+        c.recovery_code?.ok ? '' : '<button type="button" class="sd-action-btn" data-action="gen-recovery">Recovery Code তৈরি করুন</button>')}
+      ${check(c.phone?.label, c.phone?.ok, c.phone?.hint + (c.phone?.coming_soon ? ' (Coming soon)' : ''))}
+      ${check(c.backup_email?.label, c.backup_email?.ok, c.backup_email?.hint)}
+    </div>
+    <div class="sd-footer-tip">
+      💡 <strong>টিপস:</strong> 2FA চালু করলে এবং recovery code সংরক্ষণ করলে আপনার অ্যাকাউন্ট সর্বোচ্চ সুরক্ষিত থাকবে।
+    </div>`;
+}
+
+function _bindSecurityDashboardEvents() {
+  document.querySelectorAll('.sd-action-btn').forEach(btn => {
+    btn.addEventListener('click', async function () {
+      const act = this.dataset.action;
+      if (act === 'enable-2fa') {
+        const b = document.getElementById('btn-enable-2fa');
+        if (b) b.click();
+      } else if (act === 'verify-email') {
+        const b = document.getElementById('btn-add-email') || document.getElementById('btn-change-email');
+        if (b) b.click();
+      } else if (act === 'gen-recovery') {
+        await _openRecoveryCodeModal();
+      }
+    });
+  });
+}
+
+async function _openRecoveryCodeModal() {
+  // S27B fix — replace browser prompt() with custom modal (APK-friendly)
+  const has2FA = await api("/api/me/2fa/status")
+    // S29.4 - recovery-code regeneration calls _verify_sensitive_action,
+    // which only checks TOTP. Align the UI with the backend.
+    .then(r => !!(r && r.totp_enabled))
+    .catch(() => false);
+
+  const old = document.getElementById("recovery-code-modal");
+  if (old) old.remove();
+
+  const modal = document.createElement("div");
+  modal.id = "recovery-code-modal";
+  modal.className = "modal";
+  modal.style.zIndex = "99999";
+  modal.innerHTML = `
+    <div class="modal-content" style="max-width:460px">
+      <button class="close-btn" id="rc2-close" type="button">×</button>
+      <h3 style="margin-bottom:10px;font-size:19px">🎫 Recovery Code তৈরি করুন</h3>
+      <p style="background:rgba(24,119,242,.08);border-left:3px solid var(--accent);padding:10px 12px;border-radius:8px;font-size:13px;line-height:1.5;margin-bottom:14px">
+        এই কোড দিয়ে <strong>device হারালে</strong> 2FA বন্ধ করতে পারবেন। কোড শুধু একবার দেখা যাবে — নিরাপদে সংরক্ষণ করুন।
+      </p>
+
+      <label class="edit-label">নিশ্চিত করতে আপনার পাসওয়ার্ড</label>
+      <div class="input-group" style="margin-bottom:12px">
+        <i class="fa-solid fa-lock input-icon"></i>
+        <input type="password" id="rc2-password" placeholder="Account password" autocomplete="current-password">
+      </div>
+
+      <div id="rc2-2fa-wrap" style="display:${has2FA ? 'block' : 'none'}">
+        <label class="edit-label">2FA কোড (Authenticator / Backup code)</label>
+        <div class="input-group" style="margin-bottom:12px">
+          <i class="fa-solid fa-shield-halved input-icon"></i>
+          <input type="text" id="rc2-code" placeholder="123456 অথবা XXXXX-XXXXX" autocomplete="one-time-code">
+        </div>
+      </div>
+
+      <p id="rc2-error" class="hidden" style="color:var(--danger);font-size:13px;margin:0 0 10px;text-align:center;font-weight:600"></p>
+
+      <div class="edit-actions">
+        <button class="btn-secondary" id="rc2-cancel" type="button">বাতিল</button>
+        <button class="btn-primary" id="rc2-submit" type="button" style="width:auto;padding:12px 24px">
+          <i class="fa-solid fa-key"></i> তৈরি করুন
+        </button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+
+  function close() { modal.remove(); }
+  function showErr(msg) {
+    const el = document.getElementById("rc2-error");
+    el.textContent = msg;
+    el.classList.remove("hidden");
+  }
+
+  document.getElementById("rc2-close").onclick = close;
+  document.getElementById("rc2-cancel").onclick = close;
+  modal.addEventListener("click", (e) => { if (e.target === modal) close(); });
+
+  setTimeout(() => {
+    const p = document.getElementById("rc2-password");
+    if (p) p.focus();
+  }, 100);
+
+  document.getElementById("rc2-submit").onclick = async () => {
+    const password = (document.getElementById("rc2-password").value || "").trim();
+    const code = (document.getElementById("rc2-code")?.value || "").trim();
+    if (!password) return showErr("পাসওয়ার্ড দিন");
+    if (has2FA && !code) return showErr("2FA কোড দিন");
+
+    const btn = document.getElementById("rc2-submit");
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+
+    try {
+      const res = await api("/api/me/recovery-code/regenerate", {
+        method: "POST",
+        body: JSON.stringify({ password: password, totp_code: code }),
+      });
+      close();
+
+      // Show the generated code in a second modal
+      _showRecoveryCodeResult(res.recovery_code);
+    } catch (err) {
+      showErr(err.message || "কিছু ভুল হয়েছে");
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fa-solid fa-key"></i> তৈরি করুন';
+    }
+  };
+}
+
+function _showRecoveryCodeResult(code) {
+  const old = document.getElementById("recovery-code-result");
+  if (old) old.remove();
+
+  const modal = document.createElement("div");
+  modal.id = "recovery-code-result";
+  modal.className = "modal";
+  modal.style.zIndex = "99999";
+  modal.innerHTML = `
+    <div class="modal-content" style="max-width:480px">
+      <h3 style="margin-bottom:10px;font-size:19px">🎫 আপনার Recovery Code</h3>
+      <p style="background:rgba(245,158,11,.1);border-left:3px solid #f59e0b;padding:10px 12px;border-radius:8px;font-size:13px;line-height:1.5;margin-bottom:14px">
+        ⚠️ এই কোড <strong>শুধু একবার</strong> দেখানো হবে। এখনই নিরাপদে সংরক্ষণ করুন (password manager / কাগজে)।
+      </p>
+      <div style="background:var(--card-2);border:1px dashed var(--accent);border-radius:12px;padding:18px;text-align:center;font-family:'Courier New',monospace;font-size:17px;font-weight:800;letter-spacing:1px;user-select:all;word-break:break-all;margin-bottom:14px">
+        ${escapeHtml(code)}
+      </div>
+      <div class="edit-actions">
+        <button class="btn-secondary" id="rcr-copy" style="flex:1">
+          <i class="fa-regular fa-copy"></i> কপি
+        </button>
+        <button class="btn-primary" id="rcr-done" style="flex:1">
+          <i class="fa-solid fa-check"></i> সংরক্ষণ করেছি
+        </button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+
+  document.getElementById("rcr-copy").onclick = () => {
+    navigator.clipboard.writeText(code).then(() => {
+      if (typeof showToast === "function") showToast("📋 কপি হয়েছে");
+    });
+  };
+  document.getElementById("rcr-done").onclick = () => {
+    modal.remove();
+    if (typeof _loadSecurityDashboard === "function") _loadSecurityDashboard();
+  };
+  modal.addEventListener("click", (e) => {
+    if (e.target === modal) modal.remove();
+  });
+}
+console.log("[S27B-1] security dashboard ready ✅");
+
+// ═══════════════════════════════════════════════
+// S22 / Series 27B-2 — Email gate for 2FA enable
+// ═══════════════════════════════════════════════
+
+async function _checkEmailGateFor2FA() {
+  const enableBtn = document.getElementById("btn-enable-2fa");
+  const disabledView = document.getElementById("2fa-disabled-view");
+  if (!enableBtn || !disabledView) return;
+
+  try {
+    const st = await api("/api/me/email/status");
+    const verified = st && st.verified;
+    const existingWarn = document.getElementById("s27b2-gate-warning");
+
+    if (!verified) {
+      if (!existingWarn) {
+        const warn = document.createElement("div");
+        warn.id = "s27b2-gate-warning";
+        warn.style.cssText = "padding:12px 14px;background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.35);border-radius:12px;margin-bottom:10px";
+        warn.innerHTML = '<div style="font-size:13.5px;font-weight:800;color:#f59e0b;margin-bottom:6px">\u26a0\ufe0f \u0986\u0997\u09c7 Recovery Email \u09af\u09be\u099a\u09be\u0987 \u0995\u09b0\u09c1\u09a8</div>' +
+          '<div style="font-size:12.5px;color:var(--muted);line-height:1.5">Device \u09b9\u09be\u09b0\u09be\u09b2\u09c7 email \u09a6\u09bf\u09df\u09c7\u0987 2FA \u09ac\u09a8\u09cd\u09a7 \u0995\u09b0\u09a4\u09c7 \u09b9\u09df\u0964 \u09a4\u09be\u0987 \u0986\u0997\u09c7 verified email \u09a5\u09be\u0995\u09be \u0986\u09ac\u09b6\u09cd\u09af\u0995\u0964</div>' +
+          '<button type="button" id="s27b2-goto-email" class="sd-action-btn" style="margin-top:10px;width:100%">\ud83d\udce7 Email \u09af\u09be\u099a\u09be\u0987 \u0995\u09b0\u09c1\u09a8</button>';
+        disabledView.insertBefore(warn, disabledView.firstChild);
+        const gotoBtn = document.getElementById("s27b2-goto-email");
+        if (gotoBtn) {
+          gotoBtn.onclick = function () {
+            const eb = document.getElementById("btn-add-email") || document.getElementById("btn-change-email");
+            if (eb) eb.click();
+          };
+        }
+      }
+      enableBtn.style.display = "none";
+    } else {
+      if (existingWarn) existingWarn.remove();
+      enableBtn.style.display = "";
+    }
+  } catch (e) {}
+}
+console.log("[S27B-2] email gate ready ✅");
+
+// ═══════════════════════════════════════════════
+// S22 / Series 27B-3 — Lost 2FA device recovery
+// ═══════════════════════════════════════════════
+
+function _openRecover2FAModal() {
+  const loginUserEl = document.querySelector('#login-form input[name="username"]');
+  const prefillUser = loginUserEl ? loginUserEl.value.trim() : '';
+
+  const old = document.getElementById("recover-2fa-modal");
+  if (old) old.remove();
+
+  const modal = document.createElement("div");
+  modal.id = "recover-2fa-modal";
+  modal.className = "modal";
+  modal.style.zIndex = "99999";
+  modal.innerHTML = `
+    <div class="modal-content" style="max-width:460px">
+      <button class="close-btn" id="r2f-close" type="button">×</button>
+
+      <div id="r2f-step1">
+        <h3 style="margin-bottom:10px;font-size:19px">🔑 2FA Recovery</h3>
+        <p style="background:rgba(34,197,94,.1);border-left:3px solid #22c55e;padding:10px 12px;border-radius:8px;font-size:13px;line-height:1.5;margin-bottom:14px">
+          আপনার <strong>verified email</strong>-এ একটি কোড পাঠানো হবে। সেটি দিয়ে 2FA বন্ধ করতে পারবেন।
+        </p>
+        <label class="edit-label">ইউজারনেম</label>
+        <div class="input-group" style="margin-bottom:10px">
+          <i class="fa-solid fa-at input-icon"></i>
+          <input type="text" id="r2f-username" placeholder="your_username" value="${escapeHtml(prefillUser)}">
+        </div>
+        <label class="edit-label">পাসওয়ার্ড</label>
+        <div class="input-group" style="margin-bottom:14px">
+          <i class="fa-solid fa-lock input-icon"></i>
+          <input type="password" id="r2f-password" placeholder="Account password">
+        </div>
+        <p id="r2f-error1" class="hidden" style="color:var(--danger);font-size:13px;margin:0 0 10px;text-align:center;font-weight:600"></p>
+        <div class="edit-actions">
+          <button class="btn-secondary" id="r2f-cancel">বাতিল</button>
+          <button class="btn-primary" id="r2f-send" style="width:auto;padding:12px 24px">
+            <i class="fa-solid fa-paper-plane"></i> ইমেইলে কোড পাঠান
+          </button>
+        </div>
+      </div>
+
+      <div id="r2f-step2" style="display:none">
+        <h3 style="margin-bottom:10px;font-size:19px">📧 ইমেইল কোড</h3>
+        <p style="background:rgba(24,119,242,.1);border-left:3px solid #1877f2;padding:10px 12px;border-radius:8px;font-size:13px;line-height:1.5;margin-bottom:14px">
+          কোড পাঠানো হয়েছে: <strong id="r2f-email-mask">—</strong><br>
+          <span style="font-size:12px;color:var(--muted)">স্প্যাম ফোল্ডারও দেখুন। কোড 10 মিনিট বৈধ।</span>
+        </p>
+        <label class="edit-label">৬ ডিজিটের কোড</label>
+        <div class="input-group" style="margin-bottom:14px">
+          <i class="fa-solid fa-key input-icon"></i>
+          <input type="text" id="r2f-code" placeholder="123456" inputmode="numeric" maxlength="6" style="text-align:center;letter-spacing:8px;font-size:20px;font-weight:800">
+        </div>
+        <p id="r2f-error2" class="hidden" style="color:var(--danger);font-size:13px;margin:0 0 10px;text-align:center;font-weight:600"></p>
+        <div class="edit-actions">
+          <button class="btn-secondary" id="r2f-back">← পিছনে</button>
+          <button class="btn-primary" id="r2f-verify" style="width:auto;padding:12px 24px">
+            <i class="fa-solid fa-shield-halved"></i> 2FA বন্ধ করুন
+          </button>
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+
+  let currentUser = prefillUser;
+
+  function close() { modal.remove(); }
+  document.getElementById("r2f-close").onclick = close;
+  document.getElementById("r2f-cancel").onclick = close;
+  modal.addEventListener("click", (e) => { if (e.target === modal) close(); });
+
+  function showErr(id, msg) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.textContent = msg;
+    el.classList.remove("hidden");
+  }
+  function hideErr(id) {
+    const el = document.getElementById(id);
+    if (el) el.classList.add("hidden");
+  }
+
+  // STEP 1 — request code
+  document.getElementById("r2f-send").onclick = async () => {
+    const u = document.getElementById("r2f-username").value.trim();
+    const p = document.getElementById("r2f-password").value;
+    if (!u || !p) return showErr("r2f-error1", "ইউজারনেম ও পাসওয়ার্ড দিন");
+    hideErr("r2f-error1");
+
+    const btn = document.getElementById("r2f-send");
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+
+    try {
+      const res = await api("/api/auth/recover-2fa/request", {
+        method: "POST",
+        body: JSON.stringify({ username: u, password: p }),
+      });
+      currentUser = u;
+      document.getElementById("r2f-email-mask").textContent = res.email_masked || "your email";
+      document.getElementById("r2f-step1").style.display = "none";
+      document.getElementById("r2f-step2").style.display = "";
+      setTimeout(() => document.getElementById("r2f-code").focus(), 100);
+    } catch (err) {
+      showErr("r2f-error1", err.message || "কিছু ভুল হয়েছে");
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> ইমেইলে কোড পাঠান';
+    }
+  };
+
+  // STEP 2 — submit code
+  document.getElementById("r2f-verify").onclick = async () => {
+    const code = document.getElementById("r2f-code").value.trim();
+    if (!code || code.length !== 6) return showErr("r2f-error2", "৬ ডিজিটের কোড দিন");
+    hideErr("r2f-error2");
+
+    const btn = document.getElementById("r2f-verify");
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+
+    try {
+      const res = await api("/api/auth/recover-2fa/verify", {
+        method: "POST",
+        body: JSON.stringify({ username: currentUser, email_code: code }),
+      });
+      close();
+      if (typeof showToast === "function") {
+        showToast("✅ " + (res.message || "2FA বন্ধ করা হয়েছে"));
+      } else {
+        alert(res.message || "2FA disabled");
+      }
+      setTimeout(() => window.location.reload(), 1500);
+    } catch (err) {
+      showErr("r2f-error2", err.message || "কিছু ভুল হয়েছে");
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fa-solid fa-shield-halved"></i> 2FA বন্ধ করুন';
+    }
+  };
+
+  document.getElementById("r2f-back").onclick = () => {
+    document.getElementById("r2f-step1").style.display = "";
+    document.getElementById("r2f-step2").style.display = "none";
+    hideErr("r2f-error1");
+    hideErr("r2f-error2");
+  };
+}
+
+// Wire the "Lost device?" link after DOM ready
+(function () {
+  function attach() {
+    const link = document.getElementById("switch-lost-2fa");
+    if (!link) { setTimeout(attach, 500); return; }
+    if (link.dataset.bound === "1") return;
+    link.dataset.bound = "1";
+    link.addEventListener("click", (e) => {
+      e.preventDefault();
+      _openRecover2FAModal();
+    });
+    console.log("[S27B-3] recovery link bound ✅");
+  }
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", attach);
+  } else {
+    attach();
+  }
+})();
+
+console.log("[S27B-3] recovery flow ready ✅");
+
+// ═══════════════════════════════════════════════
+// S27B-4 — Email 2FA primary + TOTP optional toggles
+// ═══════════════════════════════════════════════
+(function () {
+  function init() {
+    const emailSwitch = document.getElementById("email-2fa-switch");
+    const totpSwitch = document.getElementById("totp-2fa-switch");
+    const emailSub = document.getElementById("2fa-email-sub");
+    const totpSub = document.getElementById("2fa-totp-sub");
+    const backupLine = document.getElementById("totp-backup-codes-line");
+    const backupCount = document.getElementById("2fa-backup-count");
+    if (!emailSwitch || !totpSwitch) {
+      setTimeout(init, 500);
+      return;
+    }
+    if (emailSwitch.dataset.bound === "1") return;
+    emailSwitch.dataset.bound = "1";
+    totpSwitch.dataset.bound = "1";
+
+    async function refreshToggles() {
+      try {
+        const st = await api("/api/me/2fa/status");
+        const emailOn = !!st.email_2fa_enabled;
+        const totpOn = !!st.totp_enabled;
+        const emailVerified = !!st.email_verified;
+
+        emailSwitch.classList.toggle("on", emailOn);
+        totpSwitch.classList.toggle("on", totpOn);
+
+        if (emailSub) {
+          emailSub.textContent = emailVerified
+            ? (emailOn ? "✅ চালু — email-এ কোড আসবে" : "Email যাচাইকৃত, চালু করা যাবে")
+            : "⚠️ আগে verified email যোগ করুন";
+          emailSub.style.color = emailVerified ? "" : "#f59e0b";
+        }
+        if (totpSub) {
+          totpSub.textContent = totpOn
+            ? "✅ চালু — Authenticator app দিয়ে কোড"
+            : "Google Authenticator / Authy";
+        }
+        if (backupLine) {
+          backupLine.style.display = totpOn ? "block" : "none";
+        }
+        if (backupCount) backupCount.textContent = st.backup_codes_remaining || 0;
+      } catch (e) {}
+    }
+
+    // Initial
+    refreshToggles();
+    const _origOpen = openSettingsPage;
+    openSettingsPage = async function () {
+      await _origOpen();
+      refreshToggles();
+    };
+
+    // ---- Email 2FA toggle ----
+    emailSwitch.addEventListener("click", async () => {
+      const on = emailSwitch.classList.contains("on");
+      const password = prompt(on
+        ? "Email 2FA বন্ধ করতে পাসওয়ার্ড দিন:"
+        : "Email 2FA চালু করতে পাসওয়ার্ড দিন:");
+      if (!password) return;
+      emailSwitch.disabled = true;
+      try {
+        if (on) {
+          await api("/api/me/2fa/email/disable", {
+            method: "POST",
+            body: JSON.stringify({ password }),
+          });
+          showToast("✅ Email 2FA বন্ধ হয়েছে");
+        } else {
+          const res = await api("/api/me/2fa/email/enable", {
+            method: "POST",
+            body: JSON.stringify({ password }),
+          });
+          showToast("✅ " + (res.message || "Email 2FA চালু হয়েছে"));
+        }
+        await refreshToggles();
+        if (typeof _loadSecurityDashboard === "function") _loadSecurityDashboard().catch(() => {});
+      } catch (err) {
+        alert(err.message || "কিছু ভুল হয়েছে");
+      } finally {
+        emailSwitch.disabled = false;
+      }
+    });
+
+    // ---- TOTP toggle ----
+    totpSwitch.addEventListener("click", async () => {
+      const on = totpSwitch.classList.contains("on");
+      if (on) {
+        // Disable → existing modal flow
+        const pw = prompt("Authenticator 2FA বন্ধ করতে পাসওয়ার্ড দিন:");
+        if (!pw) return;
+        try {
+          await api("/api/me/2fa/disable", {
+            method: "POST",
+            body: JSON.stringify({ password: pw }),
+          });
+          showToast("✅ Authenticator 2FA বন্ধ হয়েছে");
+          await refreshToggles();
+          if (typeof _loadSecurityDashboard === "function") _loadSecurityDashboard().catch(() => {});
+        } catch (err) {
+          alert(err.message);
+        }
+      } else {
+        // Enable → existing setup modal flow
+        const btn = document.getElementById("btn-enable-2fa");
+        if (btn) btn.click();
+        // After modal done, refresh
+        setTimeout(refreshToggles, 800);
+      }
+    });
+
+    console.log("[S27B-4] email/totp toggles ready ✅");
+  }
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", init);
+  } else {
+    init();
+  }
+})();
+
+// ═══════════════════════════════════════════════
+// S27B-7 — Recovery Kit download
+// ═══════════════════════════════════════════════
+async function downloadRecoveryKit() {
+  try {
+    var res = await fetch("/api/me/recovery-kit", {
+      credentials: "include",
+      headers: { "X-CSRF-Token": (document.cookie.match(/csrf_token=([^;]+)/) || [])[1] || "" }
+    });
+    if (!res.ok) {
+      var err = await res.json().catch(() => ({}));
+      alert(err.error || "ডাউনলোড করা যায়নি");
+      return;
+    }
+    var blob = await res.blob();
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url;
+    a.download = "juktoy-recovery.txt";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+    if (typeof showToast === "function") showToast("✅ Recovery Kit ডাউনলোড হয়েছে");
+  } catch (e) {
+    alert("ডাউনলোড করা যায়নি");
+  }
+}
+
+// Auto-inject button into Security Overview card
+(function () {
+  function inject() {
+    var dash = document.getElementById("security-dashboard");
+    if (!dash) { setTimeout(inject, 500); return; }
+    if (document.getElementById("kit-download-btn")) return;
+    // Wait for dashboard content
+    if (!dash.querySelector(".sd-footer-tip")) { setTimeout(inject, 500); return; }
+
+    var btn = document.createElement("button");
+    btn.type = "button";
+    btn.id = "kit-download-btn";
+    btn.className = "btn-secondary";
+    btn.style.cssText = "width:100%;margin-top:10px;padding:12px;font-size:13.5px;font-weight:700";
+    btn.innerHTML = '<i class="fa-solid fa-file-arrow-down"></i> 📥 Recovery Kit ডাউনলোড (.txt)';
+    btn.onclick = downloadRecoveryKit;
+
+    var tip = dash.querySelector(".sd-footer-tip");
+    tip.parentNode.insertBefore(btn, tip.nextSibling);
+    console.log("[S27B-7] kit button injected ✅");
+  }
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", inject);
+  } else {
+    inject();
+  }
+})();
+
+// ═══════════════════════════════════════════════
+// S27B-9 — Backup Email flow
+// ═══════════════════════════════════════════════
+function openBackupEmailModal() {
+  const old = document.getElementById("backup-email-modal");
+  if (old) old.remove();
+
+  const modal = document.createElement("div");
+  modal.id = "backup-email-modal";
+  modal.className = "modal";
+  modal.style.zIndex = "99999";
+  modal.innerHTML = `
+    <div class="modal-content" style="max-width:460px">
+      <button class="close-btn" id="be-close" type="button">×</button>
+      <h3 style="margin-bottom:10px;font-size:19px">📭 Backup Email</h3>
+      <p style="background:rgba(24,119,242,.08);border-left:3px solid var(--accent);padding:10px 12px;border-radius:8px;font-size:13px;line-height:1.5;margin-bottom:14px">
+        Primary email হারালে এই backup email দিয়ে account recover করতে পারবেন।
+      </p>
+      <label class="edit-label">Backup Email</label>
+      <div class="input-group" style="margin-bottom:10px">
+        <i class="fa-solid fa-envelope input-icon"></i>
+        <input type="email" id="be-email" placeholder="backup@example.com" autocomplete="email">
+      </div>
+      <label class="edit-label">আপনার পাসওয়ার্ড</label>
+      <div class="input-group" style="margin-bottom:14px">
+        <i class="fa-solid fa-lock input-icon"></i>
+        <input type="password" id="be-password" placeholder="Account password" autocomplete="current-password">
+      </div>
+      <p id="be-error" class="hidden" style="color:var(--danger);font-size:13px;margin:0 0 10px;text-align:center;font-weight:600"></p>
+      <div class="edit-actions">
+        <button class="btn-secondary" id="be-cancel" type="button">বাতিল</button>
+        <button class="btn-primary" id="be-save" type="button" style="width:auto;padding:12px 24px">
+          <i class="fa-solid fa-check"></i> সেভ
+        </button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+
+  function close() { modal.remove(); }
+  function showErr(m) {
+    const el = document.getElementById("be-error");
+    el.textContent = m;
+    el.classList.remove("hidden");
+  }
+  document.getElementById("be-close").onclick = close;
+  document.getElementById("be-cancel").onclick = close;
+  modal.addEventListener("click", (e) => { if (e.target === modal) close(); });
+  setTimeout(() => document.getElementById("be-email").focus(), 100);
+
+  document.getElementById("be-save").onclick = async () => {
+    const em = (document.getElementById("be-email").value || "").trim();
+    const pw = document.getElementById("be-password").value || "";
+    if (!em) return showErr("ইমেইল দিন");
+    if (!pw) return showErr("পাসওয়ার্ড দিন");
+    const btn = document.getElementById("be-save");
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+    try {
+      const res = await api("/api/me/backup-email/set", {
+        method: "POST",
+        body: JSON.stringify({ email: em, password: pw }),
+      });
+      close();
+      if (typeof showToast === "function") showToast("✅ " + (res.message || "Backup email সেভ হয়েছে"));
+      if (typeof _loadSecurityDashboard === "function") _loadSecurityDashboard();
+    } catch (err) {
+      showErr(err.message || "সেভ করা যায়নি");
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fa-solid fa-check"></i> সেভ';
+    }
+  };
+}
+
+// Auto-inject backup email button into security dashboard
+(function () {
+  function inject() {
+    var dash = document.getElementById("security-dashboard");
+    if (!dash || !dash.querySelector(".sd-footer-tip")) {
+      setTimeout(inject, 500);
+      return;
+    }
+    var checks = dash.querySelector(".sd-checks");
+    if (!checks) { setTimeout(inject, 500); return; }
+    if (document.getElementById("backup-email-inject-btn")) return;
+
+    // Find the Backup Email check and add button
+    var all = checks.querySelectorAll(".sd-check");
+    for (var i = 0; i < all.length; i++) {
+      var label = all[i].querySelector(".sd-check-label");
+      if (label && /Backup Email/.test(label.textContent)) {
+        var body = all[i].querySelector(".sd-check-body");
+        if (body) {
+          var btn = document.createElement("button");
+          btn.type = "button";
+          btn.id = "backup-email-inject-btn";
+          btn.className = "sd-action-btn";
+          btn.textContent = "📭 Backup Email সেট করুন";
+          btn.onclick = openBackupEmailModal;
+          body.appendChild(btn);
+          console.log("[S27B-9] backup email button injected ✅");
+        }
+        break;
+      }
+    }
+  }
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", inject);
+  } else {
+    inject();
+  }
+})();
+
+// ==================================================
+// S29.10 - Unified page-closer (replaces 7-deep wrapper chain)
+// ==================================================
+// Previously _closeTopPage was redefined 7 times via
+//   const _origCloseTopPageX = _closeTopPage;
+//   _closeTopPage = function() { ... return _origCloseTopPageX(); };
+// producing an 8-level call chain. Any missed wrap meant that page
+// type could never be closed via back button. This unified version
+// uses a single dispatch table so adding a new overlay is one line.
+_closeTopPage = function _closeTopPageUnified() {
+  // --- Step 1: if a chat conversation is open, close it first ---
+  var cw = document.getElementById("chat-window");
+  if (cw && !cw.classList.contains("hidden")) {
+    try { if (typeof stopChatPolling === "function") stopChatPolling(); } catch (e) {}
+    try { if (typeof _exitChatMultiSelect === "function") _exitChatMultiSelect(); } catch (e) {}
+    try { if (typeof _closeChatSearch === "function") _closeChatSearch(); } catch (e) {}
+    cw.classList.add("hidden");
+    if (typeof currentChatUser !== "undefined") currentChatUser = null;
+    if (typeof lastMsgCount !== "undefined") lastMsgCount = 0;
+    if (typeof _PageStack !== "undefined" && _PageStack[_PageStack.length - 1] === "chat") {
+      _PageStack.pop();
+    }
+    try { if (typeof loadConversations === "function") loadConversations(); } catch (e) {}
+    try { if (typeof _updateOverlayClass === "function") _updateOverlayClass(); } catch (e) {}
+    return true;
+  }
+
+  // --- Step 2: dispatch on stack top ---
+  if (typeof _PageStack === "undefined" || !_PageStack.length) return false;
+  var top = _PageStack[_PageStack.length - 1];
+
+  var CLOSERS = {
+    "profile": function () {
+      var el = document.getElementById("profile-page");
+      if (el) el.classList.add("hidden");
+    },
+    "messages": function () {
+      try { if (typeof stopChatPolling === "function") stopChatPolling(); } catch (e) {}
+      var el = document.getElementById("messages-page");
+      if (el) el.classList.add("hidden");
+    },
+    "explore": function () {
+      var el = document.getElementById("explore-page");
+      if (el) el.classList.add("hidden");
+    },
+    "hashtag": function () {
+      var el = document.getElementById("hashtag-page");
+      if (el) el.classList.add("hidden");
+    },
+    "story-viewer": function () {
+      try { if (typeof closeStoryViewer === "function") closeStoryViewer(); } catch (e) {}
+    },
+    "saved": function () {
+      var el = document.getElementById("saved-page");
+      if (el) el.classList.add("hidden");
+    },
+    "notifications": function () {
+      var el = document.getElementById("notifications-page");
+      if (el) el.classList.add("hidden");
+    },
+    "reels": function () {
+      try { if (typeof closeReelsPage === "function") closeReelsPage(); } catch (e) {}
+    },
+    "settings": function () {
+      var el = document.getElementById("settings-page");
+      if (el) el.classList.add("hidden");
+    },
+    "admin": function () {
+      try { if (typeof closeAdminPage === "function") closeAdminPage(); } catch (e) {}
+    },
+    "chat": function () {
+      // fallback when chat-window was already hidden
+      try { if (typeof stopChatPolling === "function") stopChatPolling(); } catch (e) {}
+      var el = document.getElementById("chat-window");
+      if (el) el.classList.add("hidden");
+      if (typeof currentChatUser !== "undefined") currentChatUser = null;
+    }
+  };
+
+  var closer = CLOSERS[top];
+  if (!closer) return false;
+
+  _PageStack.pop();
+  try { closer(); }
+  catch (err) { console.error("[S29.10] closer failed for", top, err); }
+  try { if (typeof _updateOverlayClass === "function") _updateOverlayClass(); } catch (e) {}
+  return true;
+};
+console.log("[S29.10] unified _closeTopPage registered");
+
+
+// ==================================================
+// S32 — Post interactions via bottom sheets
+// ==================================================
+(function () {
+  "use strict";
+  if (window.__s32Sheets) return;
+  window.__s32Sheets = true;
+
+  function _closeAllSheets() {
+    document.querySelectorAll(".sheet-root").forEach(function (el) {
+      el.classList.remove("show");
+      setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 260);
+    });
+    document.body.classList.remove("sheet-open");
+    // also close old floating menus if present
+    try { if (typeof closePostMenu === "function") closePostMenu(); } catch (e) {}
+    try { if (typeof _closeRepostMenu === "function") _closeRepostMenu(); } catch (e) {}
+  }
+
+  // ---------- Comment Sheet ----------
+  window._openCommentSheet = async function (postId) {
+    if (!postId) return;
+    _closeAllSheets();
+
+    var sheet = document.createElement("div");
+    sheet.id = "comment-sheet";
+    sheet.className = "sheet-root";
+    sheet.innerHTML =
+      '<div class="sheet-backdrop"></div>' +
+      '<div class="sheet-panel">' +
+        '<div class="sheet-handle"></div>' +
+        '<div class="sheet-header">' +
+          '<h3>মন্তব্য</h3>' +
+          '<button class="sheet-close" type="button" aria-label="close">' +
+            '<i class="fa-solid fa-xmark"></i>' +
+          '</button>' +
+        '</div>' +
+        '<div class="sheet-body" id="cs-body">' +
+          '<p style="text-align:center;padding:30px 20px;color:var(--muted)">লোড হচ্ছে...</p>' +
+        '</div>' +
+        '<form class="sheet-form" id="cs-form">' +
+          '<input type="text" id="cs-input" placeholder="মন্তব্য লিখুন..." maxlength="2000" autocomplete="off">' +
+          '<button type="submit" class="sheet-send"><i class="fa-solid fa-paper-plane"></i></button>' +
+        '</form>' +
+      '</div>';
+    document.body.appendChild(sheet);
+    document.body.classList.add("sheet-open");
+    requestAnimationFrame(function () { sheet.classList.add("show"); });
+
+    function close() {
+      sheet.classList.remove("show");
+      setTimeout(function () {
+        if (sheet.parentNode) sheet.parentNode.removeChild(sheet);
+        document.body.classList.remove("sheet-open");
+      }, 260);
+    }
+    sheet.querySelector(".sheet-backdrop").addEventListener("click", close);
+    sheet.querySelector(".sheet-close").addEventListener("click", close);
+
+    var body = sheet.querySelector("#cs-body");
+
+    // S32.1 — use shared reload helper (keeps bindCommentEvents consistent)
+    await _reloadSheetComments(postId);
+
+    var form = sheet.querySelector("#cs-form");
+    var input = sheet.querySelector("#cs-input");
+    form.addEventListener("submit", async function (e) {
+      e.preventDefault();
+      var text = (input.value || "").trim();
+      if (!text) return;
+      var sendBtn = form.querySelector(".sheet-send");
+      sendBtn.disabled = true;
+      try {
+        await api("/api/posts/" + postId + "/comments", {
+          method: "POST",
+          body: JSON.stringify({ content: text }),
+        });
+        input.value = "";
+        await _reloadSheetComments(postId);
+        // update count on underlying post card
+        var postEl = document.querySelector('.post[data-id="' + postId + '"]');
+        if (postEl) {
+          var cc = postEl.querySelector(".comment-btn .comment-count");
+          if (cc) cc.textContent = parseInt(cc.textContent || "0", 10) + 1;
+        }
+      } catch (err) {
+        alert(err.message || "মন্তব্য পাঠানো যায়নি");
+      } finally {
+        sendBtn.disabled = false;
+        try { input.focus(); } catch (e) {}
+      }
+    });
+
+    setTimeout(function () { try { input.focus(); } catch (e) {} }, 320);
+  };
+
+  // ---------- Post Menu Sheet ----------
+  window._openPostMenuSheet = function (btn, postEl, postId) {
+    if (!btn || !postId) return;
+    _closeAllSheets();
+
+    var isOwn = state.me && btn.dataset.owner === state.me.username;
+    var isSaved = btn.dataset.saved === "1";
+    var isReposted = btn.dataset.reposted === "1";
+
+    var items = [];
+    if (!isOwn) {
+      items.push({ a: "repost", i: "fa-retweet", l: isReposted ? "রিপোস্ট সরান" : "রিপোস্ট" });
+      items.push({ a: "quote", i: "fa-quote-right", l: "কোট পোস্ট" });
+    }
+    items.push({ a: "save", i: isSaved ? "fa-solid fa-bookmark" : "fa-regular fa-bookmark", l: isSaved ? "সেভ সরান" : "সেভ" });
+    items.push({ a: "share", i: "fa-share-nodes", l: "শেয়ার" });
+    items.push({ a: "copy", i: "fa-link", l: "লিংক কপি" });
+    if (isOwn) {
+      items.push({ a: "edit", i: "fa-pen", l: "এডিট" });
+      items.push({ a: "delete", i: "fa-trash-can", l: "ডিলিট", d: true });
+    } else {
+      items.push({ a: "report", i: "fa-flag", l: "রিপোর্ট", d: true });
+    }
+
+    var sheet = document.createElement("div");
+    sheet.id = "post-menu-sheet";
+    sheet.className = "sheet-root";
+    sheet.innerHTML =
+      '<div class="sheet-backdrop"></div>' +
+      '<div class="sheet-panel">' +
+        '<div class="sheet-handle"></div>' +
+        '<div class="sheet-menu-list">' +
+          items.map(function (it) {
+            return '<button type="button" class="sheet-menu-item' + (it.d ? " danger" : "") + '" data-action="' + it.a + '">' +
+              '<i class="fa-solid ' + it.i + '"></i>' +
+              '<span>' + it.l + '</span>' +
+            '</button>';
+          }).join("") +
+        '</div>' +
+      '</div>';
+    document.body.appendChild(sheet);
+    document.body.classList.add("sheet-open");
+    requestAnimationFrame(function () { sheet.classList.add("show"); });
+
+    function close() {
+      sheet.classList.remove("show");
+      setTimeout(function () {
+        if (sheet.parentNode) sheet.parentNode.removeChild(sheet);
+        document.body.classList.remove("sheet-open");
+      }, 260);
+    }
+    sheet.querySelector(".sheet-backdrop").addEventListener("click", close);
+
+    sheet.querySelectorAll(".sheet-menu-item").forEach(function (b) {
+      b.addEventListener("click", function () {
+        var action = b.dataset.action;
+        close();
+        setTimeout(function () {
+          try {
+            if (typeof handlePostMenuAction === "function") {
+              handlePostMenuAction(action, btn, postEl, postId);
+            }
+          } catch (e) { console.error("[S32] menu action failed:", e); }
+        }, 60);
+      });
+    });
+  };
+
+  // ---------- Override: post content click → comment sheet ----------
+  window.openPostDetail = function (postId) {
+    if (typeof window._openCommentSheet === "function") {
+      window._openCommentSheet(postId);
+    }
+  };
+
+  // ---------- Override: 3-dot → menu sheet ----------
+  window.openPostMenu = function (btn, postEl, postId) {
+    if (typeof window._openPostMenuSheet === "function") {
+      window._openPostMenuSheet(btn, postEl, postId);
+    }
+  };
+
+  // ---------- Override: comment-btn (capture) → comment sheet ----------
+  document.addEventListener("click", function (e) {
+    var cb = e.target.closest(".comment-btn");
+    if (!cb) return;
+    // skip if inside sheet already
+    if (e.target.closest(".sheet-root")) return;
+    e.stopPropagation();
+    e.preventDefault();
+    var post = cb.closest(".post");
+    if (post && post.dataset.id) {
+      window._openCommentSheet(post.dataset.id);
+    }
+  }, true);
+
+  // S32.6 — post content wrap + time click → comment sheet
+  document.addEventListener("click", function (e) {
+    if (e.target.closest(".sheet-root")) return;
+    if (e.target.closest("button, a, input, textarea")) return;
+    if (e.target.closest(".post-actions")) return;
+    if (e.target.closest(".post-menu-btn")) return;
+    if (e.target.closest(".post-header .avatar")) return;
+    if (e.target.closest(".post-meta .name")) return;
+    if (e.target.closest(".hashtag-link")) return;
+    if (e.target.closest(".quoted-post")) return;
+
+    var wrap = e.target.closest(".post-content-wrap");
+    var time = e.target.closest(".post-meta .time");
+    if (!wrap && !time) return;
+
+    var post = e.target.closest(".post");
+    if (!post || !post.dataset.id) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (typeof window._openCommentSheet === "function") {
+      window._openCommentSheet(post.dataset.id);
+    }
+  }, true);
+
+  // ---------- Esc closes sheet ----------
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape") {
+      var any = document.querySelector(".sheet-root.show");
+      if (any) {
+        any.classList.remove("show");
+        setTimeout(function () {
+          if (any.parentNode) any.parentNode.removeChild(any);
+          document.body.classList.remove("sheet-open");
+        }, 260);
+      }
+    }
+  });
+
+  console.log("[S32] bottom-sheet interactions ready");
+})();
+
+// ==================================================
+// S32.1 — Comment sheet helpers
+// ==================================================
+async function _reloadSheetComments(postId) {
+  var body = document.getElementById("cs-body");
+  if (!body || !postId) return;
+  _cmtSerial = 0;   // S32.2 — reset serial for sheet render
+  body.innerHTML = '<p style="text-align:center;padding:20px;color:var(--muted)">লোড হচ্ছে...</p>';
+  try {
+    var comments = await api("/api/posts/" + postId + "/comments");
+    if (window._s323CacheComments) window._s323CacheComments(postId, comments);
+    if (!comments || !comments.length) {
+      body.innerHTML = '<p style="text-align:center;padding:36px 20px;color:var(--muted);font-size:14px">এখনো কোনো মন্তব্য নেই।<br>প্রথম মন্তব্য আপনিই করুন!</p>';
+      return;
+    }
+    body.innerHTML = comments.map(function (c) { return commentHTML(c, postId); }).join("");
+    try { bindCommentEvents(body, postId); } catch (e) { console.error("[S32.1]", e); }
+  } catch (err) {
+    body.innerHTML = '<p style="text-align:center;padding:20px;color:var(--danger)">লোড করা যায়নি</p>';
+  }
+}
+window._reloadSheetComments = _reloadSheetComments;
+
+
+// ==================================================
+// S32.3 — Reply sheet (view all replies, flat + serial)
+// ==================================================
+(function () {
+  "use strict";
+  if (window.__s323ReplySheet) return;
+  window.__s323ReplySheet = true;
+
+  var _cachedComments = {};   // postId → comments array (for instant lookup)
+
+  // cache comments whenever loaded
+  var _origReload = window._reloadSheetComments;
+  // expose cache setter for existing loaders
+  window._s323CacheComments = function (postId, comments) {
+    if (!postId || !Array.isArray(comments)) return;
+    _cachedComments[postId] = comments;
+  };
+
+  // ---- find flat reply set for a parent comment id ----
+  function _findParentAndReplies(postId, parentCid) {
+    var all = _cachedComments[postId] || [];
+    var parent = null;
+    for (var i = 0; i < all.length; i++) {
+      if (String(all[i].id) === String(parentCid)) { parent = all[i]; break; }
+    }
+    if (!parent) return null;
+    var replies = parent.replies || [];
+    return { parent: parent, replies: replies };
+  }
+
+  // ---- open reply sheet ----
+  window._openRepliesSheet = async function (parentCid, postId) {
+    var prev = document.querySelector(".sheet-root");
+    if (prev) prev.remove();
+
+    var sheet = document.createElement("div");
+    sheet.id = "replies-sheet";
+    sheet.className = "sheet-root";
+    sheet.innerHTML =
+      '<div class="sheet-backdrop"></div>' +
+      '<div class="sheet-panel">' +
+        '<div class="sheet-handle"></div>' +
+        '<div class="sheet-header">' +
+          '<h3>উত্তর</h3>' +
+          '<button class="sheet-close" type="button">' +
+            '<i class="fa-solid fa-xmark"></i>' +
+          '</button>' +
+        '</div>' +
+        '<div class="sheet-body" id="rs-body">' +
+          '<p style="text-align:center;padding:30px 20px;color:var(--muted)">লোড হচ্ছে...</p>' +
+        '</div>' +
+        '<form class="sheet-form" id="rs-form">' +
+          '<input type="text" id="rs-input" placeholder="উত্তর লিখুন..." maxlength="2000" autocomplete="off">' +
+          '<button type="submit" class="sheet-send"><i class="fa-solid fa-paper-plane"></i></button>' +
+        '</form>' +
+      '</div>';
+    document.body.appendChild(sheet);
+    document.body.classList.add("sheet-open");
+    requestAnimationFrame(function () { sheet.classList.add("show"); });
+
+    function close() {
+      sheet.classList.remove("show");
+      setTimeout(function () {
+        if (sheet.parentNode) sheet.parentNode.removeChild(sheet);
+        document.body.classList.remove("sheet-open");
+      }, 260);
+    }
+    sheet.querySelector(".sheet-backdrop").addEventListener("click", close);
+    sheet.querySelector(".sheet-close").addEventListener("click", close);
+
+    var bodyEl = sheet.querySelector("#rs-body");
+    var formEl = sheet.querySelector("#rs-form");
+    var inputEl = sheet.querySelector("#rs-input");
+
+    async function render() {
+      // Fetch fresh comments
+      var comments;
+      try {
+        comments = await api("/api/posts/" + postId + "/comments");
+      } catch (err) {
+        bodyEl.innerHTML = '<p style="text-align:center;padding:20px;color:var(--danger)">লোড করা যায়নি</p>';
+        return;
+      }
+      _cachedComments[postId] = comments;
+
+      var data = _findParentAndReplies(postId, parentCid);
+      if (!data) {
+        bodyEl.innerHTML = '<p style="text-align:center;padding:20px;color:var(--muted)">উত্তর খুঁজে পাওয়া যায়নি</p>';
+        return;
+      }
+
+      // Parent comment index (1-based) in original list
+      var parentIdx = comments.findIndex(function (c) { return String(c.id) === String(parentCid); });
+      var parentSerial = parentIdx >= 0 ? parentIdx + 1 : 1;
+
+      // Build flat list: parent + replies, serials continue
+      _cmtSerial = parentSerial - 1;   // so next commentHTML gives parentSerial
+
+      var parentHTML = commentHTML(data.parent, postId, false);
+      var repliesHTML = (data.replies || []).map(function (r) {
+        return commentHTML(r, postId, true);
+      }).join("");
+
+      bodyEl.innerHTML =
+        '<div class="replies-thread flat">' +
+          parentHTML +
+          (repliesHTML ? '<div class="replies-flat-list">' + repliesHTML + '</div>' : '') +
+        '</div>';
+
+      try { bindCommentEvents(bodyEl, postId); } catch (e) {}
+
+      // Prefill @mention in reply form (optional — user can delete)
+      if (data.parent && data.parent.display_name) {
+        var tag = "@" + data.parent.display_name + " ";
+        inputEl.value = tag;
+        setTimeout(function () {
+          try { inputEl.focus(); } catch (e) {}
+          try { inputEl.setSelectionRange(tag.length, tag.length); } catch (e) {}
+        }, 200);
+      }
+    }
+
+    formEl.addEventListener("submit", async function (e) {
+      e.preventDefault();
+      var text = (inputEl.value || "").trim();
+      if (!text) return;
+      var sendBtn = formEl.querySelector(".sheet-send");
+      sendBtn.disabled = true;
+      try {
+        await api("/api/posts/" + postId + "/comments", {
+          method: "POST",
+          body: JSON.stringify({ content: text, parent_id: parseInt(parentCid) }),
+        });
+        inputEl.value = "@" + (window._rsParentName || "") + " ";
+        await render();
+        // refresh underlying comment sheet / post
+        try { if (window._reloadSheetComments) await window._reloadSheetComments(postId); } catch (e) {}
+      } catch (err) {
+        alert(err.message || "উত্তর পাঠানো যায়নি");
+      } finally {
+        sendBtn.disabled = false;
+      }
+    });
+
+    await render();
+    // save parent name for post-send prefill
+    var _p = _findParentAndReplies(postId, parentCid);
+    if (_p && _p.parent) window._rsParentName = _p.parent.display_name || "";
+  };
+
+  // ---- click delegation for view-replies-btn ----
+  document.addEventListener("click", function (e) {
+    var btn = e.target.closest(".view-replies-btn");
+    if (!btn) return;
+    e.preventDefault();
+    e.stopPropagation();
+    var parentCid = btn.dataset.parent;
+    var postId = btn.dataset.post;
+    if (parentCid && postId) {
+      window._openRepliesSheet(parentCid, postId);
+    }
+  }, true);
+
+  console.log("[S32.3] reply sheet ready");
+})();
+
+
+// ==================================================
+// S32.4 — mention click + comment name click
+// ==================================================
+(function () {
+  "use strict";
+  if (window.__s324Clicks) return;
+  window.__s324Clicks = true;
+
+  document.addEventListener("click", function (e) {
+    // mention link
+    var m = e.target.closest(".mention[data-mention]");
+    if (m) {
+      e.preventDefault();
+      e.stopPropagation();
+      var u = m.dataset.mention;
+      if (u) {
+        try {
+          // close any open sheet first
+          document.querySelectorAll(".sheet-root.show").forEach(function (s) {
+            s.classList.remove("show");
+            setTimeout(function () { if (s.parentNode) s.parentNode.removeChild(s); }, 220);
+          });
+          document.body.classList.remove("sheet-open");
+        } catch (err) {}
+        if (typeof openProfile === "function") {
+          setTimeout(function () { openProfile(u); }, 200);
+        }
+      }
+      return;
+    }
+
+    // comment cname click
+    var cn = e.target.closest(".cname[data-user]");
+    if (cn) {
+      e.preventDefault();
+      e.stopPropagation();
+      var uname = cn.dataset.user;
+      if (uname) {
+        try {
+          document.querySelectorAll(".sheet-root.show").forEach(function (s) {
+            s.classList.remove("show");
+            setTimeout(function () { if (s.parentNode) s.parentNode.removeChild(s); }, 220);
+          });
+          document.body.classList.remove("sheet-open");
+        } catch (err) {}
+        if (typeof openProfile === "function") {
+          setTimeout(function () { openProfile(uname); }, 200);
+        }
+      }
+      return;
+    }
+  }, true);
+
+  console.log("[S32.4] mention + name click ready");
+})();
+
+
+// ==================================================
+// S32.5 — @mention autocomplete on any input/textarea
+// ==================================================
+(function () {
+  "use strict";
+  if (window.__s325Mention) return;
+  window.__s325Mention = true;
+
+  var _dd = null;
+  var _activeInput = null;
+  var _activeAtPos = -1;
+  var _userCache = null;
+  var _userCacheAt = 0;
+
+  function _destroyDD() {
+    if (_dd && _dd.parentNode) _dd.parentNode.removeChild(_dd);
+    _dd = null;
+    _activeAtPos = -1;
+  }
+
+  async function _getUsers() {
+    var now = Date.now();
+    if (_userCache && (now - _userCacheAt) < 60000) return _userCache;
+    try {
+      var list = await api("/api/users?q=");
+      _userCache = Array.isArray(list) ? list : [];
+      _userCacheAt = now;
+      return _userCache;
+    } catch (e) {
+      return [];
+    }
+  }
+
+  function _posOfCaret(el) {
+    var pos;
+    if (el.selectionStart != null) pos = el.selectionStart;
+    else pos = (el.value || "").length;
+    return pos;
+  }
+
+  function _currentMentionQuery(el) {
+    // find last @ before caret that has no whitespace in between
+    var val = el.value || "";
+    var caret = _posOfCaret(el);
+    var before = val.slice(0, caret);
+    var at = before.lastIndexOf("@");
+    if (at === -1) return null;
+    // char before @ must be start or whitespace
+    if (at > 0) {
+      var prev = before.charAt(at - 1);
+      if (!/\s|\(|\[/.test(prev)) return null;
+    }
+    var frag = before.slice(at + 1);
+    // must not contain whitespace after @
+    if (/\s/.test(frag)) return null;
+    // length limit
+    if (frag.length > 30) return null;
+    return { at: at, query: frag.toLowerCase() };
+  }
+
+  function _posOfInput(el) {
+    // approximate caret pos on screen
+    var rect = el.getBoundingClientRect();
+    return { left: rect.left, top: rect.bottom + 4, width: rect.width };
+  }
+
+  async function _showMentions(el, query) {
+    var users = await _getUsers();
+    // filter
+    var q = (query || "").toLowerCase();
+    var filtered = users.filter(function (u) {
+      if (!u || !u.username) return false;
+      var uname = (u.username || "").toLowerCase();
+      var dname = (u.display_name || "").toLowerCase();
+      if (!q) return true;
+      return uname.indexOf(q) === 0 || dname.indexOf(q) === 0;
+    }).slice(0, 8);
+
+    _destroyDD();
+    if (!filtered.length) return;
+
+    _activeInput = el;
+
+    _dd = document.createElement("div");
+    _dd.className = "mention-dropdown";
+    _dd.innerHTML = filtered.map(function (u, i) {
+      var av = u.profile_pic
+        ? '<img src="' + escapeHtml(u.profile_pic) + '" alt="" loading="lazy" decoding="async">'
+        : (u.display_name || u.username || "?").charAt(0).toUpperCase();
+      return '<div class="mention-item' + (i === 0 ? " active" : "") + '" data-username="' + escapeHtml(u.username) + '">' +
+        '<div class="mention-item-avatar">' + av + '</div>' +
+        '<div class="mention-item-info">' +
+          '<div class="mention-item-name">' + escapeHtml(u.display_name || u.username) + '</div>' +
+          '<div class="mention-item-username">@' + escapeHtml(u.username) + '</div>' +
+        '</div>' +
+      '</div>';
+    }).join("");
+    document.body.appendChild(_dd);
+
+    // S32.6 — prevent click-outside from firing during scroll/touch inside dropdown
+    _dd.addEventListener("mousedown", function (e) { e.stopPropagation(); });
+    _dd.addEventListener("touchstart", function (e) { e.stopPropagation(); }, { passive: true });
+    _dd.addEventListener("touchmove", function (e) { e.stopPropagation(); }, { passive: true });
+
+    // position
+    var pos = _posOfInput(el);
+    var ddRect = _dd.getBoundingClientRect();
+    var left = pos.left;
+    if (left + ddRect.width > window.innerWidth - 10) {
+      left = window.innerWidth - ddRect.width - 10;
+    }
+    if (left < 10) left = 10;
+    var top = pos.top;
+    if (top + ddRect.height > window.innerHeight - 10) {
+      top = pos.top - ddRect.height - el.offsetHeight - 8;
+    }
+    _dd.style.left = left + "px";
+    _dd.style.top = top + "px";
+
+    // click handling
+    _dd.querySelectorAll(".mention-item").forEach(function (it) {
+      it.addEventListener("mousedown", function (e) {
+        e.preventDefault();
+        _insertMention(el, it.dataset.username);
+      });
+      it.addEventListener("touchstart", function (e) {
+        e.preventDefault();
+        _insertMention(el, it.dataset.username);
+      }, { passive: false });
+    });
+  }
+
+  function _insertMention(el, username) {
+    if (!el || !username) return;
+    var info = _currentMentionQuery(el);
+    if (!info) { _destroyDD(); return; }
+    var val = el.value || "";
+    var caret = _posOfCaret(el);
+    var before = val.slice(0, info.at);
+    var after = val.slice(caret);
+    var insert = "@" + username + " ";
+    el.value = before + insert + after;
+    var newPos = info.at + insert.length;
+    try { el.selectionStart = el.selectionEnd = newPos; } catch (e) {}
+    _destroyDD();
+    try { el.focus(); } catch (e) {}
+    // trigger input event so state updates (post btn etc)
+    try {
+      var ev = new Event("input", { bubbles: true });
+      el.dispatchEvent(ev);
+    } catch (e) {}
+  }
+
+  // ---- Event binding ----
+  function _isMentionable(el) {
+    if (!el) return false;
+    var tag = el.tagName;
+    if (tag === "TEXTAREA") return true;
+    if (tag === "INPUT") {
+      var t = (el.type || "").toLowerCase();
+      return t === "text" || t === "search" || t === "";
+    }
+    return false;
+  }
+
+  document.addEventListener("input", function (e) {
+    var el = e.target;
+    if (!_isMentionable(el)) return;
+    var info = _currentMentionQuery(el);
+    if (info === null) { _destroyDD(); return; }
+    _showMentions(el, info.query);
+  }, true);
+
+  document.addEventListener("keydown", function (e) {
+    if (!_dd) return;
+    if (e.key === "Escape") {
+      _destroyDD();
+      e.stopPropagation();
+      return;
+    }
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      var items = _dd.querySelectorAll(".mention-item");
+      if (!items.length) return;
+      var cur = Array.prototype.indexOf.call(items, _dd.querySelector(".mention-item.active"));
+      var next = e.key === "ArrowDown" ? (cur + 1) : (cur - 1);
+      if (next < 0) next = items.length - 1;
+      if (next >= items.length) next = 0;
+      items.forEach(function (it, i) { it.classList.toggle("active", i === next); });
+      return;
+    }
+    if (e.key === "Enter" || e.key === "Tab") {
+      var active = _dd.querySelector(".mention-item.active");
+      if (active) {
+        e.preventDefault();
+        e.stopPropagation();
+        _insertMention(_activeInput, active.dataset.username);
+      }
+    }
+  }, true);
+
+  document.addEventListener("click", function (e) {
+    if (_dd && !e.target.closest(".mention-dropdown")) _destroyDD();
+  }, true);
+
+  document.addEventListener("focusout", function (e) {
+    if (e.target === _activeInput) {
+      // S32.6 — delay longer so touch scroll doesn't kill it prematurely
+      setTimeout(function () {
+        // if user is touching dropdown, don't destroy
+        if (_dd && _dd.matches(":active, :hover")) return;
+        _destroyDD();
+      }, 400);
+    }
+  }, true);
+
+  console.log("[S32.5] mention autocomplete ready");
+})();
+
+
+// ==================================================
+// S34 — Premium Search Behavior
+// ==================================================
+(function () {
+  "use strict";
+  if (window.__s34Search) return;
+  window.__s34Search = true;
+
+  function $id(x) { return document.getElementById(x); }
+
+  function init() {
+    var wrap  = $id("search-wrap");
+    var pill  = $id("search-pill");
+    var input = $id("search-input");
+    var clearBtn = $id("search-clear");
+    var icon = $id("search-icon");
+    var results = $id("search-results");
+    if (!wrap || !pill || !input || !results) return;
+    if (input.dataset.s34Bound === "1") return;
+    input.dataset.s34Bound = "1";
+
+    // ---- Responsive readonly ----
+    function applyMode() {
+      // Desktop: editable inline search
+      // Mobile: readonly trigger (tap opens full-page)
+      if (window.innerWidth >= 900) {
+        input.removeAttribute("readonly");
+      } else {
+        input.setAttribute("readonly", "readonly");
+      }
+    }
+    applyMode();
+    window.addEventListener("resize", applyMode);
+
+    // ---- Block old "open full-page on focus" on desktop ----
+    function blockOldDesktop(e) {
+      if (window.innerWidth >= 900) {
+        e.stopImmediatePropagation();
+      }
+    }
+    input.addEventListener("focus", blockOldDesktop, true);
+    input.addEventListener("click", blockOldDesktop, true);
+    input.addEventListener("touchstart", blockOldDesktop, true);
+
+    // ---- Clear button ----
+    function refreshClear() {
+      if (!clearBtn) return;
+      if ((input.value || "").trim().length > 0) {
+        clearBtn.classList.remove("hidden");
+      } else {
+        clearBtn.classList.add("hidden");
+      }
+    }
+    refreshClear();
+
+    input.addEventListener("input", refreshClear);
+
+    if (clearBtn) {
+      clearBtn.addEventListener("click", function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        input.value = "";
+        refreshClear();
+        results.classList.add("hidden");
+        input.setAttribute("aria-expanded", "false");
+        try { input.focus(); } catch (err) {}
+      });
+    }
+
+    // ---- Icon click → focus ----
+    if (icon) {
+      icon.addEventListener("click", function () {
+        try { input.focus(); } catch (e) {}
+      });
+      icon.addEventListener("keydown", function (e) {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          try { input.focus(); } catch (err) {}
+        }
+      });
+    }
+
+    // ---- Ctrl+K / Cmd+K ----
+    document.addEventListener("keydown", function (e) {
+      var k = (e.key || "").toLowerCase();
+      if ((e.ctrlKey || e.metaKey) && k === "k") {
+        // skip if user typing in another input/textarea
+        var tag = (document.activeElement && document.activeElement.tagName) || "";
+        if (tag === "TEXTAREA") return;
+        e.preventDefault();
+        if (window.innerWidth < 900) {
+          // mobile: open full-page search
+          var pageInput = $id("search-page-input");
+          var page = $id("search-page");
+          if (page && pageInput && page.classList.contains("hidden")) {
+            page.classList.remove("hidden");
+            setTimeout(function () { try { pageInput.focus(); } catch (err) {} }, 80);
+          }
+        } else {
+          try { input.focus(); } catch (err) {}
+        }
+      }
+      // Escape → close dropdown + blur
+      if (e.key === "Escape" && document.activeElement === input) {
+        input.blur();
+        results.classList.add("hidden");
+        input.setAttribute("aria-expanded", "false");
+      }
+    }, true);
+
+    // ---- Enter → open full-page search with the query ----
+    input.addEventListener("keydown", function (e) {
+      if (e.key === "Enter") {
+        var q = (input.value || "").trim();
+        if (!q) return;
+        e.preventDefault();
+        var page = $id("search-page");
+        var pageInput = $id("search-page-input");
+        if (page && pageInput) {
+          page.classList.remove("hidden");
+          pageInput.value = q;
+          try {
+            pageInput.dispatchEvent(new Event("input", { bubbles: true }));
+          } catch (err) {}
+          setTimeout(function () { try { pageInput.focus(); } catch (err) {} }, 60);
+        }
+        results.classList.add("hidden");
+        input.setAttribute("aria-expanded", "false");
+      }
+    });
+
+    // ---- aria-expanded sync ----
+    var mo = null;
+    try {
+      mo = new MutationObserver(function () {
+        var open = !results.classList.contains("hidden");
+        input.setAttribute("aria-expanded", open ? "true" : "false");
+      });
+      mo.observe(results, { attributes: true, attributeFilter: ["class"] });
+    } catch (e) {}
+
+    // ---- Keyboard navigation (↑ ↓ Enter) inside dropdown ----
+    input.addEventListener("keydown", function (e) {
+      if (e.key !== "ArrowDown" && e.key !== "ArrowUp" && e.key !== "Enter") return;
+      if (results.classList.contains("hidden")) return;
+      var items = results.querySelectorAll(
+        ".search-body .search-result, .search-body .search-hashtag-item, .search-body .search-post-item"
+      );
+      if (!items.length) return;
+
+      var cur = Array.prototype.indexOf.call(
+        items,
+        results.querySelector(".search-body .s34-active")
+      );
+
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        var n1 = cur < 0 ? 0 : (cur + 1) % items.length;
+        items.forEach(function (it, i) { it.classList.toggle("s34-active", i === n1); });
+        items[n1].scrollIntoView({ block: "nearest" });
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        var n2 = cur < 0 ? items.length - 1 : (cur - 1 + items.length) % items.length;
+        items.forEach(function (it, i) { it.classList.toggle("s34-active", i === n2); });
+        items[n2].scrollIntoView({ block: "nearest" });
+      } else if (e.key === "Enter") {
+        var active = results.querySelector(".search-body .s34-active");
+        if (active) {
+          e.preventDefault();
+          active.click();
+          results.classList.add("hidden");
+        }
+      }
+    });
+
+    // ---- Click outside → close ----
+    document.addEventListener("click", function (e) {
+      if (!e.target.closest("#search-wrap")) {
+        results.classList.add("hidden");
+        input.setAttribute("aria-expanded", "false");
+      }
+    });
+
+    console.log("[S34] premium search ready");
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", init);
+  } else {
+    init();
+  }
+})();
+
+
+// ==================================================
+// S36 — Reel button click → open reel upload modal
+// ==================================================
+(function () {
+  "use strict";
+  if (window.__s36ReelBtn) return;
+  window.__s36ReelBtn = true;
+
+  document.addEventListener("click", function (e) {
+    var btn = e.target.closest("#btn-pick-reel");
+    if (!btn) return;
+    e.preventDefault();
+    e.stopPropagation();
+
+    // Preferred: open reel upload modal (existing flow in app.js)
+    if (typeof window.openReelUpload === "function") {
+      try { window.openReelUpload(); return; } catch (err) {}
+    }
+
+    // Fallback A: click the hidden modal's internal button if present
+    var insideBtn = document.getElementById("btn-choose-reel");
+    var modal = document.getElementById("reel-upload-modal");
+    if (modal) {
+      modal.classList.remove("hidden");
+      // reset state if helper exists
+      if (typeof window.resetReelUpload === "function") {
+        try { window.resetReelUpload(); } catch (err) {}
+      }
+      return;
+    }
+
+    // Fallback B: open reels page
+    if (typeof window.openReelsPage === "function") {
+      try { window.openReelsPage(); } catch (err) {}
+    }
+  }, true);
+
+  console.log("[S36] reel button wired");
+})();
+
+
+// ==================================================
+// Batch 1 — Profile buttons 1-10
+// ==================================================
+(function () {
+  "use strict";
+  if (window.__batch1Profile) return;
+  window.__batch1Profile = true;
+
+  // ---- 2. Close: back to home feed ----
+  document.addEventListener("click", function (e) {
+    if (!e.target.closest("#profile-close-btn")) return;
+    e.preventDefault();
+    var p = document.getElementById("profile-page");
+    if (p) p.classList.add("hidden");
+    var av = document.getElementById("app-view");
+    if (av) av.classList.remove("hidden");
+    if (typeof _PageStack !== "undefined") {
+      var idx = _PageStack.lastIndexOf("profile");
+      if (idx !== -1) _PageStack.splice(idx, 1);
+    }
+    if (typeof loadFeed === "function") loadFeed();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, true);
+
+  // ---- 3. Search in profile ----
+  document.addEventListener("click", function (e) {
+    if (!e.target.closest("#profile-search-btn")) return;
+    e.preventDefault();
+    var page = document.getElementById("search-page");
+    var pageInput = document.getElementById("search-page-input");
+    if (page && pageInput) {
+      page.classList.remove("hidden");
+      pageInput.value = "";
+      setTimeout(function () { try { pageInput.focus(); } catch (err) {} }, 60);
+    }
+  }, true);
+
+  // ---- 4. Profile menu (⋮) ----
+  document.addEventListener("click", function (e) {
+    if (!e.target.closest("#profile-menu-btn")) return;
+    e.preventDefault();
+    var data = window._currentProfileData;
+    if (!data || !data.user) return;
+    var isMe = window.state && state.me && state.me.username === data.user.username;
+
+    // sheet-style menu
+    var old = document.getElementById("profile-menu-sheet");
+    if (old) old.remove();
+    var sheet = document.createElement("div");
+    sheet.id = "profile-menu-sheet";
+    sheet.className = "sheet-root";
+    var items = isMe ? [
+      { a: "edit",   i: "fa-pen",               l: "প্রোফাইল এডিট" },
+      { a: "share",  i: "fa-share-nodes",        l: "শেয়ার" },
+      { a: "copy",   i: "fa-link",               l: "লিংক কপি" },
+      { a: "copy",   i: "fa-qrcode",             l: "QR কোড (আসছে)" },
+      { a: "settings", i: "fa-gear",             l: "সেটিংস" },
+    ] : [
+      { a: "copy",   i: "fa-link",               l: "লিংক কপি" },
+      { a: "share",  i: "fa-share-nodes",        l: "শেয়ার" },
+      { a: "mute",   i: "fa-bell-slash",         l: "মিউট" },
+      { a: "block",  i: "fa-ban",                l: "ব্লক",       d: true },
+      { a: "report", i: "fa-flag",               l: "রিপোর্ট",    d: true },
+    ];
+    sheet.innerHTML =
+      '<div class="sheet-backdrop"></div>' +
+      '<div class="sheet-panel">' +
+        '<div class="sheet-handle"></div>' +
+        '<div class="sheet-menu-list">' +
+          items.map(function (it) {
+            return '<button type="button" class="sheet-menu-item' + (it.d ? " danger" : "") + '" data-act="' + it.a + '">' +
+              '<i class="fa-solid ' + it.i + '"></i><span>' + it.l + '</span></button>';
+          }).join("") +
+        '</div>' +
+      '</div>';
+    document.body.appendChild(sheet);
+    document.body.classList.add("sheet-open");
+    requestAnimationFrame(function () { sheet.classList.add("show"); });
+    function close() {
+      sheet.classList.remove("show");
+      setTimeout(function () {
+        if (sheet.parentNode) sheet.parentNode.removeChild(sheet);
+        document.body.classList.remove("sheet-open");
+      }, 240);
+    }
+    sheet.querySelector(".sheet-backdrop").addEventListener("click", close);
+    sheet.querySelectorAll(".sheet-menu-item").forEach(function (b) {
+      b.addEventListener("click", function () {
+        var act = b.dataset.act;
+        close();
+        if (act === "edit") {
+          if (typeof openEditProfile === "function") openEditProfile();
+        } else if (act === "share") {
+          var url = window.location.origin + "/u/" + data.user.username;
+          if (navigator.share) navigator.share({ title: "JUKTOY", url: url }).catch(function(){});
+          else navigator.clipboard.writeText(url).then(function(){ if (typeof showToast === "function") showToast("🔗 কপি হয়েছে"); });
+        } else if (act === "copy") {
+          var url2 = window.location.origin + "/u/" + data.user.username;
+          navigator.clipboard.writeText(url2).then(function(){ if (typeof showToast === "function") showToast("🔗 লিংক কপি"); });
+        } else if (act === "settings") {
+          if (typeof openSettingsPage === "function") openSettingsPage();
+        } else if (act === "mute") {
+          if (typeof showToast === "function") showToast("🔔 মিউট (আসছে)");
+        } else if (act === "block") {
+          var bb = document.getElementById("btn-block");
+          if (bb) bb.click();
+        } else if (act === "report") {
+          var rb = document.getElementById("btn-report-user");
+          if (rb) rb.click();
+        }
+      });
+    });
+  }, true);
+
+  // ---- 5. Refresh profile ----
+  document.addEventListener("click", function (e) {
+    if (!e.target.closest("#profile-refresh-btn")) return;
+    e.preventDefault();
+    var data = window._currentProfileData;
+    if (!data || !data.user) return;
+    var icon = e.target.closest("#profile-refresh-btn").querySelector("i");
+    if (icon) {
+      icon.style.transition = "transform 0.6s ease";
+      icon.style.transform = "rotate(360deg)";
+      setTimeout(function(){ icon.style.transition = ""; icon.style.transform = ""; }, 650);
+    }
+    if (typeof openProfile === "function") openProfile(data.user.username);
+  }, true);
+
+  // ---- 8/9. Follow state machine for OTHER profiles ----
+  // Wrap openProfile to alter follow button based on is_requested/follows_me
+  var _origOpenProfileB1 = window.openProfile;
+  if (typeof _origOpenProfileB1 === "function") {
+    window.openProfile = async function (username) {
+      await _origOpenProfileB1(username);
+      // after render, adjust the follow button
+      var data = window._currentProfileData;
+      if (!data || !data.user) return;
+      var isMe = window.state && state.me && state.me.username === data.user.username;
+      if (isMe) return;
+
+      var fb = document.getElementById("btn-follow");
+      if (!fb) return;
+      var stateAttr = "follow";
+      if (data.is_following) stateAttr = "following";
+      else if (data.is_requested) stateAttr = "requested";
+      else if (data.follows_me) stateAttr = "follow-back";
+      fb.dataset.followState = stateAttr;
+
+      // adjust label
+      var labelEl = fb.querySelector("span");
+      var iconEl = fb.querySelector("i");
+      if (stateAttr === "following") {
+        if (labelEl) labelEl.textContent = "ফলো করছেন";
+        if (iconEl) iconEl.className = "fa-solid fa-user-check";
+      } else if (stateAttr === "requested") {
+        if (labelEl) labelEl.textContent = "রিকোয়েস্ট পাঠানো";
+        if (iconEl) iconEl.className = "fa-solid fa-clock";
+      } else if (stateAttr === "follow-back") {
+        if (labelEl) labelEl.textContent = "ফলো ব্যাক";
+        if (iconEl) iconEl.className = "fa-solid fa-user-plus";
+      } else {
+        if (labelEl) labelEl.textContent = "ফলো করুন";
+        if (iconEl) iconEl.className = "fa-solid fa-user-plus";
+      }
+    };
+  }
+
+  // ---- 10. Follow-requests banner (own profile) ----
+  var _origOpenProfileB1b = window.openProfile;
+  if (typeof _origOpenProfileB1b === "function") {
+    window.openProfile = async function (username) {
+      await _origOpenProfileB1b(username);
+      var data = window._currentProfileData;
+      if (!data || !data.user) return;
+      var isMe = window.state && state.me && state.me.username === data.user.username;
+      var banner = document.getElementById("profile-follow-requests");
+      if (!banner) return;
+      if (!isMe) { banner.classList.add("hidden"); return; }
+      try {
+        var r = await api("/api/me/follow-requests/count");
+        var n = (r && r.count) || 0;
+        if (n > 0) {
+          document.getElementById("frb-count").textContent = n + " জন অপেক্ষা করছেন";
+          banner.classList.remove("hidden");
+        } else {
+          banner.classList.add("hidden");
+        }
+      } catch (err) { banner.classList.add("hidden"); }
+    };
+  }
+
+  // ---- Banner open button → follow requests sheet ----
+  document.addEventListener("click", function (e) {
+    if (!e.target.closest("#frb-open-btn")) return;
+    e.preventDefault();
+    (async function () {
+      try {
+        var list = await api("/api/me/follow-requests");
+        if (!Array.isArray(list) || !list.length) {
+          if (typeof showToast === "function") showToast("কোনো অনুরোধ নেই");
+          return;
+        }
+        var old = document.getElementById("fr-list-sheet");
+        if (old) old.remove();
+        var sheet = document.createElement("div");
+        sheet.id = "fr-list-sheet";
+        sheet.className = "sheet-root";
+        sheet.innerHTML =
+          '<div class="sheet-backdrop"></div>' +
+          '<div class="sheet-panel">' +
+            '<div class="sheet-handle"></div>' +
+            '<div class="sheet-header"><h3>ফলো রিকোয়েস্ট</h3>' +
+            '<button class="sheet-close" type="button"><i class="fa-solid fa-xmark"></i></button></div>' +
+            '<div class="sheet-body">' +
+              list.map(function (u) {
+                var av = u.profile_pic
+                  ? '<img src="' + (window.escapeHtml ? escapeHtml(u.profile_pic) : u.profile_pic) + '" alt="" loading="lazy" decoding="async">'
+                  : (u.display_name || u.username || "?").charAt(0).toUpperCase();
+                return '<div class="fr-row" data-uid="' + u.user_id + '">' +
+                  '<div class="fr-av">' + av + '</div>' +
+                  '<div class="fr-info">' +
+                    '<div class="fr-name">' + (window.escapeHtml ? escapeHtml(u.display_name) : u.display_name) + '</div>' +
+                    '<div class="fr-uname">@' + (window.escapeHtml ? escapeHtml(u.username) : u.username) + '</div>' +
+                  '</div>' +
+                  '<button class="fr-accept" data-uid="' + u.user_id + '">গ্রহণ</button>' +
+                  '<button class="fr-reject" data-uid="' + u.user_id + '"><i class="fa-solid fa-xmark"></i></button>' +
+                '</div>';
+              }).join("") +
+            '</div>' +
+          '</div>';
+        document.body.appendChild(sheet);
+        document.body.classList.add("sheet-open");
+        requestAnimationFrame(function () { sheet.classList.add("show"); });
+        function close() {
+          sheet.classList.remove("show");
+          setTimeout(function () {
+            if (sheet.parentNode) sheet.parentNode.removeChild(sheet);
+            document.body.classList.remove("sheet-open");
+          }, 240);
+        }
+        sheet.querySelector(".sheet-backdrop").addEventListener("click", close);
+        sheet.querySelector(".sheet-close").addEventListener("click", close);
+        sheet.querySelectorAll(".fr-accept").forEach(function (b) {
+          b.addEventListener("click", async function () {
+            b.disabled = true;
+            try {
+              await api("/api/me/follow-requests/" + b.dataset.uid + "/accept", { method: "POST" });
+              b.closest(".fr-row").remove();
+              if (typeof showToast === "function") showToast("✅ গ্রহণ করা হয়েছে");
+            } catch (err) { alert(err.message || "সমস্যা"); b.disabled = false; }
+          });
+        });
+        sheet.querySelectorAll(".fr-reject").forEach(function (b) {
+          b.addEventListener("click", async function () {
+            b.disabled = true;
+            try {
+              await api("/api/me/follow-requests/" + b.dataset.uid + "/reject", { method: "POST" });
+              b.closest(".fr-row").remove();
+              if (typeof showToast === "function") showToast("বাতিল");
+            } catch (err) { alert(err.message || "সমস্যা"); b.disabled = false; }
+          });
+        });
+      } catch (err) { alert(err.message || "লোড করা যায়নি"); }
+    })();
+  }, true);
+
+  // ---- styles for follow-request sheet rows ----
+  if (!document.getElementById("b1-fr-styles")) {
+    var st = document.createElement("style");
+    st.id = "b1-fr-styles";
+    st.textContent =
+      '.fr-row{display:flex;align-items:center;gap:10px;padding:10px 4px;border-bottom:1px solid rgba(0,0,0,.05)}' +
+      '.fr-row:last-child{border-bottom:0}' +
+      '.fr-av{width:40px;height:40px;border-radius:50%;background:var(--gradient);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;overflow:hidden;flex-shrink:0}' +
+      '.fr-av img{width:100%;height:100%;object-fit:cover}' +
+      '.fr-info{flex:1;min-width:0}' +
+      '.fr-name{font-size:14px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}' +
+      '.fr-uname{font-size:12px;color:var(--muted)}' +
+      '.fr-accept{padding:6px 14px;border-radius:8px;background:var(--accent);color:#fff;border:0;font-weight:700;font-size:12.5px;cursor:pointer;font-family:inherit}' +
+      '.fr-reject{width:34px;height:34px;border-radius:50%;background:rgba(0,0,0,.05);border:0;color:var(--muted);font-size:13px;cursor:pointer;flex-shrink:0;margin-left:4px}' +
+      'body.dark .fr-reject{background:rgba(255,255,255,.06)}';
+    document.head.appendChild(st);
+  }
+
+  console.log("[Batch1] profile buttons 1-10 ready");
+})();
+
+
+// ==================================================
+// Batch 2 — Profile buttons 11-20
+// ==================================================
+(function () {
+  "use strict";
+  if (window.__batch2Profile) return;
+  window.__batch2Profile = true;
+
+  function _sheet(html, id) {
+    var old = document.getElementById(id);
+    if (old) old.remove();
+    var sheet = document.createElement("div");
+    sheet.id = id;
+    sheet.className = "sheet-root";
+    sheet.innerHTML = '<div class="sheet-backdrop"></div>' + html;
+    document.body.appendChild(sheet);
+    document.body.classList.add("sheet-open");
+    requestAnimationFrame(function () { sheet.classList.add("show"); });
+    function close() {
+      sheet.classList.remove("show");
+      setTimeout(function () {
+        if (sheet.parentNode) sheet.parentNode.removeChild(sheet);
+        document.body.classList.remove("sheet-open");
+      }, 240);
+    }
+    sheet.querySelector(".sheet-backdrop").addEventListener("click", close);
+    var x = sheet.querySelector(".sheet-close");
+    if (x) x.addEventListener("click", close);
+    return { root: sheet, close: close };
+  }
+
+  function _esc(s) {
+    if (window.escapeHtml) return escapeHtml(s);
+    return String(s || "").replace(/[<>&"']/g, function (c) {
+      return { "<":"&lt;", ">":"&gt;", "&":"&amp;", '"':"&quot;", "'":"&#39;" }[c];
+    });
+  }
+
+  function _av(name, pic) {
+    if (pic) return '<img src="' + _esc(pic) + '" alt="" loading="lazy" decoding="async">';
+    return _esc((name || "?").charAt(0).toUpperCase());
+  }
+
+  // ============ 11. Reject follow request (already in batch 1 sheet) — ensure it exists ============
+  // (batch 1 handles it)
+
+  // ============ 12. Remove follower (own profile) ============
+  document.addEventListener("click", function (e) {
+    // Hook into existing followers-count stat click → opens list with remove buttons
+    var statEls = document.querySelectorAll(".profile-stats .stat-item .stat-num");
+    if (!statEls.length) return;
+    if (!e.target.closest(".profile-stats")) return;
+    var clicked = e.target.closest(".stat-item");
+    if (!clicked) return;
+    var idx = Array.prototype.indexOf.call(clicked.parentNode.children, clicked);
+    if (idx !== 1) return; // only "followers"
+    var data = window._currentProfileData;
+    if (!data || !data.user) return;
+    if (!window.state || !state.me || state.me.username !== data.user.username) return;
+    e.preventDefault();
+    e.stopPropagation();
+    (async function () {
+      try {
+        var list = await api("/api/users/" + encodeURIComponent(data.user.username) + "/followers");
+        var s = _sheet(
+          '<div class="sheet-panel">' +
+            '<div class="sheet-handle"></div>' +
+            '<div class="sheet-header"><h3>ফলোয়ার</h3>' +
+            '<button class="sheet-close" type="button"><i class="fa-solid fa-xmark"></i></button></div>' +
+            '<div class="sheet-body">' +
+              (list.length
+                ? list.map(function (u) {
+                    return '<div class="b2-list-row">' +
+                      '<div class="b2-list-av">' + _av(u.display_name, u.profile_pic) + '</div>' +
+                      '<div class="b2-list-info">' +
+                        '<div class="b2-list-name">' + _esc(u.display_name) + '</div>' +
+                        '<div class="b2-list-uname">@' + _esc(u.username) + '</div>' +
+                      '</div>' +
+                      '<button class="b2-list-action danger" data-remove="' + _esc(u.username) + '">সরান</button>' +
+                    '</div>';
+                  }).join("")
+                : '<p style="text-align:center;padding:30px;color:var(--muted)">কোনো ফলোয়ার নেই</p>') +
+            '</div>' +
+          '</div>', "b2-followers-sheet");
+        s.root.querySelectorAll("[data-remove]").forEach(function (b) {
+          b.addEventListener("click", async function () {
+            if (!confirm("@" + b.dataset.remove + " কে ফলোয়ার থেকে সরাবেন?")) return;
+            b.disabled = true;
+            try {
+              // find user_id
+              var list2 = await api("/api/users/" + encodeURIComponent(b.dataset.remove));
+              if (!list2 || !list2.user) throw new Error("ইউজার পাওয়া যায়নি");
+              await api("/api/me/followers/" + list2.user.id + "/remove", { method: "POST" });
+              b.closest(".b2-list-row").remove();
+              if (typeof showToast === "function") showToast("✅ সরানো হয়েছে");
+            } catch (err) { alert(err.message || "সমস্যা"); b.disabled = false; }
+          });
+        });
+      } catch (err) { alert(err.message || "লোড করা যায়নি"); }
+    })();
+  }, true);
+
+  // ============ 15/16. Close Friends & Favorites tiles ============
+  function _openCfList(mode) {
+    var url  = mode === "close" ? "/api/me/close-friends" : "/api/me/favorites";
+    var flag = mode === "close" ? "is_close" : "is_favorite";
+    var title = mode === "close" ? "Close Friends" : "Favorites";
+    var toggleUrl = mode === "close" ? "/close-friend" : "/favorite";
+
+    (async function () {
+      try {
+        var current = await api(url);
+        var curNames = {};
+        (current || []).forEach(function (u) { curNames[u.username] = true; });
+
+        var all = await api("/api/me/following-list");
+        var html = (all || []).map(function (u) {
+          var isOn = !!u[flag];
+          return '<div class="b2-list-row">' +
+            '<div class="b2-list-av">' + _av(u.display_name, u.profile_pic) + '</div>' +
+            '<div class="b2-list-info">' +
+              '<div class="b2-list-name">' + _esc(u.display_name) + '</div>' +
+              '<div class="b2-list-uname">@' + _esc(u.username) + '</div>' +
+            '</div>' +
+            '<button class="b2-list-action' + (isOn ? " on" : "") + '" data-toggle="' + _esc(u.username) + '" data-on="' + (isOn ? "1" : "0") + '">' +
+              (isOn ? "✓ " + title : "যোগ") +
+            '</button>' +
+          '</div>';
+        }).join("");
+
+        var s = _sheet(
+          '<div class="sheet-panel">' +
+            '<div class="sheet-handle"></div>' +
+            '<div class="sheet-header"><h3>' + title + '</h3>' +
+            '<button class="sheet-close" type="button"><i class="fa-solid fa-xmark"></i></button></div>' +
+            '<div class="sheet-body">' +
+              (all && all.length
+                ? html
+                : '<p style="text-align:center;padding:30px;color:var(--muted)">আপনি এখনো কাউকে ফলো করেননি</p>') +
+            '</div>' +
+          '</div>', "b2-cf-sheet");
+
+        s.root.querySelectorAll("[data-toggle]").forEach(function (b) {
+          b.addEventListener("click", async function () {
+            b.disabled = true;
+            try {
+              var r = await api("/api/users/" + encodeURIComponent(b.dataset.toggle) + toggleUrl, { method: "POST" });
+              var on = mode === "close" ? r.is_close : r.is_favorite;
+              b.classList.toggle("on", on);
+              b.textContent = on ? "✓ " + title : "যোগ";
+            } catch (err) { alert(err.message || "সমস্যা"); }
+            finally { b.disabled = false; }
+          });
+        });
+      } catch (err) { alert(err.message || "লোড করা যায়নি"); }
+    })();
+  }
+
+  document.addEventListener("click", function (e) {
+    if (e.target.closest("#cf-close-open")) {
+      e.preventDefault(); _openCfList("close");
+    } else if (e.target.closest("#cf-fav-open")) {
+      e.preventDefault(); _openCfList("fav");
+    }
+  }, true);
+
+  // show tiles + counts on own profile
+  var _origOpenProfileB2 = window.openProfile;
+  if (typeof _origOpenProfileB2 === "function") {
+    window.openProfile = async function (username) {
+      await _origOpenProfileB2(username);
+      var data = window._currentProfileData;
+      if (!data || !data.user) return;
+      var isMe = window.state && state.me && state.me.username === data.user.username;
+      var row = document.getElementById("profile-cf-row");
+      if (!row) return;
+      if (!isMe) { row.classList.add("hidden"); return; }
+      try {
+        var c1 = await api("/api/me/close-friends");
+        var c2 = await api("/api/me/favorites");
+        document.getElementById("cf-close-count").textContent = (c1 || []).length;
+        document.getElementById("cf-fav-count").textContent = (c2 || []).length;
+        row.classList.remove("hidden");
+      } catch (err) { row.classList.add("hidden"); }
+    };
+  }
+
+  // ============ 17. Message icon in topbar ============
+  document.addEventListener("click", function (e) {
+    if (!e.target.closest("#profile-msg-btn")) return;
+    e.preventDefault();
+    var data = window._currentProfileData;
+    if (!data || !data.user) return;
+    if (window.state && state.me && state.me.username === data.user.username) return;
+    // close profile, open chat
+    var p = document.getElementById("profile-page");
+    if (p) p.classList.add("hidden");
+    setTimeout(function () {
+      if (typeof openMessagesPage === "function") {
+        openMessagesPage().then(function () {
+          if (typeof openChat === "function") openChat(data.user.username);
+        });
+      }
+    }, 150);
+  }, true);
+
+  // ============ 20. Voice + Video call buttons in profile-buttons ============
+  // Patch the profile-buttons rendering so voice/video circle buttons appear next to message
+  var _origOpenProfileB2b = window.openProfile;
+  if (typeof _origOpenProfileB2b === "function") {
+    window.openProfile = async function (username) {
+      await _origOpenProfileB2b(username);
+      var data = window._currentProfileData;
+      if (!data || !data.user) return;
+      var isMe = window.state && state.me && state.me.username === data.user.username;
+      if (isMe) return;
+      var btns = document.getElementById("profile-buttons");
+      if (!btns) return;
+      if (btns.dataset.b2Patched === "1") return;
+      btns.dataset.b2Patched = "1";
+
+      // add voice + video circles before block/report
+      var voice = document.createElement("button");
+      voice.className = "btn-call-circle";
+      voice.id = "btn-profile-voice";
+      voice.title = "Voice call";
+      voice.innerHTML = '<i class="fa-solid fa-phone"></i>';
+
+      var video = document.createElement("button");
+      video.className = "btn-call-circle";
+      video.id = "btn-profile-video";
+      video.title = "Video call";
+      video.innerHTML = '<i class="fa-solid fa-video"></i>';
+
+      var msgBtn = btns.querySelector("#btn-msg");
+      if (msgBtn) {
+        msgBtn.parentNode.insertBefore(video, msgBtn.nextSibling);
+        msgBtn.parentNode.insertBefore(voice, msgBtn.nextSibling);
+      } else {
+        btns.appendChild(voice);
+        btns.appendChild(video);
+      }
+
+      voice.addEventListener("click", function () {
+        if (typeof window.startVoiceCall === "function") {
+          window.startVoiceCall(data.user.username);
+        } else if (typeof showToast === "function") {
+          showToast("📞 কল মডিউল লোড হচ্ছে...");
+        }
+      });
+      video.addEventListener("click", function () {
+        if (typeof window.startVideoCall === "function") {
+          window.startVideoCall(data.user.username);
+        } else if (typeof showToast === "function") {
+          showToast("📹 কল মডিউল লোড হচ্ছে...");
+        }
+      });
+    };
+  }
+
+  // ============ 18/19. Message request flow ============
+  // Wrap sendMessage: if recipient isn't following us, use /request/send
+  var _origOpenChatB2 = window.openChat;
+  if (typeof _origOpenChatB2 === "function") {
+    // We hook into chat send via document-level listener; safer approach:
+    // add a small indicator when opening a chat with an unverified user
+    window.openChat = async function (username) {
+      await _origOpenChatB2(username);
+      // Show a subtle hint bar if the chat-input exists and receiver isn't a mutual
+      var inp = document.getElementById("chat-input");
+      if (!inp) return;
+      // Fetch state to decide
+      try {
+        var p = await api("/api/users/" + encodeURIComponent(username));
+        var theyFollowMe = !!(p && p.follows_me);
+        var chatHeader = document.querySelector(".chat-header");
+        var oldHint = document.getElementById("b2-msg-request-hint");
+        if (oldHint) oldHint.remove();
+        if (!theyFollowMe && chatHeader) {
+          var hint = document.createElement("div");
+          hint.id = "b2-msg-request-hint";
+          hint.style.cssText =
+            "padding:6px 12px;font-size:11.5px;font-weight:700;" +
+            "background:linear-gradient(135deg,rgba(255,107,107,0.12),rgba(251,146,60,0.08));" +
+            "color:var(--accent);text-align:center;border-bottom:1px solid var(--border-soft);";
+          hint.textContent = "📨 এটা মেসেজ রিকোয়েস্ট — গ্রহণ করলে চ্যাট শুরু হবে";
+          chatHeader.parentNode.insertBefore(hint, chatHeader.nextSibling);
+        }
+      } catch (e) {}
+    };
+  }
+
+  // Accept message requests sheet (open from messages topbar / inbox)
+  // Add a hint icon in the messages-topbar
+  document.addEventListener("click", function (e) {
+    if (!e.target.closest("#b2-msg-requests-btn")) return;
+    e.preventDefault();
+    (async function () {
+      try {
+        var list = await api("/api/messages/requests");
+        var s = _sheet(
+          '<div class="sheet-panel">' +
+            '<div class="sheet-handle"></div>' +
+            '<div class="sheet-header"><h3>মেসেজ রিকোয়েস্ট</h3>' +
+            '<button class="sheet-close" type="button"><i class="fa-solid fa-xmark"></i></button></div>' +
+            '<div class="sheet-body">' +
+              (list && list.length
+                ? list.map(function (r) {
+                    return '<div class="b2-list-row">' +
+                      '<div class="b2-list-av">' + _av(r.display_name, r.profile_pic) + '</div>' +
+                      '<div class="b2-list-info">' +
+                        '<div class="b2-list-name">' + _esc(r.display_name) + '</div>' +
+                        '<div class="b2-list-uname">@' + _esc(r.username) + ' · ' + _esc((r.content || "").slice(0, 40)) + '</div>' +
+                      '</div>' +
+                      '<button class="b2-list-action on" data-accept="' + r.id + '">গ্রহণ</button>' +
+                      '<button class="b2-list-action danger" data-reject="' + r.id + '" style="margin-left:4px">বাতিল</button>' +
+                    '</div>';
+                  }).join("")
+                : '<p style="text-align:center;padding:30px;color:var(--muted)">কোনো মেসেজ রিকোয়েস্ট নেই</p>') +
+            '</div>' +
+          '</div>', "b2-msg-requests-sheet");
+
+        s.root.querySelectorAll("[data-accept]").forEach(function (b) {
+          b.addEventListener("click", async function () {
+            b.disabled = true;
+            try {
+              await api("/api/messages/requests/" + b.dataset.accept + "/accept", { method: "POST" });
+              b.closest(".b2-list-row").remove();
+              if (typeof showToast === "function") showToast("✅ গ্রহণ করা হয়েছে");
+            } catch (err) { alert(err.message || "সমস্যা"); b.disabled = false; }
+          });
+        });
+        s.root.querySelectorAll("[data-reject]").forEach(function (b) {
+          b.addEventListener("click", async function () {
+            b.disabled = true;
+            try {
+              await api("/api/messages/requests/" + b.dataset.reject + "/reject", { method: "POST" });
+              b.closest(".b2-list-row").remove();
+            } catch (err) { alert(err.message || "সমস্যা"); b.disabled = false; }
+          });
+        });
+      } catch (err) { alert(err.message || "লোড করা যায়নি"); }
+    })();
+  }, true);
+
+  console.log("[Batch2] profile buttons 11-20 ready");
+})();
+
+
+// ==================================================
+// Batch 3 — Profile buttons 21-30
+// ==================================================
+(function () {
+  "use strict";
+  if (window.__batch3Profile) return;
+  window.__batch3Profile = true;
+
+  function _esc(s) {
+    if (window.escapeHtml) return escapeHtml(s);
+    return String(s || "").replace(/[<>&"']/g, function (c) {
+      return { "<":"&lt;", ">":"&gt;", "&":"&amp;", '"':"&quot;", "'":"&#39;" }[c];
+    });
+  }
+
+  function _sheet(html, id) {
+    var old = document.getElementById(id);
+    if (old) old.remove();
+    var sheet = document.createElement("div");
+    sheet.id = id;
+    sheet.className = "sheet-root";
+    sheet.innerHTML = '<div class="sheet-backdrop"></div>' + html;
+    document.body.appendChild(sheet);
+    document.body.classList.add("sheet-open");
+    requestAnimationFrame(function () { sheet.classList.add("show"); });
+    function close() {
+      sheet.classList.remove("show");
+      setTimeout(function () {
+        if (sheet.parentNode) sheet.parentNode.removeChild(sheet);
+        document.body.classList.remove("sheet-open");
+      }, 240);
+    }
+    sheet.querySelector(".sheet-backdrop").addEventListener("click", close);
+    var x = sheet.querySelector(".sheet-close");
+    if (x) x.addEventListener("click", close);
+    return { root: sheet, close: close };
+  }
+
+  function _profileUrl(username) {
+    return window.location.origin + "/u/" + encodeURIComponent(username);
+  }
+
+  // ============ 21-26. Share sheet with copy/native/whatsapp/telegram/email/dm ============
+  function _openShareSheet(username, displayName) {
+    var url = _profileUrl(username);
+    var text = (displayName || username) + " — JUKTOY-এ দেখুন";
+
+    var s = _sheet(
+      '<div class="sheet-panel">' +
+        '<div class="sheet-handle"></div>' +
+        '<div class="sheet-header"><h3>শেয়ার করুন</h3>' +
+        '<button class="sheet-close" type="button"><i class="fa-solid fa-xmark"></i></button></div>' +
+        '<div class="sheet-body" style="padding:6px 12px 14px">' +
+          _row("copy", "bg-copy", "fa-link", "লিংক কপি করুন", "clipboard") +
+          _row("native", "bg-nat", "fa-share-nodes", "আরো অপশন", "native share") +
+          _row("whatsapp", "bg-wa", "fa-brands fa-whatsapp", "WhatsApp", "chat app") +
+          _row("telegram", "bg-tg", "fa-brands fa-telegram", "Telegram", "chat app") +
+          _row("email", "bg-mail", "fa-envelope", "Email", "mailto link") +
+          _row("dm", "bg-dm", "fa-comment-dots", "JUKTOY DM", "pick a friend") +
+        '</div>' +
+      '</div>', "b3-share-sheet");
+
+    function _row(a, bg, icon, label, sub) {
+      var ic = icon.indexOf("fa-brands") === 0 ? icon : ("fa-solid " + icon);
+      return '<div class="b3-share-row" data-act="' + a + '">' +
+        '<div class="b3-share-icon ' + bg + '"><i class="' + ic + '"></i></div>' +
+        '<div class="b3-share-label">' + _esc(label) +
+          '<div class="b3-share-sub">' + _esc(sub) + '</div></div>' +
+      '</div>';
+    }
+
+    s.root.querySelectorAll(".b3-share-row").forEach(function (r) {
+      r.addEventListener("click", async function () {
+        var act = r.dataset.act;
+        if (act === "copy") {
+          try {
+            await navigator.clipboard.writeText(url);
+            if (typeof showToast === "function") showToast("🔗 লিংক কপি হয়েছে");
+          } catch (e) { alert("কপি করা যায়নি"); }
+          s.close();
+        } else if (act === "native") {
+          if (navigator.share) {
+            try { await navigator.share({ title: "JUKTOY", text: text, url: url }); } catch (e) {}
+          } else {
+            try { await navigator.clipboard.writeText(url); if (typeof showToast === "function") showToast("🔗 কপি হয়েছে"); } catch (e) {}
+          }
+          s.close();
+        } else if (act === "whatsapp") {
+          window.open("https://wa.me/?text=" + encodeURIComponent(text + " " + url), "_blank");
+          s.close();
+        } else if (act === "telegram") {
+          window.open("https://t.me/share/url?url=" + encodeURIComponent(url) + "&text=" + encodeURIComponent(text), "_blank");
+          s.close();
+        } else if (act === "email") {
+          window.location.href = "mailto:?subject=" + encodeURIComponent("JUKTOY — " + displayName) + "&body=" + encodeURIComponent(text + "\n\n" + url);
+          s.close();
+        } else if (act === "dm") {
+          s.close();
+          _openShareDM(username, url);
+        }
+      });
+    });
+  }
+
+  function _openShareDM(username, url) {
+    var s = _sheet(
+      '<div class="sheet-panel">' +
+        '<div class="sheet-handle"></div>' +
+        '<div class="sheet-header"><h3>কে পাঠাবেন?</h3>' +
+        '<button class="sheet-close" type="button"><i class="fa-solid fa-xmark"></i></button></div>' +
+        '<div class="sheet-body" style="padding:8px 12px">' +
+          '<div class="input-group" style="margin-bottom:10px">' +
+            '<i class="fa-solid fa-magnifying-glass input-icon"></i>' +
+            '<input type="text" id="b3-dm-search" placeholder="ইউজারনেম লিখুন...">' +
+          '</div>' +
+          '<div id="b3-dm-list"><p style="text-align:center;padding:20px;color:var(--muted)">লোড হচ্ছে...</p></div>' +
+        '</div>' +
+      '</div>', "b3-dm-sheet");
+
+    var listEl = s.root.querySelector("#b3-dm-list");
+    var input = s.root.querySelector("#b3-dm-search");
+
+    async function load(q) {
+      try {
+        var users = await api("/api/users?q=" + encodeURIComponent(q || ""));
+        var filtered = (users || []).filter(function (u) { return u.username !== username; });
+        if (!filtered.length) {
+          listEl.innerHTML = '<p style="text-align:center;padding:20px;color:var(--muted)">কেউ পাওয়া যায়নি</p>';
+          return;
+        }
+        listEl.innerHTML = filtered.map(function (u) {
+          var av = u.profile_pic
+            ? '<img src="' + _esc(u.profile_pic) + '" alt="" loading="lazy" decoding="async">'
+            : _esc((u.display_name || "?").charAt(0).toUpperCase());
+          return '<div class="b3-share-row" data-to="' + _esc(u.username) + '">' +
+            '<div class="b3-share-icon bg-dm" style="overflow:hidden">' + av + '</div>' +
+            '<div class="b3-share-label">' + _esc(u.display_name) +
+              '<div class="b3-share-sub">@' + _esc(u.username) + '</div></div>' +
+          '</div>';
+        }).join("");
+        listEl.querySelectorAll("[data-to]").forEach(function (b) {
+          b.addEventListener("click", async function () {
+            var to = b.dataset.to;
+            b.disabled = true;
+            try {
+              await api("/api/messages/" + encodeURIComponent(to), {
+                method: "POST",
+                body: JSON.stringify({ content: "🔗 প্রোফাইল দেখুন: " + url })
+              });
+              if (typeof showToast === "function") showToast("✅ পাঠানো হয়েছে");
+              s.close();
+            } catch (err) { alert(err.message || "পাঠানো যায়নি"); b.disabled = false; }
+          });
+        });
+      } catch (err) {
+        listEl.innerHTML = '<p style="text-align:center;padding:20px;color:var(--danger)">লোড করা যায়নি</p>';
+      }
+    }
+    load("");
+    var t = null;
+    input.addEventListener("input", function () {
+      clearTimeout(t);
+      t = setTimeout(function () { load(input.value.trim()); }, 220);
+    });
+  }
+
+  // Hook into profile share button to open new sheet (replace old native-only)
+  document.addEventListener("click", function (e) {
+    if (!e.target.closest("#btn-share-profile")) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    var data = window._currentProfileData;
+    if (!data || !data.user) return;
+    _openShareSheet(data.user.username, data.user.display_name);
+  }, true);
+
+  // Also hook the "⋮" menu Share to open new sheet
+  document.addEventListener("click", function (e) {
+    var it = e.target.closest(".sheet-menu-item[data-act='share']");
+    if (!it) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    var data = window._currentProfileData;
+    if (!data || !data.user) return;
+    // close existing sheet
+    var open = document.querySelector(".sheet-root.show");
+    if (open) { open.classList.remove("show"); setTimeout(function(){ if (open.parentNode) open.parentNode.removeChild(open); document.body.classList.remove("sheet-open"); }, 200); }
+    setTimeout(function () { _openShareSheet(data.user.username, data.user.display_name); }, 220);
+  }, true);
+
+  // ============ 27. QR code (own profile) ============
+  // Simple SVG QR-like visualization (not scannable but visually authentic)
+  function _miniQR(text) {
+    // build a deterministic pseudo-QR from hash of text
+    var h = 0;
+    for (var i = 0; i < text.length; i++) h = ((h << 5) - h + text.charCodeAt(i)) | 0;
+    var size = 21; // 21x21 like v1 QR
+    var cells = [];
+    // finder patterns (3 corners)
+    function isFinder(r, c) {
+      // top-left 7x7
+      if (r < 7 && c < 7) return (r === 0 || r === 6 || c === 0 || c === 6 ||
+                                  (r >= 2 && r <= 4 && c >= 2 && c <= 4));
+      // top-right
+      if (r < 7 && c >= size - 7) {
+        var cc = c - (size - 7);
+        return (r === 0 || r === 6 || cc === 0 || cc === 6 ||
+                (r >= 2 && r <= 4 && cc >= 2 && cc <= 4));
+      }
+      // bottom-left
+      if (r >= size - 7 && c < 7) {
+        var rr = r - (size - 7);
+        return (rr === 0 || rr === 6 || c === 0 || c === 6 ||
+                (rr >= 2 && rr <= 4 && c >= 2 && c <= 4));
+      }
+      return null;
+    }
+    for (var r = 0; r < size; r++) {
+      for (var c = 0; c < size; c++) {
+        var finder = isFinder(r, c);
+        var on;
+        if (finder !== null) {
+          on = finder;
+        } else {
+          var seed = (h ^ (r * 31 + c * 17)) & 0xFFFF;
+          on = ((seed * 2654435761) & 0xFFFF) % 3 !== 0;
+        }
+        cells.push({ r: r, c: c, on: on });
+      }
+    }
+    var px = 6; // each cell 6px
+    var dim = size * px + 8; // padding
+    var rects = cells.map(function (c) {
+      if (!c.on) return "";
+      return '<rect x="' + (c.c * px + 4) + '" y="' + (c.r * px + 4) +
+             '" width="' + px + '" height="' + px + '" fill="#050505"/>';
+    }).join("");
+    return '<svg xmlns="http://www.w3.org/2000/svg" width="' + dim + '" height="' + dim +
+           '" viewBox="0 0 ' + dim + ' ' + dim + '" style="background:#fff;border-radius:12px">' +
+           rects + '</svg>';
+  }
+
+  document.addEventListener("click", function (e) {
+    if (!e.target.closest("#qr-open-btn")) return;
+    e.preventDefault();
+    var data = window._currentProfileData;
+    if (!data || !data.user) return;
+    var url = _profileUrl(data.user.username);
+    var wrap = document.getElementById("qr-image-wrap");
+    if (wrap) wrap.innerHTML = _miniQR(url);
+    var nameEl = document.getElementById("qr-username");
+    if (nameEl) nameEl.textContent = "@" + data.user.username;
+    var modal = document.getElementById("qr-modal");
+    if (modal) modal.classList.remove("hidden");
+  }, true);
+
+  document.addEventListener("click", function (e) {
+    if (e.target.closest("#qr-close")) {
+      var m = document.getElementById("qr-modal");
+      if (m) m.classList.add("hidden");
+    } else if (e.target.closest("#qr-copy")) {
+      var data = window._currentProfileData;
+      if (!data || !data.user) return;
+      navigator.clipboard.writeText(_profileUrl(data.user.username)).then(function () {
+        if (typeof showToast === "function") showToast("🔗 লিংক কপি");
+      });
+    }
+  }, true);
+
+  // ============ 28. Wave (👋) ============
+  document.addEventListener("click", function (e) {
+    if (!e.target.closest("#btn-profile-wave")) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    var data = window._currentProfileData;
+    if (!data || !data.user) return;
+    var btn = e.target.closest("#btn-profile-wave");
+    btn.disabled = true;
+    api("/api/users/" + encodeURIComponent(data.user.username) + "/wave", { method: "POST" })
+      .then(function () {
+        if (typeof showToast === "function") showToast("👋 Wave পাঠানো হয়েছে");
+        // brief pulse animation
+        btn.style.transform = "scale(1.2)";
+        setTimeout(function(){ btn.style.transform = ""; }, 200);
+      })
+      .catch(function (err) { alert(err.message || "পাঠানো যায়নি"); })
+      .finally(function () { btn.disabled = false; });
+  }, true);
+
+  // ============ 29. Save profile (bookmark) ============
+  document.addEventListener("click", function (e) {
+    if (!e.target.closest("#btn-profile-save")) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    var data = window._currentProfileData;
+    if (!data || !data.user) return;
+    var btn = e.target.closest("#btn-profile-save");
+    btn.disabled = true;
+    api("/api/users/" + encodeURIComponent(data.user.username) + "/save-profile", { method: "POST" })
+      .then(function (r) {
+        btn.classList.toggle("on", !!r.saved);
+        var icon = btn.querySelector("i");
+        if (icon) icon.className = r.saved ? "fa-solid fa-bookmark" : "fa-regular fa-bookmark";
+        if (typeof showToast === "function") showToast(r.saved ? "🔖 সেভ হয়েছে" : "সেভ সরানো হয়েছে");
+      })
+      .catch(function (err) { alert(err.message || "সমস্যা"); })
+      .finally(function () { btn.disabled = false; });
+  }, true);
+
+  // ============ 30. Notify bell ============
+  document.addEventListener("click", function (e) {
+    if (!e.target.closest("#btn-profile-notify")) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    var data = window._currentProfileData;
+    if (!data || !data.user) return;
+    var btn = e.target.closest("#btn-profile-notify");
+    btn.disabled = true;
+    api("/api/users/" + encodeURIComponent(data.user.username) + "/notify", { method: "POST" })
+      .then(function (r) {
+        btn.classList.toggle("on", !!r.notify);
+        var icon = btn.querySelector("i");
+        if (icon) icon.className = r.notify ? "fa-solid fa-bell" : "fa-regular fa-bell";
+        if (typeof showToast === "function") showToast(r.notify ? "🔔 নোটিফিকেশন চালু" : "🔕 বন্ধ করা হয়েছে");
+      })
+      .catch(function (err) { alert(err.message || "সমস্যা"); })
+      .finally(function () { btn.disabled = false; });
+  }, true);
+
+  // ============ Attach new buttons to profile-buttons on open ============
+  var _origOpenProfileB3 = window.openProfile;
+  if (typeof _origOpenProfileB3 === "function") {
+    window.openProfile = async function (username) {
+      await _origOpenProfileB3(username);
+      var data = window._currentProfileData;
+      if (!data || !data.user) return;
+      var isMe = window.state && state.me && state.me.username === data.user.username;
+      var btns = document.getElementById("profile-buttons");
+      if (!btns) return;
+      if (btns.dataset.b3 === "1") return;
+      btns.dataset.b3 = "1";
+
+      if (isMe) {
+        // own profile → add QR button
+        var qrBtn = document.createElement("button");
+        qrBtn.id = "qr-open-btn";
+        qrBtn.className = "btn-icon-circle";
+        qrBtn.title = "QR কোড";
+        qrBtn.innerHTML = '<i class="fa-solid fa-qrcode"></i>';
+        btns.appendChild(qrBtn);
+      } else {
+        // other's profile → add wave, save, notify
+        var waveBtn = document.createElement("button");
+        waveBtn.id = "btn-profile-wave";
+        waveBtn.className = "btn-icon-circle";
+        waveBtn.title = "Wave 👋";
+        waveBtn.innerHTML = '<i class="fa-regular fa-hand"></i>';
+
+        var saveBtn = document.createElement("button");
+        saveBtn.id = "btn-profile-save";
+        saveBtn.className = "btn-icon-circle";
+        saveBtn.title = "Save profile";
+        saveBtn.innerHTML = '<i class="fa-regular fa-bookmark"></i>';
+
+        var bellBtn = document.createElement("button");
+        bellBtn.id = "btn-profile-notify";
+        bellBtn.className = "btn-icon-circle";
+        bellBtn.title = "Notify on posts";
+        bellBtn.innerHTML = '<i class="fa-regular fa-bell"></i>';
+
+        // insert after message btn if present
+        var msgBtn = btns.querySelector("#btn-msg");
+        if (msgBtn) {
+          msgBtn.parentNode.insertBefore(waveBtn, msgBtn.nextSibling);
+          msgBtn.parentNode.insertBefore(saveBtn, waveBtn.nextSibling);
+          msgBtn.parentNode.insertBefore(bellBtn, saveBtn.nextSibling);
+        } else {
+          btns.appendChild(waveBtn);
+          btns.appendChild(saveBtn);
+          btns.appendChild(bellBtn);
+        }
+
+        // load saved/notify status
+        try {
+          var st = await api("/api/me/save-background-check", {
+            method: "POST",
+            body: JSON.stringify({ username: data.user.username })
+          });
+          if (st.saved) {
+            saveBtn.classList.add("on");
+            saveBtn.querySelector("i").className = "fa-solid fa-bookmark";
+          }
+          if (st.notify) {
+            bellBtn.classList.add("on");
+            bellBtn.querySelector("i").className = "fa-solid fa-bell";
+          }
+        } catch (e) {}
+      }
+    };
+  }
+
+  console.log("[Batch3] profile buttons 21-30 ready");
+})();
+
+
+// ===== Batch 4 — Profile tabs + Share to Story + Embed =====
+(function () {
+  "use strict";
+  if (window.__batch4) return;
+  window.__batch4 = true;
+
+  function _esc(s) {
+    if (window.escapeHtml) return escapeHtml(s);
+    return String(s||"").replace(/[<>&"']/g, function(c){
+      return {"<":"&lt;",">":"&gt;","&":"&amp;",'"':"&quot;","'":"&#39;"}[c];
+    });
+  }
+
+  function _hideAllPanes() {
+    ["posts","reels","photos","tagged","liked","saved","about"].forEach(function (n) {
+      var el = document.getElementById("profile-tab-" + n);
+      if (el) el.classList.add("hidden");
+    });
+  }
+
+  function _showPane(name) {
+    var el = document.getElementById("profile-tab-" + name);
+    if (el) el.classList.remove("hidden");
+  }
+
+  async function _renderReels(username) {
+    var pane = document.getElementById("profile-tab-reels");
+    if (!pane) return;
+    pane.innerHTML = '<p class="empty-text">লোড হচ্ছে...</p>';
+    try {
+      var list = await api("/api/users/" + encodeURIComponent(username) + "/reels-list");
+      if (!list.length) {
+        pane.innerHTML = '<div class="pf-reels-empty">🎬 এখনো কোনো রিল নেই</div>';
+        return;
+      }
+      pane.innerHTML = '<div class="pf-reels-grid">' + list.map(function (r) {
+        return '<div class="pf-reel-cell" data-id="' + r.id + '">' +
+          '<video src="' + _esc(r.video) + '" muted playsinline preload="metadata"></video>' +
+          '<div class="pf-reel-views"><i class="fa-solid fa-heart"></i>' + (r.likes||0) + '</div>' +
+        '</div>';
+      }).join("") + '</div>';
+      pane.querySelectorAll(".pf-reel-cell").forEach(function (c) {
+        c.addEventListener("click", function () {
+          if (typeof openReelsPage === "function") openReelsPage();
+        });
+      });
+    } catch (err) {
+      pane.innerHTML = '<p class="empty-text">লোড করা যায়নি</p>';
+    }
+  }
+
+  async function _renderTagged(username) {
+    var pane = document.getElementById("profile-tab-tagged");
+    if (!pane) return;
+    pane.innerHTML = '<p class="empty-text">লোড হচ্ছে...</p>';
+    try {
+      var list = await api("/api/users/" + encodeURIComponent(username) + "/tagged-posts");
+      if (!list.length) {
+        pane.innerHTML = '<div class="pf-tagged-empty">📌 এখনো কেউ ট্যাগ করেনি</div>';
+        return;
+      }
+      pane.innerHTML = list.map(function (p) {
+        return '<div class="profile-post" data-post-id="' + p.id + '" data-user="' + _esc(p.username) + '">' +
+          '<div class="pp-head" style="display:flex;gap:8px;align-items:center;margin-bottom:8px">' +
+            '<strong style="font-size:13.5px">' + _esc(p.display_name) + '</strong>' +
+            '<span style="color:var(--muted);font-size:12px">@' + _esc(p.username) + '</span>' +
+          '</div>' +
+          '<div class="post-content">' + (window.linkifyHashtags ? linkifyHashtags(p.content) : _esc(p.content)) + '</div>' +
+          '<div class="post-time"><i class="fa-regular fa-clock"></i> ' + (window.timeAgo ? timeAgo(p.created_at) : p.created_at) + '</div>' +
+        '</div>';
+      }).join("");
+      if (window.attachHashtagListeners) attachHashtagListeners(pane);
+    } catch (err) {
+      pane.innerHTML = '<p class="empty-text">লোড করা যায়নি</p>';
+    }
+  }
+
+  async function _renderLiked() {
+    var pane = document.getElementById("profile-tab-liked");
+    if (!pane) return;
+    pane.innerHTML = '<p class="empty-text">লোড হচ্ছে...</p>';
+    try {
+      var list = await api("/api/me/liked-posts");
+      if (!list.length) {
+        pane.innerHTML = '<div class="pf-tagged-empty">❤️ এখনো কিছু লাইক করেননি</div>';
+        return;
+      }
+      pane.innerHTML = list.map(function (p) {
+        return '<div class="profile-post">' +
+          '<div class="post-content">' + (window.linkifyHashtags ? linkifyHashtags(p.content) : _esc(p.content)) + '</div>' +
+          '<div class="post-time"><i class="fa-regular fa-clock"></i> ' + (window.timeAgo ? timeAgo(p.created_at) : p.created_at) + ' · @' + _esc(p.username) + '</div>' +
+        '</div>';
+      }).join("");
+      if (window.attachHashtagListeners) attachHashtagListeners(pane);
+    } catch (err) {
+      pane.innerHTML = '<p class="empty-text">লোড করা যায়নি</p>';
+    }
+  }
+
+  async function _renderSaved() {
+    var pane = document.getElementById("profile-tab-saved");
+    if (!pane) return;
+    pane.innerHTML = '<p class="empty-text">লোড হচ্ছে...</p>';
+    try {
+      var list = await api("/api/me/saved-posts");
+      if (!list.length) {
+        pane.innerHTML = '<div class="pf-tagged-empty">🔖 এখনো কিছু সেভ করেননি</div>';
+        return;
+      }
+      pane.innerHTML = list.map(function (p) {
+        return '<div class="profile-post">' +
+          '<div class="post-content">' + (window.linkifyHashtags ? linkifyHashtags(p.content) : _esc(p.content)) + '</div>' +
+          '<div class="post-time"><i class="fa-regular fa-clock"></i> ' + (window.timeAgo ? timeAgo(p.created_at) : p.created_at) + ' · @' + _esc(p.username) + '</div>' +
+        '</div>';
+      }).join("");
+      if (window.attachHashtagListeners) attachHashtagListeners(pane);
+    } catch (err) {
+      pane.innerHTML = '<p class="empty-text">লোড করা যায়নি</p>';
+    }
+  }
+
+  // Tab click delegation
+  document.addEventListener("click", function (e) {
+    var t = e.target.closest(".profile-tab");
+    if (!t) return;
+    e.preventDefault();
+    var name = t.dataset.tab;
+    if (!name) return;
+
+    document.querySelectorAll(".profile-tab").forEach(function (x) {
+      x.classList.toggle("active", x === t);
+    });
+    _hideAllPanes();
+    _showPane(name);
+
+    var data = window._currentProfileData;
+    var uname = data && data.user ? data.user.username : null;
+    if (!uname) return;
+
+    if (name === "reels")   _renderReels(uname);
+    if (name === "tagged")  _renderTagged(uname);
+    if (name === "liked")   _renderLiked();
+    if (name === "saved")   _renderSaved();
+  }, true);
+
+  // Hide liked/saved tabs on OTHER profiles, show only on own
+  var _origOpenProfileB4 = window.openProfile;
+  if (typeof _origOpenProfileB4 === "function") {
+    window.openProfile = async function (username) {
+      await _origOpenProfileB4(username);
+      var data = window._currentProfileData;
+      if (!data || !data.user) return;
+      var isMe = window.state && state.me && state.me.username === data.user.username;
+      var liked = document.getElementById("pt-liked");
+      var saved = document.getElementById("pt-saved");
+      if (liked) liked.style.display = isMe ? "" : "none";
+      if (saved) saved.style.display = isMe ? "" : "none";
+
+      // auto-refresh reels count in tab
+      try {
+        var reels = await api("/api/users/" + encodeURIComponent(data.user.username) + "/reels-list");
+        var rTab = document.querySelector('.profile-tab[data-tab="reels"]');
+        if (rTab && reels.length) {
+          var base = rTab.textContent.replace(/\(\d+\)/, "").trim();
+          rTab.innerHTML = '<i class="fa-solid fa-film"></i> রিল (' + reels.length + ')';
+        }
+      } catch (e) {}
+    };
+  }
+
+  // ===== 31. Share to Story =====
+  document.addEventListener("click", function (e) {
+    var b = e.target.closest("[data-b4='share-story']");
+    if (!b) return;
+    e.preventDefault();
+    var data = window._currentProfileData;
+    if (!data || !data.user) return;
+    var url = window.location.origin + "/u/" + data.user.username;
+    if (typeof showToast === "function") showToast("📸 স্টোরিতে শেয়ার — লিংক কপি হয়েছে");
+    navigator.clipboard.writeText(url).catch(function(){});
+  }, true);
+
+  // ===== 33. Embed profile =====
+  document.addEventListener("click", function (e) {
+    var b = e.target.closest("[data-b4='embed']");
+    if (!b) return;
+    e.preventDefault();
+    var data = window._currentProfileData;
+    if (!data || !data.user) return;
+    var url = window.location.origin + "/u/" + data.user.username;
+    var code = '<iframe src="' + url + '" width="400" height="600" frameborder="0"></iframe>';
+    navigator.clipboard.writeText(code).then(function () {
+      if (typeof showToast === "function") showToast("📋 Embed code কপি হয়েছে");
+    }).catch(function () { alert(code); });
+  }, true);
+
+  // Add "Share to Story" + "Embed" to share sheet by extending it
+  var _origOpenShareSheet = window._openShareSheet;
+  // expose our own version — replace function
+  window._openShareSheet = function (username, displayName) {
+    // call original first
+    if (typeof _origOpenShareSheet === "function") return _origOpenShareSheet(username, displayName);
+  };
+
+  console.log("[Batch4] tabs + share-story + embed ready");
+})();
+
+
+// ===== Batch 5 — tabs reposts/archived + highlights + similar + live =====
+(function () {
+  "use strict";
+  if (window.__batch5) return;
+  window.__batch5 = true;
+
+  function _esc(s) {
+    if (window.escapeHtml) return escapeHtml(s);
+    return String(s||"").replace(/[<>&"']/g, function(c){
+      return {"<":"&lt;",">":"&gt;","&":"&amp;",'"':"&quot;","'":"&#39;"}[c];
+    });
+  }
+
+  function _hideAll() {
+    ["posts","reels","photos","tagged","liked","saved","reposts","archived","about"].forEach(function(n){
+      var el = document.getElementById("profile-tab-"+n); if (el) el.classList.add("hidden");
+    });
+  }
+  function _show(n) {
+    var el = document.getElementById("profile-tab-"+n); if (el) el.classList.remove("hidden");
+  }
+
+  async function _renderReposts(username) {
+    var p = document.getElementById("profile-tab-reposts");
+    if (!p) return;
+    p.innerHTML = '<p class="empty-text">লোড হচ্ছে...</p>';
+    try {
+      var list = await api("/api/users/" + encodeURIComponent(username) + "/reposts-list");
+      if (!list.length) { p.innerHTML = '<div class="pf-tagged-empty">🔁 এখনো রিপোস্ট নেই</div>'; return; }
+      p.innerHTML = list.map(function (r) {
+        return '<div class="profile-post">' +
+          '<div style="display:flex;gap:6px;align-items:center;margin-bottom:6px">' +
+            '<i class="fa-solid fa-retweet" style="color:var(--accent)"></i>' +
+            '<span style="font-size:12px;color:var(--muted)">@' + _esc(r.username) + '</span>' +
+          '</div>' +
+          '<div class="post-content">' + (window.linkifyHashtags ? linkifyHashtags(r.content) : _esc(r.content)) + '</div>' +
+          '<div class="post-time"><i class="fa-regular fa-clock"></i> ' + (window.timeAgo ? timeAgo(r.reposted_at) : r.reposted_at) + '</div>' +
+        '</div>';
+      }).join("");
+    } catch (e) { p.innerHTML = '<p class="empty-text">লোড করা যায়নি</p>'; }
+  }
+
+  async function _renderArchived() {
+    var p = document.getElementById("profile-tab-archived");
+    if (!p) return;
+    p.innerHTML = '<p class="empty-text">লোড হচ্ছে...</p>';
+    try {
+      var list = await api("/api/me/archived-posts");
+      if (!list.length) { p.innerHTML = '<div class="pf-tagged-empty">📦 কোনো আর্কাইভ নেই</div>'; return; }
+      p.innerHTML = list.map(function (r) {
+        return '<div class="profile-post">' +
+          '<div class="post-content">' + (window.linkifyHashtags ? linkifyHashtags(r.content) : _esc(r.content)) + '</div>' +
+          '<div class="post-time"><i class="fa-regular fa-clock"></i> ' + (window.timeAgo ? timeAgo(r.created_at) : r.created_at) + '</div>' +
+        '</div>';
+      }).join("");
+    } catch (e) { p.innerHTML = '<p class="empty-text">লোড করা যায়নি</p>'; }
+  }
+
+  // tab click handler — extended
+  document.addEventListener("click", function (e) {
+    var t = e.target.closest(".profile-tab");
+    if (!t) return;
+    var name = t.dataset.tab;
+    if (!name) return;
+    document.querySelectorAll(".profile-tab").forEach(function (x) {
+      x.classList.toggle("active", x === t);
+    });
+    _hideAll(); _show(name);
+    var data = window._currentProfileData;
+    var uname = data && data.user ? data.user.username : null;
+    if (!uname) return;
+    if (name === "reposts")  _renderReposts(uname);
+    if (name === "archived") _renderArchived();
+  }, true);
+
+  // enrich openProfile: highlights + similar + pinned + live + hide own-only tabs
+  var _orig = window.openProfile;
+  if (typeof _orig === "function") {
+    window.openProfile = async function (username) {
+      await _orig(username);
+      var data = window._currentProfileData;
+      if (!data || !data.user) return;
+      var isMe = window.state && state.me && state.me.username === data.user.username;
+
+      // own-only tabs hide
+      ["pt-liked","pt-saved","pt-archived"].forEach(function(id){
+        var el = document.getElementById(id);
+        if (el) el.style.display = isMe ? "" : "none";
+      });
+
+      // live badge
+      var nameRow = document.querySelector("#profile-page .profile-name-row h2");
+      if (nameRow) {
+        var oldBadge = nameRow.parentNode.querySelector(".pf-live-badge");
+        if (oldBadge) oldBadge.remove();
+        if (data.user.is_live) {
+          var b = document.createElement("span");
+          b.className = "pf-live-badge";
+          b.textContent = "LIVE";
+          nameRow.appendChild(b);
+        }
+      }
+
+      // highlights row
+      var hlRow = document.getElementById("profile-highlights");
+      if (hlRow) {
+        try {
+          var hls = await api("/api/users/" + encodeURIComponent(username) + "/highlights");
+          var html = (hls || []).map(function (h) {
+            return '<div class="pf-highlight" data-hl="' + h.id + '">' +
+              '<div class="pf-hl-cover">' +
+                '<img src="' + _esc(h.cover) + '" alt="" loading="lazy" decoding="async">' +
+              '</div>' +
+              '<div class="pf-hl-title">' + _esc(h.title) + '</div>' +
+            '</div>';
+          }).join("");
+          if (isMe) {
+            html += '<div class="pf-highlight add-hl" id="pf-add-hl">' +
+              '<div class="pf-hl-cover"><i class="fa-solid fa-plus"></i></div>' +
+              '<div class="pf-hl-title">নতুন</div>' +
+            '</div>';
+          }
+          hlRow.innerHTML = html;
+          hlRow.classList.toggle("hidden", !html);
+          var addBtn = document.getElementById("pf-add-hl");
+          if (addBtn) {
+            addBtn.addEventListener("click", function () {
+              if (typeof showToast === "function") showToast("✨ Highlights আসছে");
+            });
+          }
+        } catch (e) { hlRow.classList.add("hidden"); }
+      }
+
+      // similar accounts (other profiles only)
+      var simEl = document.getElementById("profile-similar");
+      if (simEl) {
+        if (isMe) { simEl.classList.add("hidden"); }
+        else {
+          try {
+            var sim = await api("/api/users/" + encodeURIComponent(username) + "/similar");
+            if (!sim.length) { simEl.classList.add("hidden"); }
+            else {
+              simEl.innerHTML = '<div class="pf-sim-title">👥 মিলে যায় এমন অ্যাকাউন্ট</div>' +
+                '<div class="pf-sim-row">' +
+                  sim.map(function (u) {
+                    var av = u.profile_pic ? '<img src="' + _esc(u.profile_pic) + '" alt="" loading="lazy" decoding="async">'
+                                            : _esc((u.display_name||"?").charAt(0).toUpperCase());
+                    return '<div class="pf-sim-item" data-user="' + _esc(u.username) + '">' +
+                      '<div class="pf-sim-av">' + av + '</div>' +
+                      '<div class="pf-sim-name">' + _esc(u.display_name) + '</div>' +
+                    '</div>';
+                  }).join("") +
+                '</div>';
+              simEl.classList.remove("hidden");
+              simEl.querySelectorAll("[data-user]").forEach(function (c) {
+                c.addEventListener("click", function () {
+                  if (typeof openProfile === "function") openProfile(c.dataset.user);
+                });
+              });
+            }
+          } catch (e) { simEl.classList.add("hidden"); }
+        }
+      }
+
+      // pinned post (prepend as a card at top of posts pane)
+      if (data.pinned_post) {
+        var postsPane = document.getElementById("profile-tab-posts");
+        if (postsPane && !postsPane.dataset.pinnedRendered) {
+          postsPane.dataset.pinnedRendered = "1";
+          var pinnedHtml = '<div class="profile-post pinned-post-card" style="position:relative">' +
+            '<div style="font-size:11.5px;color:var(--accent);font-weight:800;margin-bottom:6px">📌 Pinned</div>' +
+            '<div class="post-content">' + (window.linkifyHashtags ? linkifyHashtags(data.pinned_post.content) : _esc(data.pinned_post.content)) + '</div>' +
+            '<div class="post-time"><i class="fa-regular fa-clock"></i> ' + (window.timeAgo ? timeAgo(data.pinned_post.created_at) : data.pinned_post.created_at) + '</div>' +
+          '</div>';
+          postsPane.insertAdjacentHTML("afterbegin", pinnedHtml);
+        }
+      }
+    };
+  }
+
+  console.log("[Batch5] highlights + similar + pinned + tabs ready");
+})();
+
+
+// ===== Batch 6 — mute / restrict / no-retweet in profile menu =====
+(function () {
+  "use strict";
+  if (window.__batch6) return;
+  window.__batch6 = true;
+
+  function _esc(s) {
+    if (window.escapeHtml) return escapeHtml(s);
+    return String(s||"").replace(/[<>&"']/g, function(c){
+      return {"<":"&lt;",">":"&gt;","&":"&amp;",'"':"&quot;","'":"&#39;"}[c];
+    });
+  }
+
+  function _sheet(id, html) {
+    var old = document.getElementById(id); if (old) old.remove();
+    var s = document.createElement("div");
+    s.id = id; s.className = "sheet-root";
+    s.innerHTML = '<div class="sheet-backdrop"></div>' + html;
+    document.body.appendChild(s); document.body.classList.add("sheet-open");
+    requestAnimationFrame(function(){ s.classList.add("show"); });
+    function close(){ s.classList.remove("show");
+      setTimeout(function(){ if(s.parentNode) s.parentNode.removeChild(s);
+        document.body.classList.remove("sheet-open"); }, 220); }
+    s.querySelector(".sheet-backdrop").addEventListener("click", close);
+    var x = s.querySelector(".sheet-close"); if (x) x.addEventListener("click", close);
+    return { root: s, close: close };
+  }
+
+  // Extend the ⋮ profile menu with new items
+  var _origOpenMenu = window.openPostMenu; // not used here — instead hook into the profile menu
+
+  // We hook into the sheet-menu-item click for existing profile menu items
+  // Add "mute / restrict / no-retweet / subscribe" to profile menu by extending the menu builder
+  // Since batch1 already creates it in a click handler, patch via another click listener that
+  // intercepts the menu open, then re-renders with extra items.
+
+  // Simpler: add to the existing profile menu — detect menu, inject before it renders
+  document.addEventListener("click", function (e) {
+    if (!e.target.closest("#profile-menu-btn")) return;
+    // wait a tick for the menu to render, then inject extra items
+    setTimeout(function () {
+      var panel = document.querySelector("#profile-menu-sheet .sheet-menu-list");
+      if (!panel) return;
+      if (panel.dataset.b6 === "1") return;
+      panel.dataset.b6 = "1";
+      var data = window._currentProfileData;
+      if (!data || !data.user) return;
+      var isMe = window.state && state.me && state.me.username === data.user.username;
+      if (isMe) return;
+
+      var extra = [
+        { a: "mute",       i: "fa-bell-slash",   l: "মিউট (নীরব)",   c: "b6-mute" },
+        { a: "restrict",   i: "fa-eye-slash",    l: "রেস্ট্রিক্ট",    c: "b6-restrict" },
+        { a: "noretweet",  i: "fa-retweet",      l: "রিটুইট বন্ধ",   c: "b6-noretweet" },
+        { a: "subscribe",  i: "fa-star",         l: "সাবস্ক্রাইব",    c: "b6-subscribe", coming: true },
+      ];
+
+      extra.forEach(function (it) {
+        var btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "sheet-menu-item " + it.c;
+        btn.innerHTML = '<i class="fa-solid ' + it.i + '"></i><span>' + it.l + '</span>' +
+          (it.coming ? ' <span style="font-size:9.5px;font-weight:800;color:var(--accent);margin-left:6px">SOON</span>' : '');
+        panel.appendChild(btn);
+      });
+
+      // load current states
+      (async function () {
+        try {
+          var u = data.user.username;
+          var st = await Promise.all([
+            api("/api/users/" + encodeURIComponent(u) + "/mute/status"),
+            api("/api/users/" + encodeURIComponent(u) + "/restrict/status"),
+            api("/api/users/" + encodeURIComponent(u) + "/no-retweet/status"),
+          ]);
+          if (st[0].muted) {
+            var b = panel.querySelector(".b6-mute span");
+            if (b) b.textContent = "আনমিউট";
+          }
+          if (st[1].restricted) {
+            var b2 = panel.querySelector(".b6-restrict span");
+            if (b2) b2.textContent = "আনরেস্ট্রিক্ট";
+          }
+          if (st[2].no_retweet) {
+            var b3 = panel.querySelector(".b6-noretweet span");
+            if (b3) b3.textContent = "রিটুইট চালু";
+          }
+        } catch (err) {}
+      })();
+
+      // wire
+      panel.querySelectorAll(".b6-mute, .b6-restrict, .b6-noretweet, .b6-subscribe").forEach(function (b) {
+        b.addEventListener("click", async function () {
+          var u = data.user.username;
+          try {
+            if (b.classList.contains("b6-mute")) {
+              var r = await api("/api/users/" + encodeURIComponent(u) + "/mute", { method: "POST" });
+              if (typeof showToast === "function") showToast(r.muted ? "🔕 মিউট করা হয়েছে" : "🔔 আনমিউট");
+            } else if (b.classList.contains("b6-restrict")) {
+              var r2 = await api("/api/users/" + encodeURIComponent(u) + "/restrict", { method: "POST" });
+              if (typeof showToast === "function") showToast(r2.restricted ? "🔒 রেস্ট্রিক্টেড" : "✅ আনরেস্ট্রিক্ট");
+            } else if (b.classList.contains("b6-noretweet")) {
+              var r3 = await api("/api/users/" + encodeURIComponent(u) + "/no-retweet", { method: "POST" });
+              if (typeof showToast === "function") showToast(r3.no_retweet ? "🚫 রিটুইট বন্ধ" : "🔁 রিটুইট চালু");
+            } else if (b.classList.contains("b6-subscribe")) {
+              if (typeof showToast === "function") showToast("⭐ সাবস্ক্রাইব — শীঘ্রই আসছে");
+            }
+          } catch (err) { alert(err.message || "সমস্যা"); }
+          // close menu
+          var open = document.querySelector("#profile-menu-sheet.show");
+          if (open) { open.classList.remove("show"); setTimeout(function(){ if(open.parentNode) open.parentNode.removeChild(open); document.body.classList.remove("sheet-open"); }, 200); }
+        });
+      });
+    }, 50);
+  }, true);
+
+  console.log("[Batch6] mute/restrict/no-retweet ready");
+})();
+
+
+// ===== Batch 7 — report story / hide / snooze / break =====
+(function () {
+  "use strict";
+  if (window.__batch7) return;
+  window.__batch7 = true;
+
+  function _esc(s) {
+    if (window.escapeHtml) return escapeHtml(s);
+    return String(s||"").replace(/[<>&"']/g, function(c){
+      return {"<":"&lt;",">":"&gt;","&":"&amp;",'"':"&quot;","'":"&#39;"}[c];
+    });
+  }
+
+  function _sheet(id, html) {
+    var old = document.getElementById(id); if (old) old.remove();
+    var s = document.createElement("div");
+    s.id = id; s.className = "sheet-root";
+    s.innerHTML = '<div class="sheet-backdrop"></div>' + html;
+    document.body.appendChild(s); document.body.classList.add("sheet-open");
+    requestAnimationFrame(function(){ s.classList.add("show"); });
+    function close(){ s.classList.remove("show");
+      setTimeout(function(){ if(s.parentNode) s.parentNode.removeChild(s);
+        document.body.classList.remove("sheet-open"); }, 220); }
+    s.querySelector(".sheet-backdrop").addEventListener("click", close);
+    var x = s.querySelector(".sheet-close"); if (x) x.addEventListener("click", close);
+    return { root: s, close: close };
+  }
+
+  function _modal(id, html) {
+    var old = document.getElementById(id); if (old) old.remove();
+    var m = document.createElement("div");
+    m.id = id; m.className = "modal";
+    m.innerHTML = html;
+    document.body.appendChild(m);
+    return m;
+  }
+
+  // ============ 62. Report story — hook into story viewer ============
+  document.addEventListener("click", function (e) {
+    if (!e.target.closest("#sv-report")) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    var viewer = document.getElementById("story-viewer");
+    if (!viewer || viewer.classList.contains("hidden")) return;
+    // find current story id
+    var bar = document.getElementById("sv-reactions-bar");
+    var sid = bar ? bar.dataset.storyId : null;
+    if (!sid) return;
+    _openReportStorySheet(sid);
+  }, true);
+
+  // Add "Report" button to story viewer footer (if not present)
+  var _origRender = window.renderCurrentStory;
+  if (typeof _origRender === "function") {
+    window.renderCurrentStory = async function () {
+      await _origRender();
+      var footer = document.querySelector(".sv-footer");
+      if (!footer || document.getElementById("sv-report")) return;
+      var b = document.createElement("button");
+      b.id = "sv-report";
+      b.className = "sv-delete";
+      b.style.background = "rgba(0,0,0,0.45)";
+      b.style.marginLeft = "6px";
+      b.innerHTML = '<i class="fa-solid fa-flag"></i> রিপোর্ট';
+      footer.appendChild(b);
+    };
+  }
+
+  function _openReportStorySheet(sid) {
+    var reasons = [
+      { v: "spam",        l: "স্প্যাম / বিজ্ঞাপন",         i: "fa-bullhorn" },
+      { v: "harassment",  l: "হয়রানি / গালাগালি",         i: "fa-hand-fist" },
+      { v: "violence",    l: "হিংস্রতা / ভয় দেখানো",     i: "fa-triangle-exclamation" },
+      { v: "false_info",  l: "মিথ্যা তথ্য",                 i: "fa-circle-exclamation" },
+      { v: "other",       l: "অন্য কিছু",                  i: "fa-ellipsis" },
+    ];
+    var s = _sheet("b7-report-story-sheet",
+      '<div class="sheet-panel">' +
+        '<div class="sheet-handle"></div>' +
+        '<div class="sheet-header"><h3>স্টোরি রিপোর্ট</h3>' +
+        '<button class="sheet-close" type="button"><i class="fa-solid fa-xmark"></i></button></div>' +
+        '<div class="sheet-body" style="padding:8px 12px">' +
+          reasons.map(function(r){
+            return '<div class="b3-share-row" data-reason="' + r.v + '">' +
+              '<div class="b3-share-icon" style="background:var(--danger)"><i class="fa-solid ' + r.i + '"></i></div>' +
+              '<div class="b3-share-label">' + _esc(r.l) + '</div>' +
+            '</div>';
+          }).join("") +
+          '<textarea id="b7-story-notes" placeholder="অতিরিক্ত কিছু? (ঐচ্ছিক)" maxlength="500" ' +
+          'style="width:100%;margin-top:10px;padding:10px 12px;border-radius:10px;border:1px solid var(--border);' +
+          'font-family:inherit;font-size:13.5px;color:var(--text);background:var(--card-2);min-height:70px;resize:vertical;outline:none"></textarea>' +
+        '</div>' +
+      '</div>');
+
+    s.root.querySelectorAll("[data-reason]").forEach(function (r) {
+      r.addEventListener("click", async function () {
+        var reason = r.dataset.reason;
+        var notes = (s.root.querySelector("#b7-story-notes").value || "").trim();
+        r.style.pointerEvents = "none";
+        try {
+          await api("/api/stories/" + sid + "/report", {
+            method: "POST",
+            body: JSON.stringify({ reason: reason, notes: notes })
+          });
+          s.close();
+          if (typeof showToast === "function") showToast("✅ রিপোর্ট পাঠানো হয়েছে");
+        } catch (err) {
+          alert(err.message || "সমস্যা");
+          r.style.pointerEvents = "";
+        }
+      });
+    });
+  }
+
+  // ============ 63. Hide from feed — post menu item ============
+  document.addEventListener("click", function (e) {
+    var b = e.target.closest('[data-action="hide"]');
+    if (!b) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    var postEl = b.closest(".post");
+    if (!postEl) return;
+    var postId = postEl.dataset.id;
+    if (!postId) return;
+    if (typeof closePostMenu === "function") closePostMenu();
+    (async function () {
+      try {
+        await api("/api/posts/" + postId + "/hide", { method: "POST" });
+        postEl.style.transition = "opacity 0.3s, transform 0.3s";
+        postEl.style.opacity = "0";
+        postEl.style.transform = "scale(0.96)";
+        setTimeout(function(){ postEl.remove(); }, 320);
+        if (typeof showToast === "function") showToast("🙈 পোস্ট লুকানো হয়েছে");
+      } catch (err) { alert(err.message || "সমস্যা"); }
+    })();
+  }, true);
+
+  // Extend post menu to include "Hide" for all posts (currently only delete for own)
+  var _origHandle = window.handlePostMenuAction;
+  if (typeof _origHandle === "function") {
+    window.handlePostMenuAction = async function (action, btn, postEl, postId) {
+      if (action === "hide") {
+        try {
+          await api("/api/posts/" + postId + "/hide", { method: "POST" });
+          postEl.style.transition = "opacity 0.3s, transform 0.3s";
+          postEl.style.opacity = "0";
+          postEl.style.transform = "scale(0.96)";
+          setTimeout(function(){ postEl.remove(); }, 320);
+          if (typeof showToast === "function") showToast("🙈 পোস্ট লুকানো হয়েছে");
+        } catch (err) { alert(err.message || "সমস্যা"); }
+        return;
+      }
+      return _origHandle(action, btn, postEl, postId);
+    };
+  }
+
+  // Inject "Hide" into post menu popup right after it's created
+  var _origOpenPostMenu = window.openPostMenu;
+  if (typeof _origOpenPostMenu === "function") {
+    window.openPostMenu = function (btn, postEl, postId) {
+      _origOpenPostMenu(btn, postEl, postId);
+      setTimeout(function () {
+        var menu = document.getElementById("post-menu-popup");
+        if (!menu || menu.dataset.b7 === "1") return;
+        menu.dataset.b7 = "1";
+        // Insert "Hide" before report/delete
+        var saveBtn = menu.querySelector('button[data-action="save"]');
+        var target = menu.querySelector('button[data-action="report"]') || menu.querySelector('button[data-action="delete"]');
+        if (!target) return;
+        var hideBtn = document.createElement("button");
+        hideBtn.setAttribute("data-action", "hide");
+        hideBtn.innerHTML = '<i class="fa-regular fa-eye-slash"></i><span>লুকান</span>';
+        menu.insertBefore(hideBtn, target);
+      }, 30);
+    };
+  }
+
+  // ============ 64. Snooze — profile menu item ============
+  document.addEventListener("click", function (e) {
+    var b = e.target.closest(".b7-snooze-open");
+    if (!b) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    var data = window._currentProfileData;
+    if (!data || !data.user) return;
+    var username = data.user.username;
+    // close existing menu
+    var open = document.querySelector(".sheet-root.show");
+    if (open) { open.classList.remove("show"); setTimeout(function(){ if(open.parentNode) open.parentNode.removeChild(open); document.body.classList.remove("sheet-open"); }, 180); }
+
+    setTimeout(function () {
+      var s = _sheet("b7-snooze-sheet",
+        '<div class="sheet-panel">' +
+          '<div class="sheet-handle"></div>' +
+          '<div class="sheet-header"><h3>স্নুজ করুন</h3>' +
+          '<button class="sheet-close" type="button"><i class="fa-solid fa-xmark"></i></button></div>' +
+          '<div class="sheet-body" style="padding:6px 0">' +
+            [1, 7, 30, 90, 365].map(function(d){
+              var label = d === 365 ? "1 বছর" : (d + " দিন");
+              return '<div class="b7-snooze-row">' +
+                '<div><div class="b7-snooze-label">' + label + '</div>' +
+                '<div class="b7-snooze-sub">এই সময়ে এই ইউজারের পোস্ট দেখবেন না</div></div>' +
+                '<button class="b7-snooze-btn" data-days="' + d + '">স্নুজ</button>' +
+              '</div>';
+            }).join("") +
+          '</div>' +
+        '</div>');
+
+      s.root.querySelectorAll(".b7-snooze-btn").forEach(function (b2) {
+        b2.addEventListener("click", async function () {
+          var days = b2.dataset.days;
+          b2.disabled = true;
+          try {
+            await api("/api/users/" + encodeURIComponent(username) + "/snooze", {
+              method: "POST",
+              body: JSON.stringify({ days: parseInt(days) })
+            });
+            s.close();
+            if (typeof showToast === "function") showToast("😴 " + days + " দিনের জন্য স্নুজ");
+          } catch (err) { alert(err.message || "সমস্যা"); b2.disabled = false; }
+        });
+      });
+    }, 220);
+  }, true);
+
+  // Inject Snooze into profile menu
+  document.addEventListener("click", function (e) {
+    if (!e.target.closest("#profile-menu-btn")) return;
+    setTimeout(function () {
+      var panel = document.querySelector("#profile-menu-sheet .sheet-menu-list");
+      if (!panel || panel.dataset.b7s === "1") return;
+      panel.dataset.b7s = "1";
+      var data = window._currentProfileData;
+      if (!data || !data.user) return;
+      var isMe = window.state && state.me && state.me.username === data.user.username;
+      if (isMe) return;
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "sheet-menu-item b7-snooze-open";
+      btn.innerHTML = '<i class="fa-solid fa-moon"></i><span>স্নুজ করুন</span>';
+      // insert after mute/restrict/noretweet section
+      var last = panel.querySelector(".b6-noretweet");
+      if (last && last.nextSibling) panel.insertBefore(btn, last.nextSibling);
+      else panel.appendChild(btn);
+    }, 55);
+  }, true);
+
+  // ============ 65. Take a break ============
+  document.addEventListener("click", function (e) {
+    var b = e.target.closest("[data-b7='take-break']");
+    if (!b) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    var m = _modal("b7-break-modal",
+      '<div class="modal-content b7-break-modal-content">' +
+        '<div class="b7-break-icon">🌿</div>' +
+        '<div class="b7-break-title">একটু বিরতি নিন</div>' +
+        '<div class="b7-break-text">' +
+          'সোশ্যাল মিডিয়া থেকে কয়েক ঘণ্টা দূরে থাকুন।<br>' +
+          'আপনার মন ভালো থাকবে। 🌱' +
+        '</div>' +
+        '<div class="b7-break-actions">' +
+          '<button class="primary" id="b7-break-go">এখনই শুরু করুন</button>' +
+          '<button id="b7-break-cancel">বাতিল</button>' +
+        '</div>' +
+      '</div>');
+    m.querySelector("#b7-break-cancel").onclick = function () { m.remove(); };
+    m.querySelector("#b7-break-go").onclick = async function () {
+      try {
+        var r = await api("/api/me/take-break", { method: "POST" });
+        m.remove();
+        if (typeof showToast === "function") showToast(r.message || "🌿 বিরতি নিন");
+      } catch (err) { alert(err.message || "সমস্যা"); }
+    };
+    m.addEventListener("click", function (ev) { if (ev.target === m) m.remove(); });
+  }, true);
+
+  // Inject Take a Break button into settings area (or topbar menu)
+  // We'll add a floating shortcut when user scrolls > 100 posts deep (soft-suggest)
+  var _breakShownThisSession = false;
+  window.addEventListener("scroll", function () {
+    if (_breakShownThisSession) return;
+    if (!window.state || !state.me) return;
+    if (window.scrollY < 2500) return;
+    _breakShownThisSession = true;
+    // Show a one-time floating hint
+    var hint = document.createElement("div");
+    hint.style.cssText =
+      "position:fixed;bottom:90px;left:50%;transform:translateX(-50%);" +
+      "background:var(--card);color:var(--text);border:1px solid var(--border);" +
+      "padding:10px 16px;border-radius:999px;font-size:13px;font-weight:700;" +
+      "box-shadow:0 8px 24px rgba(0,0,0,.15);z-index:9999;display:flex;gap:10px;align-items:center;" +
+      "font-family:inherit;cursor:pointer;";
+    hint.innerHTML = '🌿 একটু বিরতি নিন? <span style="color:var(--accent)">দেখুন</span>';
+    hint.addEventListener("click", function () {
+      hint.remove();
+      var tb = document.createElement("button");
+      tb.dataset.b7 = "take-break";
+      tb.style.display = "none";
+      document.body.appendChild(tb);
+      tb.click();
+      tb.remove();
+    });
+    document.body.appendChild(hint);
+    setTimeout(function(){ if (hint.parentNode) hint.remove(); }, 10000);
+  }, { passive: true });
+
+  // ============ 66. Report imposter ============
+  document.addEventListener("click", function (e) {
+    var b = e.target.closest("[data-b7='report-imposter']");
+    if (!b) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    var data = window._currentProfileData;
+    if (!data || !data.user) return;
+    var m = _modal("b7-imposter-modal",
+      '<div class="modal-content" style="max-width:400px">' +
+        '<button class="close-btn" id="b7-imp-close">×</button>' +
+        '<h3 style="margin-bottom:14px;font-size:18px">🎭 ইম্পোস্টার রিপোর্ট</h3>' +
+        '<p style="font-size:13px;color:var(--muted);margin-bottom:12px">' +
+          'এই অ্যাকাউন্ট কাউকে নকল করছে মনে হলে নিচে বিস্তারিত লিখুন।' +
+        '</p>' +
+        '<textarea id="b7-imp-notes" placeholder="কার নকল করছে? বিস্তারিত..." maxlength="500" ' +
+        'style="width:100%;min-height:90px;padding:10px 12px;border-radius:10px;border:1px solid var(--border);' +
+        'font-family:inherit;font-size:13.5px;background:var(--card-2);color:var(--text);outline:none;resize:vertical"></textarea>' +
+        '<div class="edit-actions" style="margin-top:14px">' +
+          '<button class="btn-secondary" id="b7-imp-cancel">বাতিল</button>' +
+          '<button class="btn-primary danger-btn" id="b7-imp-send" style="width:auto;padding:11px 22px">' +
+            '<i class="fa-solid fa-paper-plane"></i> পাঠান' +
+          '</button>' +
+        '</div>' +
+      '</div>');
+    m.querySelector("#b7-imp-close").onclick = function () { m.remove(); };
+    m.querySelector("#b7-imp-cancel").onclick = function () { m.remove(); };
+    m.addEventListener("click", function (ev) { if (ev.target === m) m.remove(); });
+    m.querySelector("#b7-imp-send").onclick = async function () {
+      var notes = (m.querySelector("#b7-imp-notes").value || "").trim();
+      if (!notes) return alert("বিস্তারিত লিখুন");
+      var sendBtn = m.querySelector("#b7-imp-send");
+      sendBtn.disabled = true;
+      try {
+        await api("/api/me/report-imposter", {
+          method: "POST",
+          body: JSON.stringify({ username: data.user.username, notes: notes })
+        });
+        m.remove();
+        if (typeof showToast === "function") showToast("✅ রিপোর্ট পাঠানো হয়েছে");
+      } catch (err) { alert(err.message || "সমস্যা"); sendBtn.disabled = false; }
+    };
+  }, true);
+
+  // Inject Report Imposter into profile menu
+  document.addEventListener("click", function (e) {
+    if (!e.target.closest("#profile-menu-btn")) return;
+    setTimeout(function () {
+      var panel = document.querySelector("#profile-menu-sheet .sheet-menu-list");
+      if (!panel || panel.dataset.b7i === "1") return;
+      panel.dataset.b7i = "1";
+      var data = window._currentProfileData;
+      if (!data || !data.user) return;
+      var isMe = window.state && state.me && state.me.username === data.user.username;
+      if (isMe) return;
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "sheet-menu-item danger";
+      btn.setAttribute("data-b7", "report-imposter");
+      btn.innerHTML = '<i class="fa-solid fa-mask"></i><span>ইম্পোস্টার রিপোর্ট</span>';
+      panel.appendChild(btn);
+    }, 60);
+  }, true);
+
+  console.log("[Batch7] report-story + hide + snooze + break + imposter ready");
+})();
+
+
+// ===== Batch 8 — extended profile + insights =====
+(function () {
+  "use strict";
+  if (window.__batch8) return;
+  window.__batch8 = true;
+
+  function _esc(s) {
+    if (window.escapeHtml) return escapeHtml(s);
+    return String(s||"").replace(/[<>&"']/g, function(c){
+      return {"<":"&lt;",">":"&gt;","&":"&amp;",'"':"&quot;","'":"&#39;"}[c];
+    });
+  }
+
+  // ============ Extend Edit Profile modal — load current values ============
+  var _origOpenEdit = window.openEditProfile;
+  if (typeof _origOpenEdit === "function") {
+    window.openEditProfile = async function () {
+      _origOpenEdit();
+      try {
+        var ext = await api("/api/me/profile-extended");
+        var pr = document.getElementById("edit-pronouns");
+        var lo = document.getElementById("edit-location");
+        var ca = document.getElementById("edit-category");
+        var bl = document.getElementById("edit-bio-links");
+        if (pr) pr.value = ext.pronouns || "";
+        if (lo) lo.value = ext.location || "";
+        if (ca) ca.value = ext.category || "";
+        if (bl) bl.value = ext.bio_links || "";
+      } catch (e) {}
+    };
+  }
+
+  // ============ Extend save ============
+  var _origSave = window.saveEditProfile;
+  document.addEventListener("click", function (e) {
+    if (!e.target.closest("#save-edit-profile")) return;
+    e.stopImmediatePropagation();
+    e.preventDefault();
+    (async function () {
+      var name = document.getElementById("edit-name");
+      var bio = document.getElementById("edit-bio");
+      var pr = document.getElementById("edit-pronouns");
+      var lo = document.getElementById("edit-location");
+      var ca = document.getElementById("edit-category");
+      var bl = document.getElementById("edit-bio-links");
+      var btn = document.getElementById("save-edit-profile");
+      btn.disabled = true;
+      var oldHtml = btn.innerHTML;
+      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> সেভ...';
+      try {
+        // 1. Basic bio + name
+        await api("/api/me/bio", {
+          method: "POST",
+          body: JSON.stringify({
+            bio: bio ? bio.value.trim() : "",
+            display_name: name ? name.value.trim() : "",
+          })
+        });
+        // 2. Extended fields
+        await api("/api/me/profile-extended", {
+          method: "POST",
+          body: JSON.stringify({
+            pronouns: pr ? pr.value.trim() : "",
+            location: lo ? lo.value.trim() : "",
+            category: ca ? ca.value : "",
+            bio_links: bl ? bl.value.trim() : "",
+          })
+        });
+        // 3. avatar/cover (handled by original save code) — call them if pending
+        if (typeof pendingAvatar !== "undefined" && pendingAvatar !== null) {
+          var r = await api("/api/me/avatar", {
+            method: "POST",
+            body: JSON.stringify({ avatar: pendingAvatar })
+          });
+          if (state.me) state.me.profile_pic = r.avatar;
+        }
+        if (typeof pendingCover !== "undefined" && pendingCover !== null) {
+          var rc = await api("/api/me/cover", {
+            method: "POST",
+            body: JSON.stringify({ cover: pendingCover })
+          });
+          if (state.me) state.me.cover_pic = rc.cover;
+        }
+        // refresh
+        var me = await api("/api/me");
+        if (me && me.user) state.me = me.user;
+        if (typeof refreshProfileUI === "function") refreshProfileUI();
+        if (typeof loadFeed === "function") loadFeed();
+        // close modal
+        var m = document.getElementById("edit-profile-modal");
+        if (m) m.classList.add("hidden");
+        if (typeof showToast === "function") showToast("✅ প্রোফাইল সেভ হয়েছে");
+        // re-render profile if open
+        if (state.me && typeof openProfile === "function") openProfile(state.me.username);
+      } catch (err) {
+        alert(err.message || "সেভ করা যায়নি");
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = oldHtml;
+      }
+    })();
+  }, true);
+
+  // ============ Render extended info on profile page ============
+  var _origOpenProfileB8 = window.openProfile;
+  if (typeof _origOpenProfileB8 === "function") {
+    window.openProfile = async function (username) {
+      await _origOpenProfileB8(username);
+      var data = window._currentProfileData;
+      if (!data || !data.user) return;
+      var u = data.user;
+
+      // Pronouns badge next to name
+      var nameEl = document.getElementById("profile-page-name");
+      if (nameEl) {
+        var oldPr = nameEl.parentNode.querySelector(".pf-pronouns-badge");
+        if (oldPr) oldPr.remove();
+        if (u.pronouns) {
+          var b = document.createElement("span");
+          b.className = "pf-pronouns-badge";
+          b.textContent = u.pronouns;
+          nameEl.appendChild(b);
+        }
+      }
+
+      // Category badge
+      if (nameEl) {
+        var oldCat = nameEl.parentNode.querySelector(".pf-category-badge");
+        if (oldCat) oldCat.remove();
+        if (u.category) {
+          var catLabel = {
+            "personal": "👤 ব্যক্তিগত",
+            "creator": "🎨 ক্রিয়েটর",
+            "business": "💼 ব্যবসা",
+            "public_figure": "⭐ পাবলিক ফিগার",
+            "brand": "🏷 ব্র্যান্ড",
+            "community": "👥 কমিউনিটি",
+          }[u.category] || u.category;
+          var cb = document.createElement("span");
+          cb.className = "pf-category-badge";
+          cb.textContent = catLabel;
+          nameEl.appendChild(cb);
+        }
+      }
+
+      // Location line under username
+      var unameEl = document.getElementById("profile-page-username");
+      if (unameEl) {
+        var oldLoc = unameEl.parentNode.querySelector(".pf-location-line");
+        if (oldLoc) oldLoc.remove();
+        if (u.location) {
+          var l = document.createElement("div");
+          l.className = "pf-location-line";
+          l.innerHTML = '<i class="fa-solid fa-location-dot"></i> ' + _esc(u.location);
+          unameEl.parentNode.appendChild(l);
+        }
+      }
+
+      // Bio links
+      var bioEl = document.getElementById("profile-page-bio");
+      if (bioEl) {
+        var oldLinks = bioEl.parentNode.querySelector(".pf-bio-links");
+        if (oldLinks) oldLinks.remove();
+        if (u.bio_links) {
+          var links = u.bio_links.split("\n").map(function (x) { return x.trim(); }).filter(Boolean);
+          if (links.length) {
+            var wrap = document.createElement("div");
+            wrap.className = "pf-bio-links";
+            wrap.innerHTML = links.map(function (link) {
+              var display = link.replace(/^https?:\/\//, "").split("/")[0];
+              var href = /^https?:\/\//.test(link) ? link : ("https://" + link);
+              return '<a class="pf-bio-link" href="' + _esc(href) + '" target="_blank" rel="noopener">' +
+                '<i class="fa-solid fa-link"></i> ' + _esc(display) + '</a>';
+            }).join("");
+            bioEl.parentNode.appendChild(wrap);
+          }
+        }
+      }
+
+      // ============ Inject Insights button (own profile only) ============
+      var isMe = window.state && state.me && state.me.username === u.username;
+      var btns = document.getElementById("profile-buttons");
+      if (btns && isMe) {
+        if (!document.getElementById("btn-open-insights")) {
+          var b = document.createElement("button");
+          b.id = "btn-open-insights";
+          b.className = "btn-icon-circle";
+          b.title = "ইনসাইট";
+          b.innerHTML = '<i class="fa-solid fa-chart-line"></i>';
+          b.addEventListener("click", function () {
+            if (typeof window.openInsightsPage === "function") window.openInsightsPage();
+          });
+          btns.appendChild(b);
+        }
+      }
+    };
+  }
+
+  // ============ Insights page ============
+  window.openInsightsPage = async function () {
+    var page = document.getElementById("insights-page");
+    if (!page) return;
+    page.classList.remove("hidden");
+    var body = document.getElementById("insights-body");
+    body.innerHTML = '<p style="text-align:center;padding:40px;color:var(--muted)">লোড হচ্ছে...</p>';
+    try {
+      var d = await api("/api/me/insights");
+      var cards = [
+        { i: "fa-file-lines",     v: d.posts,             l: "মোট পোস্ট" },
+        { i: "fa-heart",          v: d.likes_received,    l: "মোট লাইক" },
+        { i: "fa-comment",        v: d.comments_received, l: "মোট মন্তব্য" },
+        { i: "fa-user-plus",      v: d.new_followers_7d,  l: "নতুন ফলোয়ার (৭দিন)" },
+      ];
+      var cardsHTML = cards.map(function (c) {
+        return '<div class="ins-card">' +
+          '<div class="ins-icon"><i class="fa-solid ' + c.i + '"></i></div>' +
+          '<div class="ins-value">' + (c.v || 0) + '</div>' +
+          '<div class="ins-label">' + c.l + '</div>' +
+        '</div>';
+      }).join("");
+
+      // weekly chart
+      var max = Math.max.apply(null, d.chart.map(function (x) { return x.count; })) || 1;
+      var dayLabels = ["আজ","১","২","৩","৪","৫","৬"];
+      var barsHTML = d.chart.map(function (x) {
+        var pct = (x.count / max) * 100;
+        return '<div style="flex:1;display:flex;flex-direction:column;align-items:center">' +
+          '<div class="ins-bar" style="height:' + Math.max(pct, 4) + '%" title="' + x.count + '"></div>' +
+          '<div class="ins-bar-day">' + dayLabels[6 - x.day] + '</div>' +
+        '</div>';
+      }).join("");
+
+      var topHTML = "";
+      if (d.top_post) {
+        topHTML = '<div class="ins-top-post">' +
+          '<h4>🏆 সর্বোচ্চ এনগেজড পোস্ট</h4>' +
+          '<div class="post-content">' + _esc((d.top_post.content || "").slice(0, 200)) + '</div>' +
+          '<div style="font-size:12.5px;color:var(--muted);font-weight:700">' +
+            '<i class="fa-solid fa-heart" style="color:#ef4444"></i> ' + d.top_post.likes + ' লাইক' +
+          '</div>' +
+        '</div>';
+      }
+
+      body.innerHTML = '<div class="insights-grid">' + cardsHTML + '</div>' +
+        '<div class="ins-chart">' +
+          '<div class="ins-chart-title">📈 সাপ্তাহিক লাইক</div>' +
+          '<div class="ins-bars">' + barsHTML + '</div>' +
+        '</div>' +
+        topHTML;
+    } catch (err) {
+      body.innerHTML = '<p style="text-align:center;padding:40px;color:var(--danger)">লোড করা যায়নি</p>';
+    }
+  };
+
+  document.addEventListener("click", function (e) {
+    if (e.target.closest("#insights-back")) {
+      var p = document.getElementById("insights-page");
+      if (p) p.classList.add("hidden");
+    }
+  }, true);
+
+  console.log("[Batch8] extended profile + insights ready");
+})();
+
+
+// ===== Batch 9 — monetization UI =====
+(function () {
+  "use strict";
+  if (window.__batch9) return;
+  window.__batch9 = true;
+
+  function _esc(s) {
+    if (window.escapeHtml) return escapeHtml(s);
+    return String(s||"").replace(/[<>&"']/g, function(c){
+      return {"<":"&lt;",">":"&gt;","&":"&amp;",'"':"&quot;","'":"&#39;"}[c];
+    });
+  }
+
+  function _sheet(id, html) {
+    var old = document.getElementById(id); if (old) old.remove();
+    var s = document.createElement("div");
+    s.id = id; s.className = "sheet-root";
+    s.innerHTML = '<div class="sheet-backdrop"></div>' + html;
+    document.body.appendChild(s); document.body.classList.add("sheet-open");
+    requestAnimationFrame(function(){ s.classList.add("show"); });
+    function close(){ s.classList.remove("show");
+      setTimeout(function(){ if(s.parentNode) s.parentNode.removeChild(s);
+        document.body.classList.remove("sheet-open"); }, 220); }
+    s.querySelector(".sheet-backdrop").addEventListener("click", close);
+    var x = s.querySelector(".sheet-close"); if (x) x.addEventListener("click", close);
+    return { root: s, close: close };
+  }
+
+  // ============ 87. Tip ============
+  window._openTipSheet = function (username, displayName) {
+    var amounts = [50, 100, 200, 500, 1000, 2000];
+    var s = _sheet("b9-tip-sheet",
+      '<div class="sheet-panel">' +
+        '<div class="sheet-handle"></div>' +
+        '<div class="sheet-header"><h3>💰 টিপ পাঠান</h3>' +
+        '<button class="sheet-close" type="button"><i class="fa-solid fa-xmark"></i></button></div>' +
+        '<div class="sheet-body" style="padding:10px 16px">' +
+          '<p style="font-size:13px;color:var(--muted);margin-bottom:12px">' +
+            '<strong>@' + _esc(username) + '</strong> কে টিপ পাঠান' +
+          '</p>' +
+          '<input type="number" class="b9-price-input" id="b9-tip-amount" placeholder="৳ পরিমাণ" min="10" max="100000">' +
+          '<div class="b9-quick-amounts">' +
+            amounts.map(function(a){
+              return '<button type="button" class="b9-quick-btn" data-amt="' + a + '">৳ ' + a + '</button>';
+            }).join("") +
+          '</div>' +
+          '<textarea id="b9-tip-note" placeholder="একটি নোট (ঐচ্ছিক)" maxlength="200" ' +
+            'style="width:100%;padding:10px 12px;border-radius:12px;border:1.5px solid var(--border);' +
+            'background:var(--card-2);font-family:inherit;font-size:14px;color:var(--text);outline:none;' +
+            'min-height:64px;resize:vertical;margin-bottom:14px"></textarea>' +
+          '<button class="btn-primary" id="b9-tip-send" style="width:100%;padding:14px;border-radius:12px">' +
+            '<i class="fa-solid fa-paper-plane"></i> টিপ পাঠান' +
+          '</button>' +
+          '<p style="font-size:11.5px;color:var(--muted);text-align:center;margin-top:8px">' +
+            '⚠️ পেমেন্ট গেটওয়ে আসছে — আপনার অনুরোধ সংরক্ষিত হয়' +
+          '</p>' +
+        '</div>' +
+      '</div>');
+
+    s.root.querySelectorAll(".b9-quick-btn").forEach(function(b){
+      b.addEventListener("click", function(){
+        var inp = s.root.querySelector("#b9-tip-amount");
+        if (inp) inp.value = b.dataset.amt;
+      });
+    });
+
+    s.root.querySelector("#b9-tip-send").addEventListener("click", async function(){
+      var amt = parseFloat(s.root.querySelector("#b9-tip-amount").value || 0);
+      var note = (s.root.querySelector("#b9-tip-note").value || "").trim();
+      if (!amt || amt < 10) return alert("১০ টাকার বেশি দিন");
+      this.disabled = true;
+      try {
+        await api("/api/users/" + encodeURIComponent(username) + "/tip", {
+          method: "POST",
+          body: JSON.stringify({ amount: amt, note: note })
+        });
+        s.close();
+        if (typeof showToast === "function") showToast("💰 ৳ " + amt + " টিপ পাঠানো হয়েছে");
+      } catch (err) { alert(err.message || "সমস্যা"); this.disabled = false; }
+    });
+  };
+
+  // ============ 88. Gift ============
+  window._openGiftSheet = function (username, displayName) {
+    var gifts = [
+      { code: "rose",   emoji: "🌹", label: "গোলাপ" },
+      { code: "heart",  emoji: "❤️", label: "হার্ট" },
+      { code: "star",   emoji: "⭐", label: "স্টার" },
+      { code: "cake",   emoji: "🎂", label: "কেক" },
+      { code: "crown",  emoji: "👑", label: "ক্রাউন" },
+      { code: "rocket", emoji: "🚀", label: "রকেট" },
+      { code: "coffee", emoji: "☕", label: "কফি" },
+      { code: "fire",   emoji: "🔥", label: "ফায়ার" },
+      { code: "diamond", emoji: "💎", label: "ডায়মন্ড" },
+    ];
+    var s = _sheet("b9-gift-sheet",
+      '<div class="sheet-panel">' +
+        '<div class="sheet-handle"></div>' +
+        '<div class="sheet-header"><h3>🎁 গিফট পাঠান</h3>' +
+        '<button class="sheet-close" type="button"><i class="fa-solid fa-xmark"></i></button></div>' +
+        '<div class="b9-grid">' +
+          gifts.map(function(g){
+            return '<button class="b9-gift" data-code="' + g.code + '">' +
+              '<span class="b9-emoji">' + g.emoji + '</span>' +
+              '<span class="b9-label">' + g.label + '</span>' +
+            '</button>';
+          }).join("") +
+        '</div>' +
+        '<div style="padding:0 16px 14px">' +
+          '<textarea id="b9-gift-note" placeholder="নোট (ঐচ্ছিক)" maxlength="100" ' +
+            'style="width:100%;padding:10px 12px;border-radius:12px;border:1.5px solid var(--border);' +
+            'background:var(--card-2);font-family:inherit;font-size:13.5px;color:var(--text);outline:none;' +
+            'min-height:50px;resize:vertical;margin-bottom:12px"></textarea>' +
+          '<button class="btn-primary" id="b9-gift-send" style="width:100%;padding:12px;border-radius:12px" disabled>' +
+            'একটি গিফট বেছে নিন' +
+          '</button>' +
+        '</div>' +
+      '</div>');
+
+    var selected = null;
+    s.root.querySelectorAll(".b9-gift").forEach(function(b){
+      b.addEventListener("click", function(){
+        s.root.querySelectorAll(".b9-gift").forEach(function(x){ x.classList.remove("on"); });
+        b.classList.add("on");
+        selected = b.dataset.code;
+        var btn = s.root.querySelector("#b9-gift-send");
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> গিফট পাঠান';
+      });
+    });
+
+    s.root.querySelector("#b9-gift-send").addEventListener("click", async function(){
+      if (!selected) return;
+      var note = (s.root.querySelector("#b9-gift-note").value || "").trim();
+      this.disabled = true;
+      try {
+        await api("/api/users/" + encodeURIComponent(username) + "/gift", {
+          method: "POST",
+          body: JSON.stringify({ gift: selected, note: note })
+        });
+        s.close();
+        if (typeof showToast === "function") showToast("🎁 গিফট পাঠানো হয়েছে");
+      } catch (err) { alert(err.message || "সমস্যা"); this.disabled = false; }
+    });
+  };
+
+  // ============ 89. Book appointment ============
+  window._openAppointmentSheet = function (username, displayName) {
+    var s = _sheet("b9-appt-sheet",
+      '<div class="sheet-panel">' +
+        '<div class="sheet-handle"></div>' +
+        '<div class="sheet-header"><h3>📅 অ্যাপয়েন্টমেন্ট বুক</h3>' +
+        '<button class="sheet-close" type="button"><i class="fa-solid fa-xmark"></i></button></div>' +
+        '<div class="sheet-body" style="padding:10px 16px">' +
+          '<p style="font-size:13px;color:var(--muted);margin-bottom:12px">' +
+            '<strong>@' + _esc(username) + '</strong> এর সাথে অ্যাপয়েন্টমেন্ট' +
+          '</p>' +
+          '<label style="font-size:13px;font-weight:700;color:var(--text);display:block;margin-bottom:6px">তারিখ ও সময়</label>' +
+          '<input type="datetime-local" id="b9-appt-when" class="b9-price-input" style="font-size:14px;font-weight:600">' +
+          '<label style="font-size:13px;font-weight:700;color:var(--text);display:block;margin-bottom:6px;margin-top:12px">সময়কাল (মিনিট)</label>' +
+          '<select id="b9-appt-dur" class="b9-price-input" style="font-size:14px">' +
+            '<option value="15">১৫ মিনিট</option>' +
+            '<option value="30" selected>৩০ মিনিট</option>' +
+            '<option value="60">১ ঘণ্টা</option>' +
+            '<option value="120">২ ঘণ্টা</option>' +
+          '</select>' +
+          '<label style="font-size:13px;font-weight:700;color:var(--text);display:block;margin-bottom:6px;margin-top:12px">নোট</label>' +
+          '<textarea id="b9-appt-note" placeholder="কী নিয়ে আলোচনা করতে চান?" maxlength="300" ' +
+            'style="width:100%;padding:10px 12px;border-radius:12px;border:1.5px solid var(--border);' +
+            'background:var(--card-2);font-family:inherit;font-size:14px;color:var(--text);outline:none;' +
+            'min-height:70px;resize:vertical;margin-bottom:14px"></textarea>' +
+          '<button class="btn-primary" id="b9-appt-send" style="width:100%;padding:14px;border-radius:12px">' +
+            '<i class="fa-solid fa-calendar-check"></i> বুক করুন' +
+          '</button>' +
+        '</div>' +
+      '</div>');
+
+    s.root.querySelector("#b9-appt-send").addEventListener("click", async function(){
+      var when = s.root.querySelector("#b9-appt-when").value;
+      var dur = parseInt(s.root.querySelector("#b9-appt-dur").value || 30);
+      var note = (s.root.querySelector("#b9-appt-note").value || "").trim();
+      if (!when) return alert("তারিখ ও সময় দিন");
+      this.disabled = true;
+      try {
+        await api("/api/users/" + encodeURIComponent(username) + "/appointments", {
+          method: "POST",
+          body: JSON.stringify({ datetime: when, duration: dur, note: note })
+        });
+        s.close();
+        if (typeof showToast === "function") showToast("📅 অ্যাপয়েন্টমেন্ট বুক হয়েছে");
+      } catch (err) { alert(err.message || "সমস্যা"); this.disabled = false; }
+    });
+  };
+
+  // ============ 82. Shop ============
+  window._openShopSheet = async function (username, displayName, isOwn) {
+    var s = _sheet("b9-shop-sheet",
+      '<div class="sheet-panel">' +
+        '<div class="sheet-handle"></div>' +
+        '<div class="sheet-header"><h3>🛍️ শপ — @' + _esc(username) + '</h3>' +
+        '<button class="sheet-close" type="button"><i class="fa-solid fa-xmark"></i></button></div>' +
+        '<div class="sheet-body" style="padding:10px 14px">' +
+          '<div id="b9-shop-list"><p style="text-align:center;padding:20px;color:var(--muted)">লোড হচ্ছে...</p></div>' +
+          (isOwn ? '<button class="btn-secondary" id="b9-shop-add" style="width:100%;margin-top:12px"><i class="fa-solid fa-plus"></i> নতুন পণ্য যোগ করুন</button>' : '') +
+        '</div>' +
+      '</div>');
+
+    async function load() {
+      var list = s.root.querySelector("#b9-shop-list");
+      try {
+        var products = await api("/api/users/" + encodeURIComponent(username) + "/shop");
+        if (!products.length) {
+          list.innerHTML = '<p style="text-align:center;padding:30px;color:var(--muted);font-size:14px">🛍️ এখনো কোনো পণ্য নেই</p>';
+          return;
+        }
+        list.innerHTML = '<div class="b9-shop-grid">' +
+          products.map(function(p){
+            var img = p.image ? '<img src="' + _esc(p.image) + '" alt="" loading="lazy" decoding="async">'
+                              : '<i class="fa-solid fa-box"></i>';
+            return '<div class="b9-product" data-pid="' + p.id + '" data-price="' + p.price + '">' +
+              '<div class="b9-product-img">' + img + '</div>' +
+              '<div class="b9-product-info">' +
+                '<div class="b9-product-title">' + _esc(p.title) + '</div>' +
+                '<div class="b9-product-price">৳ ' + p.price + '</div>' +
+              '</div>' +
+            '</div>';
+          }).join("") + '</div>';
+        list.querySelectorAll(".b9-product").forEach(function(cell){
+          cell.addEventListener("click", async function(){
+            if (isOwn) return;
+            if (!confirm("এই পণ্য কিনবেন — ৳ " + cell.dataset.price + " ?")) return;
+            try {
+              await api("/api/shop/products/" + cell.dataset.pid + "/buy", { method: "POST" });
+              if (typeof showToast === "function") showToast("✅ অর্ডার প্লেস হয়েছে");
+            } catch (err) { alert(err.message || "সমস্যা"); }
+          });
+        });
+      } catch (err) {
+        list.innerHTML = '<p style="text-align:center;padding:20px;color:var(--danger)">লোড করা যায়নি</p>';
+      }
+    }
+    await load();
+
+    var addBtn = s.root.querySelector("#b9-shop-add");
+    if (addBtn) {
+      addBtn.addEventListener("click", function(){
+        var title = prompt("পণ্যের নাম:");
+        if (!title) return;
+        var price = parseFloat(prompt("দাম (টাকা):") || "0");
+        if (!price || price < 0) return alert("দাম দিন");
+        api("/api/users/" + encodeURIComponent(username) + "/shop", {
+          method: "POST",
+          body: JSON.stringify({ title: title, price: price })
+        }).then(function(){
+          if (typeof showToast === "function") showToast("✅ পণ্য যোগ হয়েছে");
+          load();
+        }).catch(function(e){ alert(e.message); });
+      });
+    }
+  };
+
+  // ============ 81. Boost ============
+  window._openBoostSheet = function (postId) {
+    var s = _sheet("b9-boost-sheet",
+      '<div class="sheet-panel">' +
+        '<div class="sheet-handle"></div>' +
+        '<div class="sheet-header"><h3>🚀 পোস্ট বুস্ট</h3>' +
+        '<button class="sheet-close" type="button"><i class="fa-solid fa-xmark"></i></button></div>' +
+        '<div class="sheet-body" style="padding:10px 16px">' +
+          '<label style="font-size:13px;font-weight:700;color:var(--text);display:block;margin-bottom:6px">বাজেট (টাকা)</label>' +
+          '<input type="number" id="b9-boost-budget" class="b9-price-input" placeholder="কমপক্ষে ৫০" min="50" max="50000">' +
+          '<div class="b9-quick-amounts">' +
+            [100, 250, 500, 1000, 2500].map(function(a){
+              return '<button type="button" class="b9-quick-btn" data-amt="' + a + '">৳ ' + a + '</button>';
+            }).join("") +
+          '</div>' +
+          '<label style="font-size:13px;font-weight:700;color:var(--text);display:block;margin-bottom:6px;margin-top:6px">সময়কাল</label>' +
+          '<select id="b9-boost-days" class="b9-price-input">' +
+            '<option value="1">১ দিন</option>' +
+            '<option value="3">৩ দিন</option>' +
+            '<option value="7" selected>৭ দিন</option>' +
+            '<option value="14">১৪ দিন</option>' +
+            '<option value="30">৩০ দিন</option>' +
+          '</select>' +
+          '<button class="btn-primary" id="b9-boost-send" style="width:100%;padding:14px;border-radius:12px;margin-top:12px">' +
+            '<i class="fa-solid fa-rocket"></i> বুস্ট শুরু' +
+          '</button>' +
+          '<p style="font-size:11.5px;color:var(--muted);text-align:center;margin-top:8px">' +
+            '⚠️ পেমেন্ট গেটওয়ে আসছে' +
+          '</p>' +
+        '</div>' +
+      '</div>');
+
+    s.root.querySelectorAll(".b9-quick-btn").forEach(function(b){
+      b.addEventListener("click", function(){
+        var inp = s.root.querySelector("#b9-boost-budget");
+        if (inp) inp.value = b.dataset.amt;
+      });
+    });
+
+    s.root.querySelector("#b9-boost-send").addEventListener("click", async function(){
+      var budget = parseFloat(s.root.querySelector("#b9-boost-budget").value || 0);
+      var days = parseInt(s.root.querySelector("#b9-boost-days").value || 7);
+      if (!budget || budget < 50) return alert("কমপক্ষে ৫০ টাকা");
+      this.disabled = true;
+      try {
+        await api("/api/posts/" + postId + "/boost", {
+          method: "POST",
+          body: JSON.stringify({ budget: budget, days: days })
+        });
+        s.close();
+        if (typeof showToast === "function") showToast("🚀 বুস্ট অনুরোধ পাঠানো হয়েছে");
+      } catch (err) { alert(err.message || "সমস্যা"); this.disabled = false; }
+    });
+  };
+
+  // ============ Menu items in profile ⋮ ============
+  document.addEventListener("click", function (e) {
+    if (!e.target.closest("#profile-menu-btn")) return;
+    setTimeout(function () {
+      var panel = document.querySelector("#profile-menu-sheet .sheet-menu-list");
+      if (!panel || panel.dataset.b9 === "1") return;
+      panel.dataset.b9 = "1";
+      var data = window._currentProfileData;
+      if (!data || !data.user) return;
+      var isMe = window.state && state.me && state.me.username === data.user.username;
+      if (isMe) return;
+
+      var items = [
+        { a: "tip",   i: "fa-money-bill-wave", l: "টিপ পাঠান" },
+        { a: "gift",  i: "fa-gift",            l: "গিফট পাঠান" },
+      ];
+      if (data.user.is_professional) {
+        items.push({ a: "shop", i: "fa-store",       l: "শপ দেখুন" });
+        items.push({ a: "appt", i: "fa-calendar-check", l: "অ্যাপয়েন্টমেন্ট" });
+      }
+
+      items.forEach(function (it) {
+        var b = document.createElement("button");
+        b.type = "button";
+        b.className = "sheet-menu-item";
+        b.setAttribute("data-b9-act", it.a);
+        b.innerHTML = '<i class="fa-solid ' + it.i + '"></i><span>' + it.l + '</span>';
+        b.addEventListener("click", function () {
+          var act = it.a;
+          // close menu
+          var open = document.querySelector("#profile-menu-sheet.show");
+          if (open) { open.classList.remove("show");
+            setTimeout(function(){ if (open.parentNode) open.parentNode.removeChild(open);
+              document.body.classList.remove("sheet-open"); }, 180); }
+          setTimeout(function () {
+            var uname = data.user.username;
+            var dname = data.user.display_name;
+            if (act === "tip")   window._openTipSheet(uname, dname);
+            if (act === "gift")  window._openGiftSheet(uname, dname);
+            if (act === "shop")  window._openShopSheet(uname, dname, false);
+            if (act === "appt")  window._openAppointmentSheet(uname, dname);
+          }, 200);
+        });
+        panel.appendChild(b);
+      });
+    }, 55);
+  }, true);
+
+  // ============ Add "Boost" to own post menu ============
+  var _origOpenPostMenuB9 = window.openPostMenu;
+  if (typeof _origOpenPostMenuB9 === "function") {
+    window.openPostMenu = function (btn, postEl, postId) {
+      _origOpenPostMenuB9(btn, postEl, postId);
+      setTimeout(function () {
+        var menu = document.getElementById("post-menu-popup");
+        if (!menu || menu.dataset.b9 === "1") return;
+        menu.dataset.b9 = "1";
+        var isOwn = window.state && state.me && btn.dataset.owner === state.me.username;
+        if (!isOwn) return;
+        var boost = document.createElement("button");
+        boost.setAttribute("data-action", "boost");
+        boost.innerHTML = '<i class="fa-solid fa-rocket"></i><span>বুস্ট</span>';
+        var editBtn = menu.querySelector('button[data-action="edit"]');
+        if (editBtn) menu.insertBefore(boost, editBtn);
+        else menu.appendChild(boost);
+        boost.addEventListener("click", function (ev) {
+          ev.stopPropagation();
+          if (typeof closePostMenu === "function") closePostMenu();
+          setTimeout(function () { window._openBoostSheet(postId); }, 150);
+        });
+      }, 30);
+    };
+  }
+
+  console.log("[Batch9] monetization UI ready");
+})();
+
+
+// ===== Batch 10 — subscription / verify / claim / misc =====
+(function () {
+  "use strict";
+  if (window.__batch10) return;
+  window.__batch10 = true;
+
+  function _esc(s) {
+    if (window.escapeHtml) return escapeHtml(s);
+    return String(s||"").replace(/[<>&"']/g, function(c){
+      return {"<":"&lt;",">":"&gt;","&":"&amp;",'"':"&quot;","'":"&#39;"}[c];
+    });
+  }
+  function _sheet(id, html) {
+    var old = document.getElementById(id); if (old) old.remove();
+    var s = document.createElement("div");
+    s.id = id; s.className = "sheet-root";
+    s.innerHTML = '<div class="sheet-backdrop"></div>' + html;
+    document.body.appendChild(s); document.body.classList.add("sheet-open");
+    requestAnimationFrame(function(){ s.classList.add("show"); });
+    function close(){ s.classList.remove("show");
+      setTimeout(function(){ if(s.parentNode) s.parentNode.removeChild(s);
+        document.body.classList.remove("sheet-open"); }, 220); }
+    s.querySelector(".sheet-backdrop").addEventListener("click", close);
+    var x = s.querySelector(".sheet-close"); if (x) x.addEventListener("click", close);
+    return { root: s, close: close };
+  }
+  function _modal(id, html) {
+    var old = document.getElementById(id); if (old) old.remove();
+    var m = document.createElement("div");
+    m.id = id; m.className = "modal";
+    m.innerHTML = html;
+    document.body.appendChild(m);
+    return m;
+  }
+
+  // ============ 91. Subscribe tier sheet ============
+  window._openSubscribeSheet = function (username, displayName) {
+    var tiers = [
+      { id: "basic",   name: "Basic",   price: 99,  icon: "fa-star",       perks: "প্রিমিয়াম পোস্ট + সাপ্তাহিক Q&A" },
+      { id: "premium", name: "Premium", price: 299, icon: "fa-crown",      perks: "সব Basic + মাসিক লাইভ সেশন" },
+      { id: "vip",     name: "VIP",     price: 999, icon: "fa-gem",        perks: "সব Premium + 1-on-1 ভিডিও কল" },
+    ];
+    var s = _sheet("b10-sub-sheet",
+      '<div class="sheet-panel">' +
+        '<div class="sheet-handle"></div>' +
+        '<div class="sheet-header"><h3>⭐ সাবস্ক্রাইব — @' + _esc(username) + '</h3>' +
+        '<button class="sheet-close" type="button"><i class="fa-solid fa-xmark"></i></button></div>' +
+        '<div class="sheet-body" style="padding:10px 14px">' +
+          '<div class="b10-sub-tiers">' +
+            tiers.map(function(t){
+              return '<button type="button" class="b10-tier" data-tier="' + t.id + '">' +
+                '<span class="b10-tier-icon"><i class="fa-solid ' + t.icon + '"></i></span>' +
+                '<span class="b10-tier-info">' +
+                  '<span class="b10-tier-name">' + t.name + '</span>' +
+                  '<span class="b10-tier-price">৳ ' + t.price + ' / মাস</span>' +
+                  '<span class="b10-tier-perks">' + t.perks + '</span>' +
+                '</span>' +
+              '</button>';
+            }).join("") +
+          '</div>' +
+          '<button class="btn-primary" id="b10-sub-confirm" style="width:100%;padding:14px;border-radius:12px;margin-top:14px" disabled>' +
+            '<i class="fa-solid fa-check"></i> টায়ার নির্বাচন করুন' +
+          '</button>' +
+          '<p style="font-size:11.5px;color:var(--muted);text-align:center;margin-top:8px">' +
+            '⚠️ পেমেন্ট গেটওয়ে শীঘ্রই আসছে' +
+          '</p>' +
+        '</div>' +
+      '</div>');
+    var selected = null;
+    s.root.querySelectorAll(".b10-tier").forEach(function(b){
+      b.addEventListener("click", function(){
+        s.root.querySelectorAll(".b10-tier").forEach(function(x){ x.classList.remove("on"); });
+        b.classList.add("on");
+        selected = b.dataset.tier;
+        var btn = s.root.querySelector("#b10-sub-confirm");
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-check"></i> সাবস্ক্রাইব করুন';
+      });
+    });
+    s.root.querySelector("#b10-sub-confirm").addEventListener("click", async function(){
+      if (!selected) return;
+      this.disabled = true;
+      try {
+        var r = await api("/api/users/" + encodeURIComponent(username) + "/subscribe", {
+          method: "POST",
+          body: JSON.stringify({ tier: selected })
+        });
+        s.close();
+        if (typeof showToast === "function") showToast("⭐ " + r.tier + " টায়ারে সাবস্ক্রাইব — ৳ " + r.amount + "/মাস");
+      } catch (err) { alert(err.message || "সমস্যা"); this.disabled = false; }
+    });
+  };
+
+  // ============ 92. Verify request ============
+  window._openVerifySheet = function () {
+    var s = _sheet("b10-verify-sheet",
+      '<div class="sheet-panel">' +
+        '<div class="sheet-handle"></div>' +
+        '<div class="sheet-header"><h3>✓ Verified হতে আবেদন</h3>' +
+        '<button class="sheet-close" type="button"><i class="fa-solid fa-xmark"></i></button></div>' +
+        '<div class="sheet-body" style="padding:10px 16px">' +
+          '<p style="font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.5">' +
+            'Blue check পেতে আপনার আসল পরিচয় যাচাই করা হবে। জাল তথ্য দিলে অ্যাকাউন্ট বন্ধ হতে পারে।' +
+          '</p>' +
+          '<label style="font-size:13px;font-weight:700;color:var(--text);display:block;margin-bottom:6px">পুরো নাম</label>' +
+          '<input type="text" id="b10-vf-name" class="b9-price-input" style="font-size:14px;font-weight:600" placeholder="আসল নাম">' +
+          '<label style="font-size:13px;font-weight:700;color:var(--text);display:block;margin-bottom:6px;margin-top:6px">কেন verified হওয়া দরকার?</label>' +
+          '<textarea id="b10-vf-reason" placeholder="যেমন: পাবলিক ফিগার, সাংবাদিক, ক্রিয়েটর..." maxlength="500" ' +
+            'style="width:100%;padding:10px 12px;border-radius:12px;border:1.5px solid var(--border);' +
+            'background:var(--card-2);font-family:inherit;font-size:13.5px;color:var(--text);outline:none;' +
+            'min-height:80px;resize:vertical;margin-bottom:14px"></textarea>' +
+          '<button class="btn-primary" id="b10-vf-send" style="width:100%;padding:14px;border-radius:12px">' +
+            '<i class="fa-solid fa-paper-plane"></i> আবেদন পাঠান' +
+          '</button>' +
+        '</div>' +
+      '</div>');
+    s.root.querySelector("#b10-vf-send").addEventListener("click", async function(){
+      var name = s.root.querySelector("#b10-vf-name").value.trim();
+      var reason = s.root.querySelector("#b10-vf-reason").value.trim();
+      if (!name || !reason) return alert("সব তথ্য দিন");
+      this.disabled = true;
+      try {
+        await api("/api/me/verify-request", {
+          method: "POST",
+          body: JSON.stringify({ full_name: name, reason: reason })
+        });
+        s.close();
+        if (typeof showToast === "function") showToast("✅ আবেদন পাঠানো হয়েছে");
+      } catch (err) { alert(err.message || "সমস্যা"); this.disabled = false; }
+    });
+  };
+
+  // ============ 93. Claim business ============
+  window._openClaimBusiness = function () {
+    var s = _sheet("b10-claim-sheet",
+      '<div class="sheet-panel">' +
+        '<div class="sheet-handle"></div>' +
+        '<div class="sheet-header"><h3>🏢 Business ক্লেইম</h3>' +
+        '<button class="sheet-close" type="button"><i class="fa-solid fa-xmark"></i></button></div>' +
+        '<div class="sheet-body" style="padding:10px 16px">' +
+          '<p style="font-size:13px;color:var(--muted);margin-bottom:12px">' +
+            'আপনি যদি এই business-এর মালিক হন, তথ্য দিয়ে ক্লেইম করুন।' +
+          '</p>' +
+          '<input type="text" id="b10-cl-name" class="b9-price-input" style="font-size:14px" placeholder="Business নাম">' +
+          '<input type="email" id="b10-cl-email" class="b9-price-input" style="font-size:14px" placeholder="Contact email">' +
+          '<textarea id="b10-cl-notes" placeholder="অতিরিক্ত তথ্য / ট্রেড লাইসেন্স নম্বর" maxlength="500" ' +
+            'style="width:100%;padding:10px 12px;border-radius:12px;border:1.5px solid var(--border);' +
+            'background:var(--card-2);font-family:inherit;font-size:13.5px;color:var(--text);outline:none;' +
+            'min-height:70px;resize:vertical;margin-bottom:14px"></textarea>' +
+          '<button class="btn-primary" id="b10-cl-send" style="width:100%;padding:14px;border-radius:12px">' +
+            '<i class="fa-solid fa-check"></i> ক্লেইম করুন' +
+          '</button>' +
+        '</div>' +
+      '</div>');
+    s.root.querySelector("#b10-cl-send").addEventListener("click", async function(){
+      var name = s.root.querySelector("#b10-cl-name").value.trim();
+      var email = s.root.querySelector("#b10-cl-email").value.trim();
+      var notes = s.root.querySelector("#b10-cl-notes").value.trim();
+      if (!name || !email) return alert("নাম ও ইমেইল দিন");
+      this.disabled = true;
+      try {
+        await api("/api/me/claim-business", {
+          method: "POST",
+          body: JSON.stringify({ business_name: name, contact_email: email, notes: notes })
+        });
+        s.close();
+        if (typeof showToast === "function") showToast("🏢 ক্লেইম অনুরোধ পাঠানো হয়েছে");
+      } catch (err) { alert(err.message || "সমস্যা"); this.disabled = false; }
+    });
+  };
+
+  // ============ 94. Invite to group ============
+  window._openInviteToGroup = async function (username) {
+    try {
+      var groups = await api("/api/groups");
+      if (!groups.length) {
+        if (typeof showToast === "function") showToast("আপনার কোনো গ্রুপ নেই — আগে একটি বানান");
+        return;
+      }
+      var s = _sheet("b10-invite-sheet",
+        '<div class="sheet-panel">' +
+          '<div class="sheet-handle"></div>' +
+          '<div class="sheet-header"><h3>👥 গ্রুপে যোগ করুন</h3>' +
+          '<button class="sheet-close" type="button"><i class="fa-solid fa-xmark"></i></button></div>' +
+          '<div class="sheet-body" style="padding:6px 12px">' +
+            groups.map(function(g){
+              return '<div class="b3-share-row" data-gid="' + g.id + '">' +
+                '<div class="b3-share-icon" style="background:var(--gradient)">' +
+                  '<i class="fa-solid fa-users"></i>' +
+                '</div>' +
+                '<div class="b3-share-label">' + _esc(g.name) +
+                  '<div class="b3-share-sub">' + (g.member_count || 0) + ' জন সদস্য</div>' +
+                '</div>' +
+              '</div>';
+            }).join("") +
+          '</div>' +
+        '</div>');
+      s.root.querySelectorAll("[data-gid]").forEach(function(b){
+        b.addEventListener("click", async function(){
+          try {
+            await api("/api/groups/invite-from-profile", {
+              method: "POST",
+              body: JSON.stringify({ group_id: parseInt(b.dataset.gid), username: username })
+            });
+            s.close();
+            if (typeof showToast === "function") showToast("✅ গ্রুপে যোগ করা হয়েছে");
+          } catch (err) { alert(err.message || "সমস্যা"); }
+        });
+      });
+    } catch (err) { alert(err.message || "গ্রুপ লোড করা যায়নি"); }
+  };
+
+  // ============ 95. Send contact ============
+  document.addEventListener("click", function (e) {
+    var b = e.target.closest("[data-b10='send-contact']");
+    if (!b) return;
+    e.preventDefault();
+    var data = window._currentProfileData;
+    if (!data || !data.user) return;
+    api("/api/users/" + encodeURIComponent(data.user.username) + "/send-contact", { method: "POST" })
+      .then(function(){ if (typeof showToast === "function") showToast("📇 Contact পাঠানো হয়েছে"); })
+      .catch(function(e){ alert(e.message); });
+  }, true);
+
+  // ============ 97. Suggest friend ============
+  document.addEventListener("click", function (e) {
+    var b = e.target.closest("[data-b10='suggest']");
+    if (!b) return;
+    e.preventDefault();
+    (async function(){
+      var data = window._currentProfileData;
+      if (!data || !data.user) return;
+      try {
+        var friends = await api("/api/me/suggested-friends");
+        if (!friends.length) { if (typeof showToast === "function") showToast("কেউ নেই"); return; }
+        var s = _sheet("b10-suggest-sheet",
+          '<div class="sheet-panel">' +
+            '<div class="sheet-handle"></div>' +
+            '<div class="sheet-header"><h3>কে suggest করবেন?</h3>' +
+            '<button class="sheet-close" type="button"><i class="fa-solid fa-xmark"></i></button></div>' +
+            '<div class="sheet-body" style="padding:6px 12px">' +
+              friends.map(function(u){
+                var av = u.profile_pic ? '<img src="' + _esc(u.profile_pic) + '" alt="" loading="lazy" decoding="async">'
+                                       : _esc((u.display_name||"?").charAt(0).toUpperCase());
+                return '<div class="b3-share-row" data-to="' + _esc(u.username) + '">' +
+                  '<div class="b3-share-icon bg-dm" style="overflow:hidden">' + av + '</div>' +
+                  '<div class="b3-share-label">' + _esc(u.display_name) +
+                    '<div class="b3-share-sub">@' + _esc(u.username) + '</div></div>' +
+                '</div>';
+              }).join("") +
+            '</div>' +
+          '</div>');
+        s.root.querySelectorAll("[data-to]").forEach(function(row){
+          row.addEventListener("click", async function(){
+            try {
+              await api("/api/users/" + encodeURIComponent(data.user.username) + "/suggest", {
+                method: "POST",
+                body: JSON.stringify({ to: row.dataset.to })
+              });
+              s.close();
+              if (typeof showToast === "function") showToast("💡 Suggest পাঠানো হয়েছে");
+            } catch (err) { alert(err.message || "সমস্যা"); }
+          });
+        });
+      } catch (err) { alert(err.message || "লোড করা যায়নি"); }
+    })();
+  }, true);
+
+  // ============ 98. Report a problem ============
+  window._openReportProblem = function () {
+    var s = _sheet("b10-rp-sheet",
+      '<div class="sheet-panel">' +
+        '<div class="sheet-handle"></div>' +
+        '<div class="sheet-header"><h3>🐞 সমস্যা জানান</h3>' +
+        '<button class="sheet-close" type="button"><i class="fa-solid fa-xmark"></i></button></div>' +
+        '<div class="sheet-body" style="padding:10px 16px">' +
+          '<label style="font-size:13px;font-weight:700;color:var(--text);display:block;margin-bottom:6px">সমস্যার ধরন</label>' +
+          '<select id="b10-rp-cat" class="b9-price-input" style="font-size:14px">' +
+            '<option value="bug">🐞 Bug</option>' +
+            '<option value="crash">💥 ক্র্যাশ</option>' +
+            '<option value="performance">🐌 ধীরগতি</option>' +
+            '<option value="ui">🎨 UI/UX</option>' +
+            '<option value="payment">💳 পেমেন্ট</option>' +
+            '<option value="other">অন্য কিছু</option>' +
+          '</select>' +
+          '<label style="font-size:13px;font-weight:700;color:var(--text);display:block;margin-bottom:6px;margin-top:8px">সমস্যার বিবরণ</label>' +
+          '<textarea id="b10-rp-msg" placeholder="বিস্তারিত লিখুন (কী করছিলেন, কী হয়েছিল)..." maxlength="1000" ' +
+            'style="width:100%;padding:10px 12px;border-radius:12px;border:1.5px solid var(--border);' +
+            'background:var(--card-2);font-family:inherit;font-size:13.5px;color:var(--text);outline:none;' +
+            'min-height:110px;resize:vertical;margin-bottom:14px"></textarea>' +
+          '<button class="btn-primary" id="b10-rp-send" style="width:100%;padding:14px;border-radius:12px">' +
+            '<i class="fa-solid fa-paper-plane"></i> পাঠান' +
+          '</button>' +
+        '</div>' +
+      '</div>');
+    s.root.querySelector("#b10-rp-send").addEventListener("click", async function(){
+      var cat = s.root.querySelector("#b10-rp-cat").value;
+      var msg = s.root.querySelector("#b10-rp-msg").value.trim();
+      if (msg.length < 10) return alert("কমপক্ষে ১০ অক্ষর লিখুন");
+      this.disabled = true;
+      try {
+        await api("/api/me/report-problem", {
+          method: "POST",
+          body: JSON.stringify({ category: cat, message: msg })
+        });
+        s.close();
+        if (typeof showToast === "function") showToast("✅ সমস্যা রিপোর্ট হয়েছে");
+      } catch (err) { alert(err.message || "সমস্যা"); this.disabled = false; }
+    });
+  };
+
+  // ============ 99. QR scan ============
+  window._openQrScan = function () {
+    var overlay = document.createElement("div");
+    overlay.className = "b10-qr-overlay";
+    overlay.innerHTML =
+      '<div style="font-size:44px">📷</div>' +
+      '<div class="b10-qr-hint">JUKTOY QR কোড স্ক্যান করুন</div>' +
+      '<video id="b10-qr-video" playsinline></video>' +
+      '<div class="b10-qr-actions">' +
+        '<button id="b10-qr-cancel">বাতিল</button>' +
+      '</div>';
+    document.body.appendChild(overlay);
+
+    var stream = null;
+    (async function(){
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+        var v = document.getElementById("b10-qr-video");
+        if (v) { v.srcObject = stream; v.play().catch(function(){}); }
+      } catch (e) {
+        var hint = overlay.querySelector(".b10-qr-hint");
+        if (hint) hint.textContent = "ক্যামেরা চালু করা যায়নি — অনুমতি দিন";
+      }
+    })();
+
+    function close() {
+      if (stream) stream.getTracks().forEach(function(t){ try{t.stop();}catch(e){} });
+      overlay.remove();
+    }
+    document.getElementById("b10-qr-cancel").addEventListener("click", close);
+  };
+
+  // ============ Wire into profile ⋮ menu ============
+  document.addEventListener("click", function (e) {
+    if (!e.target.closest("#profile-menu-btn")) return;
+    setTimeout(function () {
+      var panel = document.querySelector("#profile-menu-sheet .sheet-menu-list");
+      if (!panel || panel.dataset.b10 === "1") return;
+      panel.dataset.b10 = "1";
+      var data = window._currentProfileData;
+      if (!data || !data.user) return;
+      var isMe = window.state && state.me && state.me.username === data.user.username;
+
+      if (isMe) {
+        // own profile additions
+        var items = [
+          { a: "verify", i: "fa-circle-check",  l: "✓ Verified হতে আবেদন" },
+          { a: "claim",  i: "fa-building",       l: "🏢 Business ক্লেইম" },
+          { a: "report-problem", i: "fa-bug",    l: "🐞 সমস্যা জানান" },
+          { a: "qr-scan",        i: "fa-qrcode", l: "📷 QR স্ক্যান" },
+        ];
+        items.forEach(function (it) {
+          var b = document.createElement("button");
+          b.type = "button";
+          b.className = "sheet-menu-item";
+          b.innerHTML = '<i class="fa-solid ' + it.i + '"></i><span>' + it.l + '</span>';
+          b.addEventListener("click", function () {
+            var open = document.querySelector("#profile-menu-sheet.show");
+            if (open) { open.classList.remove("show");
+              setTimeout(function(){ if (open.parentNode) open.parentNode.removeChild(open);
+                document.body.classList.remove("sheet-open"); }, 180); }
+            setTimeout(function () {
+              if (it.a === "verify")         window._openVerifySheet();
+              if (it.a === "claim")          window._openClaimBusiness();
+              if (it.a === "report-problem") window._openReportProblem();
+              if (it.a === "qr-scan")        window._openQrScan();
+            }, 200);
+          });
+          panel.appendChild(b);
+        });
+      } else {
+        // other's profile additions
+        var items2 = [
+          { a: "subscribe", i: "fa-star",           l: "⭐ সাবস্ক্রাইব" },
+          { a: "invite",    i: "fa-user-plus",      l: "👥 গ্রুপে যোগ" },
+          { a: "send-contact", i: "fa-address-card", l: "📇 Contact পাঠান" },
+          { a: "suggest",   i: "fa-lightbulb",      l: "💡 Suggest a friend" },
+        ];
+        items2.forEach(function (it) {
+          var b = document.createElement("button");
+          b.type = "button";
+          b.className = "sheet-menu-item";
+          b.setAttribute("data-b10", it.a);
+          b.innerHTML = '<i class="fa-solid ' + it.i + '"></i><span>' + it.l + '</span>';
+          b.addEventListener("click", function () {
+            var open = document.querySelector("#profile-menu-sheet.show");
+            if (open) { open.classList.remove("show");
+              setTimeout(function(){ if (open.parentNode) open.parentNode.removeChild(open);
+                document.body.classList.remove("sheet-open"); }, 180); }
+            setTimeout(function () {
+              var u = data.user.username;
+              var d = data.user.display_name;
+              if (it.a === "subscribe")   window._openSubscribeSheet(u, d);
+              if (it.a === "invite")      window._openInviteToGroup(u);
+              if (it.a === "send-contact") {
+                api("/api/users/" + encodeURIComponent(u) + "/send-contact", { method: "POST" })
+                  .then(function(){ if (typeof showToast === "function") showToast("📇 Contact পাঠানো হয়েছে"); })
+                  .catch(function(e){ alert(e.message); });
+              }
+              if (it.a === "suggest") {
+                var tmp = document.createElement("button");
+                tmp.setAttribute("data-b10", "suggest");
+                tmp.style.display = "none";
+                document.body.appendChild(tmp);
+                tmp.click();
+                tmp.remove();
+              }
+            }, 200);
+          });
+          panel.appendChild(b);
+        });
+      }
+    }, 60);
+  }, true);
+
+  console.log("[Batch10] subscription / verify / claim / misc ready");
+})();
+
+
+
+// ═══════════════════════════════════════════════
+// PROFILE HERO v1 — click handlers + CV modal
+// ═══════════════════════════════════════════════
+(function () {
+  "use strict";
+  if (window.__profileHeroV1) return;
+  window.__profileHeroV1 = true;
+
+  function _isOwnProfile() {
+    var data = window._currentProfileData;
+    return !!(data && data.user && window.state && state.me
+      && data.user.username === state.me.username);
+  }
+
+  function _openEdit() {
+    if (typeof openEditProfile === "function") openEditProfile();
+  }
+
+  // ---- Avatar click ----
+  document.addEventListener("click", function (e) {
+    var av = e.target.closest("#profile-page-avatar");
+    if (!av || !_isOwnProfile()) return;
+    if (e.target.closest("#avatar-edit-fab")) return;
+    e.preventDefault(); e.stopPropagation();
+    _openEdit();
+  }, true);
+
+  // ---- Avatar edit FAB ----
+  document.addEventListener("click", function (e) {
+    var btn = e.target.closest("#avatar-edit-fab");
+    if (!btn) return;
+    e.preventDefault(); e.stopPropagation();
+    if (!_isOwnProfile()) return;
+    _openEdit();
+    setTimeout(function () {
+      var inp = document.getElementById("avatar-input");
+      if (inp) inp.click();
+    }, 260);
+  }, true);
+
+  // ---- Cover click ----
+  document.addEventListener("click", function (e) {
+    var cov = e.target.closest("#profile-cover-clickable, .profile-cover");
+    if (!cov || !_isOwnProfile()) return;
+    if (e.target.closest("#cover-edit-fab")) return;
+    e.preventDefault(); e.stopPropagation();
+    _openEdit();
+  }, true);
+
+  // ---- Cover edit FAB ----
+  document.addEventListener("click", function (e) {
+    var btn = e.target.closest("#cover-edit-fab");
+    if (!btn) return;
+    e.preventDefault(); e.stopPropagation();
+    if (!_isOwnProfile()) return;
+    _openEdit();
+    setTimeout(function () {
+      var inp = document.getElementById("cover-input");
+      if (inp) inp.click();
+    }, 260);
+  }, true);
+
+  // ---- Name click ----
+  document.addEventListener("click", function (e) {
+    var nm = e.target.closest("#profile-page-name.profile-signature-name");
+    if (!nm || !_isOwnProfile()) return;
+    e.preventDefault(); e.stopPropagation();
+    _openEdit();
+  }, true);
+
+  // ---- Bio click ----
+  document.addEventListener("click", function (e) {
+    var bio = e.target.closest("#profile-page-bio.profile-hero-bio");
+    if (!bio || !_isOwnProfile()) return;
+    e.preventDefault(); e.stopPropagation();
+    _openEdit();
+  }, true);
+
+  // ---- More Info → CV modal ----
+  document.addEventListener("click", function (e) {
+    var btn = e.target.closest("#profile-open-cv");
+    if (!btn) return;
+    e.preventDefault(); e.stopPropagation();
+    _openCVModal();
+  }, true);
+
+  function _openCVModal() {
+    var data = window._currentProfileData;
+    if (!data || !data.user) return;
+    var u = data.user;
+
+    var old = document.getElementById("cv-modal");
+    if (old) old.remove();
+
+    var joinedTxt = "—";
+    try {
+      var dt = new Date((u.created_at || "").replace(" ", "T") + "Z");
+      var months = ["জানুয়ারি","ফেব্রুয়ারি","মার্চ","এপ্রিল","মে","জুন",
+                    "জুলাই","আগস্ট","সেপ্টেম্বর","অক্টোবর","নভেম্বর","ডিসেম্বর"];
+      var bn = function(n){ return String(n).replace(/[0-9]/g, function(x){ return "০১২৩৪৫৬৭৮৯"[x]; }); };
+      joinedTxt = bn(dt.getDate()) + " " + months[dt.getMonth()] + " " + bn(dt.getFullYear());
+    } catch (err) {}
+
+    var stats = {
+      posts: data.posts ? data.posts.length : 0,
+      followers: data.followers_count || 0,
+      following: data.following_count || 0,
+    };
+
+    var bannerPic = u.cover_pic
+      ? '<img src="' + escapeHtml(u.cover_pic) + '" alt="" loading="lazy" decoding="async">'
+      : '<div class="cv-banner-grad"></div>';
+    var avatarPic = u.profile_pic
+      ? '<img src="' + escapeHtml(u.profile_pic) + '" alt="" loading="lazy" decoding="async">'
+      : (u.display_name || "?").charAt(0).toUpperCase();
+
+    var linksHTML = "";
+    if (u.bio_links) {
+      var links = u.bio_links.split("\n").map(function(x){return x.trim();}).filter(Boolean);
+      if (links.length) {
+        linksHTML = '<div class="cv-section">' +
+          '<div class="cv-section-title"><i class="fa-solid fa-link"></i> লিংক</div>' +
+          '<div class="cv-links">' +
+            links.map(function(link){
+              var display = link.replace(/^https?:\/\//, "").split("/")[0];
+              var href = /^https?:\/\//.test(link) ? link : ("https://" + link);
+              return '<a class="cv-link" href="' + escapeHtml(href) + '" target="_blank" rel="noopener">' +
+                '<i class="fa-solid fa-arrow-up-right-from-square"></i>' +
+                '<span>' + escapeHtml(display) + '</span>' +
+              '</a>';
+            }).join("") +
+          '</div>' +
+        '</div>';
+      }
+    }
+
+    var modal = document.createElement("div");
+    modal.id = "cv-modal";
+    modal.className = "modal";
+    modal.style.zIndex = "99999";
+    modal.innerHTML =
+      '<div class="modal-content cv-modal-content">' +
+        '<button class="close-btn" id="cv-close" type="button">×</button>' +
+        '<div class="cv-banner">' + bannerPic + '</div>' +
+        '<div class="cv-body">' +
+          '<div class="cv-header-row">' +
+            '<div class="cv-avatar">' + avatarPic + '</div>' +
+            '<div class="cv-header-text">' +
+              '<h2 class="cv-name">' + escapeHtml(u.display_name) + '</h2>' +
+              '<p class="cv-uname">@' + escapeHtml(u.username) + '</p>' +
+              (u.pronouns ? '<span class="cv-pronoun">' + escapeHtml(u.pronouns) + '</span>' : "") +
+            '</div>' +
+          '</div>' +
+          '<div class="cv-quick-stats">' +
+            '<div class="cv-stat"><strong>' + stats.posts + '</strong><span>পোস্ট</span></div>' +
+            '<div class="cv-stat"><strong>' + stats.followers + '</strong><span>ফলোয়ার</span></div>' +
+            '<div class="cv-stat"><strong>' + stats.following + '</strong><span>ফলোয়িং</span></div>' +
+          '</div>' +
+          (u.bio ?
+            '<div class="cv-section">' +
+              '<div class="cv-section-title"><i class="fa-solid fa-quote-left"></i> পরিচিতি</div>' +
+              '<p class="cv-bio">' + escapeHtml(u.bio) + '</p>' +
+            '</div>' : "") +
+          '<div class="cv-grid">' +
+            '<div class="cv-field"><i class="fa-solid fa-location-dot"></i><div><span>লোকেশন</span><strong>' + escapeHtml(u.location || "—") + '</strong></div></div>' +
+            '<div class="cv-field"><i class="fa-solid fa-calendar"></i><div><span>যোগদান</span><strong>' + joinedTxt + '</strong></div></div>' +
+            (u.category ? '<div class="cv-field"><i class="fa-solid fa-briefcase"></i><div><span>ক্যাটাগরি</span><strong>' + escapeHtml(u.category) + '</strong></div></div>' : "") +
+          '</div>' +
+          linksHTML +
+          '<div class="cv-footer">' +
+            '<button type="button" class="cv-btn-primary" id="cv-share">' +
+              '<i class="fa-solid fa-share-nodes"></i> শেয়ার করুন' +
+            '</button>' +
+            '<button type="button" class="cv-btn-ghost" id="cv-close-2">বন্ধ করুন</button>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+
+    document.body.appendChild(modal);
+
+    function close() { modal.remove(); }
+    document.getElementById("cv-close").onclick = close;
+    document.getElementById("cv-close-2").onclick = close;
+    modal.addEventListener("click", function (e) { if (e.target === modal) close(); });
+
+    var shareBtn = document.getElementById("cv-share");
+    if (shareBtn) {
+      shareBtn.onclick = function () {
+        var url = window.location.origin + "/u/" + u.username;
+        if (navigator.share) {
+          navigator.share({ title: u.display_name, text: "JUKTOY প্রোফাইল", url: url }).catch(function(){});
+        } else {
+          navigator.clipboard.writeText(url).then(function () {
+            if (typeof showToast === "function") showToast("🔗 লিংক কপি হয়েছে");
+          });
+        }
+      };
+    }
+  }
+
+  window._openCVModal = _openCVModal;
+  console.log("[PROFILE HERO] v1 ready ✅");
+})();
+
+
+// ═══════════════════════════════════════════════
+// S30.9 — Offline banner + network resilience
+// ═══════════════════════════════════════════════
+(function () {
+  if (window.__offlineBanner) return;
+  window.__offlineBanner = true;
+
+  var banner = null;
+  var hideTimer = null;
+
+  function ensureBanner() {
+    if (banner) return banner;
+    banner = document.createElement("div");
+    banner.id = "net-banner";
+    banner.style.cssText = [
+      "position:fixed",
+      "top:0","left:0","right:0",
+      "z-index:9999999",
+      "background:linear-gradient(90deg,#dc2626,#ef4444)",
+      "color:#fff",
+      "font-family:inherit",
+      "font-size:13px",
+      "font-weight:700",
+      "text-align:center",
+      "padding:8px 16px",
+      "transform:translateY(-100%)",
+      "transition:transform .3s cubic-bezier(.34,1.56,.64,1)",
+      "box-shadow:0 4px 16px rgba(0,0,0,.25)",
+      "display:flex","align-items:center","justify-content:center","gap:8px",
+      "pointer-events:none"
+    ].join(";");
+    banner.innerHTML = '<i class="fa-solid fa-wifi"></i><span>ইন্টারনেট সংযোগ নেই — আবার সংযোগ করুন</span>';
+    document.body.appendChild(banner);
+    return banner;
+  }
+
+  function showBanner(text, kind) {
+    var b = ensureBanner();
+    if (kind === "warn") {
+      b.style.background = "linear-gradient(90deg,#d97706,#f59e0b)";
+      b.innerHTML = '<i class="fa-solid fa-circle-exclamation"></i><span>' + text + '</span>';
+    } else if (kind === "ok") {
+      b.style.background = "linear-gradient(90deg,#059669,#10b981)";
+      b.innerHTML = '<i class="fa-solid fa-check-circle"></i><span>' + text + '</span>';
+    } else {
+      b.style.background = "linear-gradient(90deg,#dc2626,#ef4444)";
+      b.innerHTML = '<i class="fa-solid fa-wifi"></i><span>' + text + '</span>';
+    }
+    b.style.transform = "translateY(0)";
+    if (hideTimer) clearTimeout(hideTimer);
+    if (kind === "ok") {
+      hideTimer = setTimeout(hideBanner, 2200);
+    }
+  }
+
+  function hideBanner() {
+    if (!banner) return;
+    banner.style.transform = "translateY(-100%)";
+  }
+
+  // Native offline/online events
+  window.addEventListener("offline", function () {
+    showBanner("ইন্টারনেট সংযোগ নেই", "error");
+  });
+  window.addEventListener("online", function () {
+    showBanner("সংযোগ ফিরে এসেছে", "ok");
+  });
+
+  // Expose for api() to call
+  window.__showNetBanner = showBanner;
+  window.__hideNetBanner = hideBanner;
+
+  // Initial state
+  if (!navigator.onLine) showBanner("ইন্টারনেট সংযোগ নেই", "error");
+
+  console.log("[OFFLINE_BANNER] ready");
+})();
+
+
+// ═══════════════════════════════════════════════
+// S30.9 — wrap api() with 1 retry on network failure
+// (only network throws, not 4xx/5xx — avoid double POST)
+// ═══════════════════════════════════════════════
+(function () {
+  if (window.__apiRetry) return;
+  window.__apiRetry = true;
+  if (typeof window.api !== "function") return;
+
+  var _origApi = window.api;
+
+  window.api = async function (url, options) {
+    var attempts = 0;
+    var maxAttempts = 2;   // original + 1 retry
+    var lastErr = null;
+
+    while (attempts < maxAttempts) {
+      try {
+        return await _origApi(url, options);
+      } catch (err) {
+        lastErr = err;
+        var msg = (err && err.message) || "";
+        var isNetwork = /Failed to fetch|NetworkError|Load failed|ERR_NETWORK|ERR_INTERNET|Network request failed/i.test(msg);
+        var isMethod = options && options.method ? options.method.toUpperCase() : "GET";
+        var isSafe = (isMethod === "GET" || isMethod === "HEAD");
+
+        if (!isNetwork || !isSafe) throw err;
+
+        attempts++;
+        if (attempts >= maxAttempts) throw err;
+
+        try { if (window.__showNetBanner) window.__showNetBanner("পুনরায় চেষ্টা করা হচ্ছে...", "warn"); } catch (e) {}
+        await new Promise(function (r) { setTimeout(r, 900); });
+      }
+    }
+    throw lastErr || new Error("api failed");
+  };
+
+  console.log("[API_RETRY] ready");
+})();
+
+
+// ═══════════════════════════════════════════════
+// S30.11 — Unified badge poller (was: 2×8s intervals)
+// ═══════════════════════════════════════════════
+(function () {
+  if (window.__badgePoll) return;
+  window.__badgePoll = true;
+
+  var _timer = null;
+  var _lastRun = 0;
+
+  function tick() {
+    try {
+      var s = (typeof state !== "undefined" && state) || window.state;
+      if (!s || !s.me) return;
+      if (document.hidden) return;
+      if (typeof updateUnreadBadge === "function") updateUnreadBadge().catch(function(){});
+      if (typeof updateNotifBadge === "function") updateNotifBadge().catch(function(){});
+      _lastRun = Date.now();
+    } catch (e) {}
+  }
+
+  function start() {
+    if (_timer) return;
+    _timer = setInterval(tick, 10000);   // 10s (was 8s + 8s = 2 calls)
+    setTimeout(tick, 200);               // immediate first tick
+  }
+
+  // visibility-aware — return to tab → immediate poll
+  document.addEventListener("visibilitychange", function () {
+    if (!document.hidden) setTimeout(tick, 300);
+  });
+
+  // start when user logs in
+  if (typeof window._enterAppHooks !== "undefined" && Array.isArray(window._enterAppHooks)) {
+    window._enterAppHooks.push(function () { start(); });
+  } else {
+    // retry fallback
+    var tries = 0;
+    var t = setInterval(function () {
+      tries++;
+      if (typeof window._enterAppHooks !== "undefined" && Array.isArray(window._enterAppHooks)) {
+        window._enterAppHooks.push(function () { start(); });
+        clearInterval(t);
+      } else if (tries > 20) {
+        clearInterval(t);
+        start();
+      }
+    }, 250);
+  }
+
+  console.log("[BADGE_POLL] ready (10s unified)");
+})();
+
+
+// ═══════════════════════════════════════════════
+// S30.13 — image load state tracking
+// ═══════════════════════════════════════════════
+(function () {
+  if (window.__imgStateTrack) return;
+  window.__imgStateTrack = true;
+
+  function markState(img) {
+    if (!img) return;
+    if (img.complete && img.naturalWidth > 0) {
+      img.dataset.srcState = "loaded";
+      return;
+    }
+    img.dataset.srcState = "loading";
+  }
+
+  // Mark all images (existing + future)
+  function scan() {
+    document.querySelectorAll('img[loading="lazy"]').forEach(function (img) {
+      if (!img.dataset.srcState) markState(img);
+      if (img.dataset.bound === "1") return;
+      img.dataset.bound = "1";
+      img.addEventListener("load", function () { img.dataset.srcState = "loaded"; });
+      img.addEventListener("error", function () { img.dataset.srcState = "error"; });
+    });
+  }
+
+  // observe DOM for new images
+  try {
+    new MutationObserver(scan).observe(document.body, { childList: true, subtree: true });
+  } catch (e) {}
+
+  setInterval(scan, 800);
+  scan();
+  console.log("[IMG_STATE] ready");
+})();
+
+// S30.15 — clear _currentProfileData when profile page closes
+(function () {
+  if (window.__profileCleanup) return;
+  window.__profileCleanup = true;
+  var page = document.getElementById("profile-page");
+  if (!page) return;
+  try {
+    new MutationObserver(function () {
+      if (page.classList.contains("hidden")) {
+        // page went hidden → release cached profile data (memory + stale-state safe)
+        window._currentProfileData = null;
+      }
+    }).observe(page, { attributes: true, attributeFilter: ["class"] });
+  } catch (e) {}
+  console.log("[PROFILE_CLEANUP] watching profile-page close");
 })();

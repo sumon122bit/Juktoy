@@ -55,7 +55,7 @@ body.dark .messages-topbar {
   align-items: center !important;
   justify-content: center !important;
   cursor: pointer !important;
-  transition: all 0.25s cubic-bezier(0.34,1.56,0.64,1) !important;
+  transition: background-color 0.25s cubic-bezier(0.34,1.56,0.64,1), color 0.25s cubic-bezier(0.34,1.56,0.64,1), border-color 0.25s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.25s cubic-bezier(0.34,1.56,0.64,1), transform 0.25s cubic-bezier(0.34,1.56,0.64,1), opacity 0.25s cubic-bezier(0.34,1.56,0.64,1), filter 0.25s cubic-bezier(0.34,1.56,0.64,1) !important;important;
   box-shadow: 0 1px 2px rgba(255,107,107,0.04) !important;
 }
 .messages-topbar .back-btn:hover {
@@ -105,7 +105,7 @@ body.dark .conv-list { border-right-color: rgba(255,142,142,0.08) !important; }
   font-size: 14px !important;
   font-weight: 500 !important;
   box-shadow: 0 1px 3px rgba(26,15,14,0.03) !important;
-  transition: all 0.25s ease !important;
+  transition: background-color 0.25s ease, color 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease, transform 0.25s ease, opacity 0.25s ease, filter 0.25s ease !important;important;
 }
 .conv-search input::placeholder { color: var(--muted) !important; opacity: 0.85 !important; }
 .conv-search input:focus {
@@ -139,7 +139,7 @@ body.dark .conv-search input {
   margin-bottom: 6px !important;
   cursor: pointer !important;
   position: relative !important;
-  transition: all 0.25s cubic-bezier(0.4,0,0.2,1) !important;
+  transition: background-color 0.25s cubic-bezier(0.4,0,0.2,1), color 0.25s cubic-bezier(0.4,0,0.2,1), border-color 0.25s cubic-bezier(0.4,0,0.2,1), box-shadow 0.25s cubic-bezier(0.4,0,0.2,1), transform 0.25s cubic-bezier(0.4,0,0.2,1), opacity 0.25s cubic-bezier(0.4,0,0.2,1), filter 0.25s cubic-bezier(0.4,0,0.2,1) !important;important;
   box-shadow:
     0 1px 2px rgba(26,15,14,0.03),
     0 2px 8px rgba(255,107,107,0.03) !important;
@@ -510,10 +510,10 @@ body.dark .chat-msg.incoming {
   border-radius: 50% !important;
   background: #10B981 !important;
   box-shadow: 0 0 0 0 rgba(16,185,129,0.5) !important;
-  animation: onlinePulse 1.8s ease-in-out infinite !important;
+  animation: onlinePulseCoral 1.8s ease-in-out infinite !important;
   display: inline-block !important;
 }
-@keyframes onlinePulse {
+@keyframes onlinePulseCoral {
   0%, 100% { box-shadow: 0 0 0 0 rgba(16,185,129,0.5); }
   50% { box-shadow: 0 0 0 5px rgba(16,185,129,0); }
 }
@@ -626,7 +626,7 @@ body.dark .chat-composer-wrap {
   font-size: 15px !important;
   font-weight: 500 !important;
   box-shadow: 0 1px 3px rgba(26,15,14,0.03) !important;
-  transition: all 0.25s ease !important;
+  transition: background-color 0.25s ease, color 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease, transform 0.25s ease, opacity 0.25s ease, filter 0.25s ease !important;important;
 }
 .chat-composer #chat-input:focus {
   border-color: var(--accent) !important;
@@ -838,7 +838,7 @@ body.messages-chat-open .messages-topbar { display: none !important; }
   align-items: center !important;
   justify-content: center !important;
   padding: 0 !important;
-  transition: all 0.2s cubic-bezier(0.34,1.56,0.64,1) !important;
+  transition: background-color 0.2s cubic-bezier(0.34,1.56,0.64,1), color 0.2s cubic-bezier(0.34,1.56,0.64,1), border-color 0.2s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.2s cubic-bezier(0.34,1.56,0.64,1), transform 0.2s cubic-bezier(0.34,1.56,0.64,1), opacity 0.2s cubic-bezier(0.34,1.56,0.64,1), filter 0.2s cubic-bezier(0.34,1.56,0.64,1) !important;important;
 }
 .chat-header-btn:hover {
   background: rgba(255,107,107,0.1) !important;
@@ -1056,7 +1056,7 @@ body.chat-multi-select #chat-window .chat-emoji-slot {
   justify-content: center !important;
   color: transparent !important;
   font-size: 11px !important;
-  transition: all 0.25s cubic-bezier(0.34,1.56,0.64,1) !important;
+  transition: background-color 0.25s cubic-bezier(0.34,1.56,0.64,1), color 0.25s cubic-bezier(0.34,1.56,0.64,1), border-color 0.25s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.25s cubic-bezier(0.34,1.56,0.64,1), transform 0.25s cubic-bezier(0.34,1.56,0.64,1), opacity 0.25s cubic-bezier(0.34,1.56,0.64,1), filter 0.25s cubic-bezier(0.34,1.56,0.64,1) !important;important;
   z-index: 2 !important;
 }
 .chat-msg.outgoing .chat-msg-checkbox { left: auto !important; right: -34px !important; }
@@ -1130,7 +1130,7 @@ body.dark .chat-multi-bar { background: #291817 !important; box-shadow: 0 -8px 2
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
-  transition: all 0.2s ease !important;
+  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease, opacity 0.2s ease, filter 0.2s ease !important;important;
 }
 .cmb-btn:hover { background: rgba(255,107,107,0.1) !important; transform: scale(1.1) !important; }
 .cmb-btn.danger { color: #E14B4B !important; }
@@ -1233,7 +1233,7 @@ body.dark .chat-multi-bar { background: #291817 !important; box-shadow: 0 -8px 2
   color: transparent !important;
   font-size: 11px !important;
   flex-shrink: 0 !important;
-  transition: all 0.2s cubic-bezier(0.34,1.56,0.64,1) !important;
+  transition: background-color 0.2s cubic-bezier(0.34,1.56,0.64,1), color 0.2s cubic-bezier(0.34,1.56,0.64,1), border-color 0.2s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.2s cubic-bezier(0.34,1.56,0.64,1), transform 0.2s cubic-bezier(0.34,1.56,0.64,1), opacity 0.2s cubic-bezier(0.34,1.56,0.64,1), filter 0.2s cubic-bezier(0.34,1.56,0.64,1) !important;important;
 }
 .fwd-item.selected .fwd-check {
   background: linear-gradient(135deg, #FF6B6B, #F43F5E) !important;
@@ -1293,7 +1293,7 @@ body.dark .chat-multi-bar { background: #291817 !important; box-shadow: 0 -8px 2
   align-items: center !important;
   justify-content: center !important;
   flex-shrink: 0 !important;
-  transition: all 0.18s ease !important;
+  transition: background-color 0.18s ease, color 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease, opacity 0.18s ease, filter 0.18s ease !important;important;
 }
 .csb-back:hover, .csb-nav:hover { background: rgba(255,107,107,0.1) !important; }
 .csb-input-wrap {
@@ -1456,7 +1456,7 @@ body.dark .cms-handle { background: rgba(255,142,142,0.35) !important; }
   align-items: center !important;
   justify-content: center !important;
   padding: 0 !important;
-  transition: all 0.25s cubic-bezier(0.34,1.56,0.64,1) !important;
+  transition: background-color 0.25s cubic-bezier(0.34,1.56,0.64,1), color 0.25s cubic-bezier(0.34,1.56,0.64,1), border-color 0.25s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.25s cubic-bezier(0.34,1.56,0.64,1), transform 0.25s cubic-bezier(0.34,1.56,0.64,1), opacity 0.25s cubic-bezier(0.34,1.56,0.64,1), filter 0.25s cubic-bezier(0.34,1.56,0.64,1) !important;important;
   font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji",
                "Android Emoji", "EmojiOne Color", emoji, sans-serif !important;
 }
@@ -1731,7 +1731,7 @@ body.dark .cms-handle { background: rgba(255,142,142,0.35) !important; }
   align-items: center !important;
   justify-content: center !important;
   padding: 0 !important;
-  transition: all 0.22s cubic-bezier(0.34,1.56,0.64,1) !important;
+  transition: background-color 0.22s cubic-bezier(0.34,1.56,0.64,1), color 0.22s cubic-bezier(0.34,1.56,0.64,1), border-color 0.22s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.22s cubic-bezier(0.34,1.56,0.64,1), transform 0.22s cubic-bezier(0.34,1.56,0.64,1), opacity 0.22s cubic-bezier(0.34,1.56,0.64,1), filter 0.22s cubic-bezier(0.34,1.56,0.64,1) !important;important;
   font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji",
                "Android Emoji", "EmojiOne Color", emoji, sans-serif !important;
   -webkit-tap-highlight-color: transparent !important;
@@ -1777,7 +1777,7 @@ body.dark .cms-handle { background: rgba(255,142,142,0.35) !important; }
   justify-content: center !important;
   color: var(--accent) !important;
   font-size: 16px !important;
-  transition: all 0.15s ease !important;
+  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease, opacity 0.15s ease, filter 0.15s ease !important;important;
 }
 .cms-act:hover .cms-act-icon {
   background: rgba(255,107,107,0.18) !important;
@@ -1895,7 +1895,7 @@ body.dark .cmm-left-menu {
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
-  transition: all 0.2s ease !important;
+  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease, opacity 0.2s ease, filter 0.2s ease !important;important;
 }
 .cmm-close:hover { background: rgba(255,107,107,0.2) !important; transform: rotate(90deg) !important; }
 
@@ -2058,11 +2058,7 @@ body.dark .cmm-reaction-strip {
 .chat-msg-reactions.landing .cmr-pill {
   animation: reactionLand 0.55s cubic-bezier(0.34,1.56,0.64,1);
 }
-@keyframes reactionLand {
-  0% { transform: scale(0.3) translateY(-14px); opacity: 0; }
-  55% { transform: scale(1.25) translateY(2px); opacity: 1; }
-  100% { transform: scale(1) translateY(0); opacity: 1; }
-}
+/* S30.5 - removed duplicate @keyframes reactionLand (kept last copy) */
 
 /* Message info modal */
 .msg-info-row {
@@ -2345,8 +2341,13 @@ body.dark .cmm-reaction-strip {
 .msg-info-row span { color: var(--muted) !important; font-weight: 500 !important; }
 .msg-info-row strong { color: var(--text) !important; font-weight: 700 !important; }
 
-/* ---------- Old styles cleanup ---------- */
-.cmm-left-menu, .cms-panel, .chat-msg-sheet:not(.chat-msg-menu-root) { display: none !important; }
+/* ---------- S29.18 - removed dead rules ----------
+   .cmm-left-menu and .cms-panel were from an earlier message-menu
+   design (left-side list + bottom sheet). The current _chatMsgMenu()
+   in app.js builds .cmm-rail + .cmm-reaction-strip only, so these
+   selectors never match and the rules were pure dead weight.
+   Left as a comment so future readers don't re-add them.
+*/
 
 /* ---------- Mobile ---------- */
 @media (max-width: 480px) {
@@ -2567,7 +2568,7 @@ body.dark .msg-story-av { border-color: var(--bg) !important; }
   border: 2.5px solid var(--bg) !important;
   box-shadow: 0 0 8px rgba(16,185,129,0.5) !important;
   z-index: 2 !important;
-  animation: onlinePulse 2s ease-in-out infinite !important;
+  animation: onlinePulseCoral 2s ease-in-out infinite !important;
 }
 .msg-story-av-wrap .online-dot.off { display: none !important; }
 
@@ -2631,7 +2632,7 @@ body.dark .msg-story-av { border-color: var(--bg) !important; }
   border: 2.5px solid var(--card) !important;
   box-shadow: 0 0 8px rgba(16,185,129,0.6) !important;
   z-index: 2 !important;
-  animation: onlinePulse 2s ease-in-out infinite !important;
+  animation: onlinePulseCoral 2s ease-in-out infinite !important;
 }
 
 /* Row taller for big avatar */
@@ -2812,7 +2813,7 @@ body.dark .msg-story-eye {
   justify-content: center !important;
   padding: 0 !important;
   flex-shrink: 0 !important;
-  transition: all 0.2s cubic-bezier(0.34,1.56,0.64,1) !important;
+  transition: background-color 0.2s cubic-bezier(0.34,1.56,0.64,1), color 0.2s cubic-bezier(0.34,1.56,0.64,1), border-color 0.2s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.2s cubic-bezier(0.34,1.56,0.64,1), transform 0.2s cubic-bezier(0.34,1.56,0.64,1), opacity 0.2s cubic-bezier(0.34,1.56,0.64,1), filter 0.2s cubic-bezier(0.34,1.56,0.64,1) !important;important;
   -webkit-tap-highlight-color: transparent !important;
 }
 .chat-mic-btn:hover {
@@ -2893,7 +2894,7 @@ body.dark .chat-mic-btn { color: #FF8E8E !important; }
   font-weight: 700 !important;
   cursor: pointer !important;
   flex-shrink: 0 !important;
-  transition: all 0.15s ease !important;
+  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease, opacity 0.15s ease, filter 0.15s ease !important;important;
 }
 .vr-cancel.armed, .vr-cancel:hover {
   background: #E14B4B !important;
@@ -3030,7 +3031,7 @@ body.dark .chat-mic-btn { color: #FF8E8E !important; }
   align-items: center !important;
   justify-content: center !important;
   padding: 0 !important;
-  transition: all 0.18s ease !important;
+  transition: background-color 0.18s ease, color 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease, opacity 0.18s ease, filter 0.18s ease !important;important;
   -webkit-tap-highlight-color: transparent !important;
   z-index: 2 !important;
 }
@@ -3144,7 +3145,7 @@ body.dark .chat-input-wrap .chat-mic-btn { color: #FF8E8E !important; }
   gap: 6px !important; padding: 8px 4px !important;
   background: transparent !important; border: 2px solid transparent !important;
   border-radius: 14px !important; cursor: pointer !important;
-  transition: all 0.2s ease !important; font-family: inherit !important;
+  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease, opacity 0.2s ease, filter 0.2s ease !important;important; font-family: inherit !important;
 }
 .ctm-swatch:hover { background: rgba(255,107,107,0.06) !important; }
 .ctm-swatch.active {
@@ -3180,7 +3181,7 @@ body.dark .chat-input-wrap .chat-mic-btn { color: #FF8E8E !important; }
   gap: 6px !important; padding: 8px 4px !important;
   background: transparent !important; border: 2px solid transparent !important;
   border-radius: 14px !important; cursor: pointer !important;
-  transition: all 0.2s ease !important; font-family: inherit !important;
+  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease, opacity 0.2s ease, filter 0.2s ease !important;important; font-family: inherit !important;
 }
 .cwm-swatch:hover { background: rgba(255,107,107,0.06) !important; }
 .cwm-swatch.active {
@@ -3230,7 +3231,7 @@ body.dark .ctm-preview { background: rgba(255,255,255,0.03) !important; }
   border: 1.5px solid var(--border) !important;
   border-radius: 12px !important;
   margin-bottom: 16px !important;
-  transition: all 0.2s ease !important;
+  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease, opacity 0.2s ease, filter 0.2s ease !important;important;
 }
 .cnm-check:hover { border-color: var(--accent) !important; }
 .cnm-check input {

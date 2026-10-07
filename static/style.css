@@ -1,3 +1,108 @@
+/* TOC-START (auto, re-run script to refresh) */
+/* Section map (line numbers):
+ * 184  AUTH
+ * 402  APP SHELL
+ * 411  TOPBAR
+ * 656  APP LAYOUT (3-column desktop)
+ * 670  LEFT SIDEBAR (desktop)
+ * 790  MAIN FEED
+ * 801  STORIES SECTION
+ * 936  COMPOSER
+ * 1055  POSTS
+ * 1207  RIGHT SIDEBAR
+ * 1389  MOBILE BOTTOM NAV
+ * 1426  SIDEBAR DRAWER (mobile)
+ * 1463  PROFILE PAGE
+ * 1699  MESSAGES PAGE
+ * 1936  MODALS
+ * 2039  RESPONSIVE
+ * 2132  1. BUTTONS — press / hover feedback
+ * 2196  2. LIKE BUTTON — heart pop + particle burst
+ * 2258  3. POSTS — slide-in entrance
+ * 2302  4. COMMENTS — slide + bounce
+ * 2344  5. SEARCH RESULTS — staggered reveal
+ * 2366  6. MODAL — scale + fade
+ * 2386  7. PROFILE PAGE — cinematic entrance
+ * 2430  8. AVATARS — hover lift + glow
+ * 2461  9. STORIES — hover + pulse
+ * 2481  10. NAV ITEMS — slide indicator
+ * 2497  11. COMPOSER — focus glow
+ * 2513  12. RIGHT SIDEBAR cards — fade up
+ * 2536  13. ONLINE DOT — pulse
+ * 2549  14. NOTIFICATION DOT — bounce
+ * 2566  15. CHAT MESSAGES — slide in
+ * 2586  16. TOAST — slide up
+ * 2604  17. SIDEBAR DRAWER — smooth slide
+ * 2616  18. THEME SWITCH — snappy toggle
+ * 2624  19. INPUT FOCUS — glow
+ * 2637  20. RESPECT REDUCED MOTION
+ * 2654  SIDEBAR THEME SWITCH
+ * 2740  Reel button — active only (gradient + glow)
+ * 2760  STORY VIEWER
+ * 2979  STORY UPLOAD MODAL
+ * 3049  EXPLORE PAGE — Trending + Top Posts + Users
+ * 3161  TRENDING TAGS — chips
+ * 3225  TOP POSTS — masonry grid
+ * 3313  SUGGESTED USERS — cards
+ * 3413  HASHTAG PAGE
+ * 3468  SAVE BUTTON + SAVED PAGE
+ * 3502  NOTIFICATIONS
+ * 3669  5-BUTTON BOTTOM NAV TUNING
+ * 3717  REELS — Full-screen TikTok-style
+ * 4081  REEL UPLOAD MODAL
+ * 4138  REEL COMMENTS SHEET (bottom sheet)
+ * 4286  MULTI-IMAGE POST — Preview Grid + Carousel
+ * 4554  POST BUTTON — Glowing when content is ready
+ * 4646  POST BUTTON — Strong visible active state
+ * 4702  POST BUTTON — Pop-in animation (final version)
+ * 4783  REACTIONS SYSTEM — Picker + Display
+ * 4866  REACTION PICKER POPUP
+ * 4971  LIKE BUTTON — with picker positioning
+ * 5013  REACTION WAVE ANIMATION (double-tap)
+ * 5047  FINAL REACTION PICKER — Global Fixed Position
+ * 5123  REPOST + QUOTE STYLES
+ * 5333  SETTINGS PAGE
+ * 5391  BLOCK SYSTEM STYLES
+ * 5491  COMMENT ENHANCEMENTS — reply, like, delete
+ * 5609  REPLY LOAD-MORE + FIXED LAYOUT
+ * 5677  POST EDIT
+ * 5772  POST LAYOUT — Cleaner Hierarchy + 3-Dot Menu
+ * 5919  REPORT SYSTEM
+ * 6043  NOTIFICATION GROUPING — stacked avatars
+ * 6130  EMOJI PICKER v3 — clean rebuild
+ * 6208  EMOJI PICKER v4
+ * 6551  EMOJI PICKER — header with preview + backspace
+ * 6644  BETTER FEED UX — skeleton, empty, pull-refresh
+ * 6821  LIKE LIST + STORY VIEWERS
+ * 6990  STORY REACTIONS — fixed positioning (parent-independent)
+ * 7085  STORY REPLY BAR
+ * 7229  STORY REPLY FEEDBACK STATES
+ * 7267  ONBOARDING
+ * 7547  ONBOARDING — Cover photo
+ * 7624  CHAT: image, reply, reaction, menu
+ * 7843  CHAT COMPOSER — layout fix
+ * 7940  CHAT IMAGE — better bubble + full viewer
+ * 8117  OVERLAY PAGES — hide bottom nav + full coverage
+ * 8189  UNIFIED SEARCH
+ * 8445  FULL-PAGE SEARCH
+ * 8604  PROFILE — JOIN DATE
+ * 8621  PROFILE — MUTUAL FOLLOWERS
+ * 8679  PROFILE — PHOTOS TAB
+ * 8780  PROFILE COMPLETION BAR
+ * 8922  NOTIFICATION FILTER TABS
+ * 9067  SETTINGS — DANGER ZONE
+ * 9182  PRIVACY SETTINGS
+ * 9289  GROUP CHAT
+ * 9508  MODAL KEYBOARD FIX — BULLETPROOF OVERRIDE
+ * 9556  MODAL Z-INDEX FIX — must be above all overlays
+ * 9601  GROUP CHAT COMPOSER — match individual chat style
+ * 9742  S7 — HTTPS WARNING BANNER
+ * 9816  S12 — TWO-FACTOR AUTHENTICATION
+ * 9895  S14 — ADMIN PANEL
+ * 10355  S15.3 — LOGIN HISTORY
+ * 10422  S15.4 — ACTIVE SESSIONS
+ */
+/* TOC-END */
 /* ================================================
    JUKTOY — Complete Stylesheet v3
    Light theme default, blue accent (Socially-style)
@@ -146,7 +251,7 @@ img { max-width: 100%; display: block; }
   border: 1px solid var(--border);
   border-radius: 12px;
   padding: 0 48px 0 16px;
-  transition: all 0.2s;
+  transition: background-color 0.2s, color 0.2s, border-color 0.2s, box-shadow 0.2s, transform 0.2s, opacity 0.2s, filter 0.2s;
 }
 .input-group:focus-within {
   border-color: var(--accent);
@@ -199,7 +304,7 @@ img { max-width: 100%; display: block; }
   font-weight: 700;
   cursor: pointer;
   font-family: inherit;
-  transition: all 0.2s var(--ease);
+  transition: background-color 0.2s var(--ease), color 0.2s var(--ease), border-color 0.2s var(--ease), box-shadow 0.2s var(--ease), transform 0.2s var(--ease), opacity 0.2s var(--ease), filter 0.2s var(--ease);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -223,7 +328,7 @@ img { max-width: 100%; display: block; }
   align-items: center;
   justify-content: center;
   gap: 6px;
-  transition: all 0.2s;
+  transition: background-color 0.2s, color 0.2s, border-color 0.2s, box-shadow 0.2s, transform 0.2s, opacity 0.2s, filter 0.2s;
 }
 .btn-secondary:hover { background: var(--hover); }
 
@@ -251,9 +356,23 @@ img { max-width: 100%; display: block; }
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.2s;
+  transition: background-color 0.2s, color 0.2s, border-color 0.2s, box-shadow 0.2s, transform 0.2s, opacity 0.2s, filter 0.2s;
 }
 .social-btn:hover { transform: translateY(-2px); border-color: var(--accent); color: var(--accent); }
+/* S39 — disabled social buttons (coming soon) */
+.social-btn:disabled,
+.social-btn[aria-disabled="true"] {
+  opacity: 0.45;
+  cursor: not-allowed;
+  filter: grayscale(0.5);
+}
+.social-btn:disabled:hover,
+.social-btn[aria-disabled="true"]:hover {
+  transform: none;
+  border-color: var(--border);
+  color: var(--text);
+  opacity: 0.45;
+}
 
 .footer-text { text-align: center; font-size: 14px; color: var(--muted); }
 .footer-text a { font-weight: 700; }
@@ -275,7 +394,7 @@ img { max-width: 100%; display: block; }
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.25s;
+  transition: background-color 0.25s, color 0.25s, border-color 0.25s, box-shadow 0.25s, transform 0.25s, opacity 0.25s, filter 0.25s;
   z-index: 5;
 }
 .auth-theme-btn:hover { transform: scale(1.1) rotate(45deg); }
@@ -367,7 +486,7 @@ img { max-width: 100%; display: block; }
   outline: none;
   font-size: 14px;
   font-family: inherit;
-  transition: all 0.2s;
+  transition: background-color 0.2s, color 0.2s, border-color 0.2s, box-shadow 0.2s, transform 0.2s, opacity 0.2s, filter 0.2s;
 }
 #search-input:focus { background: var(--card); border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-light); }
 #search-input::placeholder { color: var(--muted); }
@@ -393,7 +512,7 @@ img { max-width: 100%; display: block; }
   transition: background 0.15s;
 }
 .search-result:last-child { border-bottom: none; }
-.search-result:hover { background: var(--hover); }
+
 .search-result .avatar-sm {
   width: 38px; height: 38px;
   border-radius: 50%;
@@ -424,7 +543,7 @@ img { max-width: 100%; display: block; }
   font-weight: 700;
   font-family: inherit;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: background-color 0.2s, color 0.2s, border-color 0.2s, box-shadow 0.2s, transform 0.2s, opacity 0.2s, filter 0.2s;
   flex-shrink: 0;
 }
 .top-create-btn:hover { background: var(--accent-hover); transform: translateY(-1px); box-shadow: 0 4px 14px rgba(24,119,242,0.3); }
@@ -449,7 +568,7 @@ img { max-width: 100%; display: block; }
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.2s;
+  transition: background-color 0.2s, color 0.2s, border-color 0.2s, box-shadow 0.2s, transform 0.2s, opacity 0.2s, filter 0.2s;
 }
 .topbar-icon:hover { background: var(--accent-light); color: var(--accent); }
 .notif-dot {
@@ -577,7 +696,7 @@ img { max-width: 100%; display: block; }
   font-size: 15px;
   font-weight: 500;
   text-decoration: none;
-  transition: all 0.2s;
+  transition: background-color 0.2s, color 0.2s, border-color 0.2s, box-shadow 0.2s, transform 0.2s, opacity 0.2s, filter 0.2s;
   position: relative;
 }
 .nav-item i { font-size: 18px; width: 22px; text-align: center; color: var(--muted); }
@@ -864,7 +983,7 @@ img { max-width: 100%; display: block; }
   resize: none;
   min-height: 44px;
   max-height: 160px;
-  transition: all 0.2s;
+  transition: background-color 0.2s, color 0.2s, border-color 0.2s, box-shadow 0.2s, transform 0.2s, opacity 0.2s, filter 0.2s;
 }
 .composer-box textarea:focus { background: var(--card); border-color: var(--border); }
 .composer-box textarea::placeholder { color: var(--muted); }
@@ -901,7 +1020,7 @@ img { max-width: 100%; display: block; }
   font-weight: 600;
   font-family: inherit;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: background-color 0.2s, color 0.2s, border-color 0.2s, box-shadow 0.2s, transform 0.2s, opacity 0.2s, filter 0.2s;
 }
 .c-icon-btn i { font-size: 15px; }
 .c-icon-btn:hover { background: var(--hover); color: var(--text); }
@@ -922,7 +1041,7 @@ img { max-width: 100%; display: block; }
   justify-content: center;
   flex-shrink: 0;
   opacity: 0.5;
-  transition: all 0.3s var(--bounce);
+  transition: background-color 0.3s var(--bounce), color 0.3s var(--bounce), border-color 0.3s var(--bounce), box-shadow 0.3s var(--bounce), transform 0.3s var(--bounce), opacity 0.3s var(--bounce), filter 0.3s var(--bounce);
 }
 .post-send-btn.visible {
   background: var(--accent);
@@ -950,12 +1069,7 @@ img { max-width: 100%; display: block; }
   100% { opacity: 1; transform: translateY(0) scale(1); }
 }
 
-.post-header {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 12px;
-}
+
 .avatar {
   width: 42px; height: 42px;
   border-radius: 50%;
@@ -995,7 +1109,7 @@ img { max-width: 100%; display: block; }
   color: var(--muted);
   padding: 6px 8px;
   border-radius: 8px;
-  transition: all 0.2s;
+  transition: background-color 0.2s, color 0.2s, border-color 0.2s, box-shadow 0.2s, transform 0.2s, opacity 0.2s, filter 0.2s;
 }
 .delete-btn:hover { background: rgba(239,68,68,0.1); color: var(--danger); }
 
@@ -1023,7 +1137,7 @@ img { max-width: 100%; display: block; }
   cursor: pointer;
   font-weight: 600;
   color: var(--muted);
-  transition: all 0.2s;
+  transition: background-color 0.2s, color 0.2s, border-color 0.2s, box-shadow 0.2s, transform 0.2s, opacity 0.2s, filter 0.2s;
   font-size: 13.5px;
   font-family: inherit;
   display: inline-flex;
@@ -1033,11 +1147,11 @@ img { max-width: 100%; display: block; }
 }
 .action-btn i { font-size: 16px; }
 .action-btn:hover { background: var(--hover); color: var(--text); }
-.action-btn.liked { color: var(--danger); }
-.action-btn.liked:hover { background: rgba(239,68,68,0.08); }
+
+
 
 /* like burst */
-.like-btn { position: relative; overflow: visible; }
+
 .like-btn .burst { position: absolute; top: 50%; left: 50%; width: 0; height: 0; pointer-events: none; }
 .like-btn .burst span {
   position: absolute;
@@ -1052,12 +1166,6 @@ img { max-width: 100%; display: block; }
   100% { opacity: 0; transform: translate(calc(-50% + var(--bx,0px)), calc(-50% + var(--by,0px))) scale(0.3); }
 }
 .like-btn.liked i { animation: heartPop 0.5s var(--bounce); }
-@keyframes heartPop {
-  0% { transform: scale(1); }
-  25% { transform: scale(1.4); }
-  50% { transform: scale(0.9); }
-  100% { transform: scale(1); }
-}
 
 /* Comments */
 .comments-section {
@@ -1225,7 +1333,7 @@ img { max-width: 100%; display: block; }
   font-family: inherit;
   cursor: pointer;
   flex-shrink: 0;
-  transition: all 0.2s;
+  transition: background-color 0.2s, color 0.2s, border-color 0.2s, box-shadow 0.2s, transform 0.2s, opacity 0.2s, filter 0.2s;
 }
 .rs-follow-btn:hover { background: var(--accent); color: #fff; }
 
@@ -1307,7 +1415,7 @@ img { max-width: 100%; display: block; }
   font-family: inherit;
   cursor: pointer;
   border-radius: 10px;
-  transition: all 0.2s;
+  transition: background-color 0.2s, color 0.2s, border-color 0.2s, box-shadow 0.2s, transform 0.2s, opacity 0.2s, filter 0.2s;
   letter-spacing: 0.2px;
 }
 .mbn-item i { font-size: 19px; transition: transform 0.25s var(--bounce); }
@@ -1391,13 +1499,16 @@ img { max-width: 100%; display: block; }
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.2s;
+  transition: background-color 0.2s, color 0.2s, border-color 0.2s, box-shadow 0.2s, transform 0.2s, opacity 0.2s, filter 0.2s;
 }
 .back-btn:hover { background: var(--accent-light); color: var(--accent); }
 .profile-topbar-title { font-size: 16px; font-weight: 700; color: var(--text); }
 #profile-edit-icon { margin-left: auto; }
 
-.profile-cover { position: relative; height: 180px; overflow: hidden; }
+.profile-cover {
+  height: 180px;
+  overflow: hidden;
+}
 .profile-cover-image {
   position: absolute;
   inset: 0;
@@ -1405,7 +1516,6 @@ img { max-width: 100%; display: block; }
   height: 100%;
   object-fit: cover;
   display: block;
-  z-index: 2;
 }
 
 .profile-cover-image.hidden {
@@ -1456,7 +1566,6 @@ img { max-width: 100%; display: block; }
   padding: 0 22px 22px;
   max-width: 720px;
   margin: 0 auto;
-  position: relative;
 }
 .profile-avatar-wrap { margin-top: -60px; margin-bottom: 14px; }
 .profile-avatar {
@@ -1512,7 +1621,7 @@ img { max-width: 100%; display: block; }
   font-weight: 700;
   font-family: inherit;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: background-color 0.2s, color 0.2s, border-color 0.2s, box-shadow 0.2s, transform 0.2s, opacity 0.2s, filter 0.2s;
   border: 1px solid var(--border);
   background: var(--card);
   color: var(--text);
@@ -1554,7 +1663,7 @@ img { max-width: 100%; display: block; }
   gap: 6px;
   border-bottom: 3px solid transparent;
   margin-bottom: -1px;
-  transition: all 0.2s;
+  transition: background-color 0.2s, color 0.2s, border-color 0.2s, box-shadow 0.2s, transform 0.2s, opacity 0.2s, filter 0.2s;
 }
 .profile-tab:hover { color: var(--text); }
 .profile-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
@@ -1639,7 +1748,7 @@ img { max-width: 100%; display: block; }
   outline: none;
   font-size: 14px;
   font-family: inherit;
-  transition: all 0.2s;
+  transition: background-color 0.2s, color 0.2s, border-color 0.2s, box-shadow 0.2s, transform 0.2s, opacity 0.2s, filter 0.2s;
 }
 .conv-search input:focus { background: var(--card-2); border-color: var(--border); }
 .conv-search input::placeholder { color: var(--muted); }
@@ -1793,7 +1902,7 @@ img { max-width: 100%; display: block; }
   justify-content: center;
   flex-shrink: 0;
   box-shadow: 0 3px 10px rgba(24,119,242,0.3);
-  transition: all 0.2s;
+  transition: background-color 0.2s, color 0.2s, border-color 0.2s, box-shadow 0.2s, transform 0.2s, opacity 0.2s, filter 0.2s;
 }
 .chat-send-btn:hover { transform: scale(1.08) rotate(-8deg); }
 .chat-send-btn:disabled { opacity: 0.5; }
@@ -1872,7 +1981,7 @@ img { max-width: 100%; display: block; }
   align-items: center;
   justify-content: center;
   line-height: 1;
-  transition: all 0.2s;
+  transition: background-color 0.2s, color 0.2s, border-color 0.2s, box-shadow 0.2s, transform 0.2s, opacity 0.2s, filter 0.2s;
 }
 .close-btn:hover { background: var(--accent-light); color: var(--accent); }
 
@@ -1994,11 +2103,17 @@ img { max-width: 100%; display: block; }
   .profile-tab-content { padding: 16px 16px 60px; }
 }
 
-/* Theme transition */
-body, body * {
-  transition-property: background-color, border-color, color;
-  transition-duration: 0.2s;
-  transition-timing-function: var(--ease);
+/* S39.19 — Performance: explicit transitions only */
+button, a, input, textarea,
+.action-btn, .nav-item, .mbn-item, .c-icon-btn,
+.topbar-icon, .back-btn, .close-btn, .post,
+.rs-card, .settings-card, .profile-tab {
+  transition:
+    background-color 0.2s var(--ease),
+    border-color 0.2s var(--ease),
+    color 0.2s var(--ease),
+    box-shadow 0.2s var(--ease),
+    transform 0.2s var(--ease);
 }
 button, a, .action-btn, .tool-btn, .nav-item, .c-icon-btn, .mbn-item, .rs-follow-btn {
   transition-property: background-color, border-color, color, transform, box-shadow;
@@ -2394,11 +2509,6 @@ body.dark .story-card:hover .story-hex {
 .post-send-btn.visible {
   animation: sendPop 0.45s var(--spring);
 }
-@keyframes sendPop {
-  0% { opacity: 0; transform: scale(0.4) rotate(-90deg); }
-  60% { opacity: 1; transform: scale(1.15) rotate(0deg); }
-  100% { transform: scale(1) rotate(0deg); }
-}
 
 /* ================================================
    12. RIGHT SIDEBAR cards — fade up
@@ -2521,7 +2631,7 @@ body.dark .story-card:hover .story-hex {
 #conv-search-input,
 textarea,
 .edit-bio-input {
-  transition: all 0.25s var(--smooth);
+  transition: background-color 0.25s var(--smooth), color 0.25s var(--smooth), border-color 0.25s var(--smooth), box-shadow 0.25s var(--smooth), transform 0.25s var(--smooth), opacity 0.25s var(--smooth), filter 0.25s var(--smooth);
 }
 
 /* ================================================
@@ -2539,22 +2649,6 @@ textarea,
 }
 
 /* Reel button — active only */
-.mbn-item[data-mbn="reel"].active i {
-  background: linear-gradient(135deg, #ec4899, #8b5cf6);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  filter: drop-shadow(0 0 6px rgba(236,72,153,0.5));
-  animation: reelPop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-
-@keyframes reelPop {
-  0%   { transform: scale(1) rotate(0deg); }
-  40%  { transform: scale(1.25) rotate(-8deg); }
-  70%  { transform: scale(0.95) rotate(4deg); }
-  100% { transform: scale(1) rotate(0deg); }
-}
-
 
 
 /* ================================================
@@ -2643,7 +2737,6 @@ body.dark .theme-switch.on {
   border-color: rgba(167, 139, 250, 0.4);
 }
 
-
 /* ================================================
    Reel button — active only (gradient + glow)
    ================================================ */
@@ -2663,7 +2756,6 @@ body.dark .theme-switch.on {
   70%  { transform: scale(0.95) rotate(4deg); }
   100% { transform: scale(1) rotate(0deg); }
 }
-
 
 /* ================================================
    STORY VIEWER
@@ -2954,9 +3046,6 @@ body.dark .sv-container {
   box-shadow: 0 20px 60px rgba(139, 92, 246, 0.3);
 }
 
-
-
-
 /* ================================================
    EXPLORE PAGE — Trending + Top Posts + Users
    ================================================ */
@@ -3016,7 +3105,7 @@ body.dark .sv-container {
   font-family: inherit;
   cursor: pointer;
   white-space: nowrap;
-  transition: all 0.25s var(--spring);
+  transition: background-color 0.25s var(--spring), color 0.25s var(--spring), border-color 0.25s var(--spring), box-shadow 0.25s var(--spring), transform 0.25s var(--spring), opacity 0.25s var(--spring), filter 0.25s var(--spring);
 }
 .explore-tab i { font-size: 13px; }
 .explore-tab:hover {
@@ -3082,7 +3171,7 @@ body.dark .sv-container {
   border: 1px solid var(--border);
   border-radius: 16px;
   cursor: pointer;
-  transition: all 0.25s var(--spring);
+  transition: background-color 0.25s var(--spring), color 0.25s var(--spring), border-color 0.25s var(--spring), box-shadow 0.25s var(--spring), transform 0.25s var(--spring), opacity 0.25s var(--spring), filter 0.25s var(--spring);
   margin: 0 10px 10px 0;
   width: calc(50% - 6px);
   vertical-align: top;
@@ -3153,7 +3242,7 @@ body.dark .sv-container {
   overflow: hidden;
   margin-bottom: 12px;
   cursor: pointer;
-  transition: all 0.3s var(--spring);
+  transition: background-color 0.3s var(--spring), color 0.3s var(--spring), border-color 0.3s var(--spring), box-shadow 0.3s var(--spring), transform 0.3s var(--spring), opacity 0.3s var(--spring), filter 0.3s var(--spring);
 }
 .explore-post-card:hover {
   transform: translateY(-3px);
@@ -3240,7 +3329,7 @@ body.dark .sv-container {
   border-radius: 16px;
   padding: 18px 14px 14px;
   text-align: center;
-  transition: all 0.3s var(--spring);
+  transition: background-color 0.3s var(--spring), color 0.3s var(--spring), border-color 0.3s var(--spring), box-shadow 0.3s var(--spring), transform 0.3s var(--spring), opacity 0.3s var(--spring), filter 0.3s var(--spring);
 }
 .explore-user-card:hover {
   transform: translateY(-3px);
@@ -3305,7 +3394,7 @@ body.dark .sv-container {
   font-weight: 700;
   font-family: inherit;
   cursor: pointer;
-  transition: all 0.2s var(--spring);
+  transition: background-color 0.2s var(--spring), color 0.2s var(--spring), border-color 0.2s var(--spring), box-shadow 0.2s var(--spring), transform 0.2s var(--spring), opacity 0.2s var(--spring), filter 0.2s var(--spring);
 }
 .explore-user-follow:hover {
   background: var(--accent);
@@ -3376,7 +3465,6 @@ body.dark .sv-container {
 }
 body.dark .hashtag-link { color: var(--violet-bright, #a78bfa); }
 
-
 /* ================================================
    SAVE BUTTON + SAVED PAGE
    ================================================ */
@@ -3399,7 +3487,6 @@ body.dark .action-btn.saved {
   100% { transform: scale(1) rotate(0deg); }
 }
 
-
 /* 4-button row adjustment */
 @media (max-width: 720px) {
   .post-actions .action-btn {
@@ -3411,7 +3498,6 @@ body.dark .action-btn.saved {
     font-size: 16px;
   }
 }
-
 
 /* ================================================
    NOTIFICATIONS
@@ -3426,7 +3512,7 @@ body.dark .action-btn.saved {
   border-radius: 14px;
   margin-bottom: 8px;
   cursor: pointer;
-  transition: all 0.25s var(--spring);
+  transition: background-color 0.25s var(--spring), color 0.25s var(--spring), border-color 0.25s var(--spring), box-shadow 0.25s var(--spring), transform 0.25s var(--spring), opacity 0.25s var(--spring), filter 0.25s var(--spring);
   position: relative;
   animation: notifIn 0.35s var(--spring) backwards;
 }
@@ -3580,7 +3666,6 @@ body.dark .notif-item:hover {
 }
 #top-notif-dot.hidden { display: none; }
 
-
 /* ================================================
    5-BUTTON BOTTOM NAV TUNING
    ================================================ */
@@ -3628,7 +3713,6 @@ body.dark .notif-item:hover {
     font-size: 20px;
   }
 }
-
 
 /* ================================================
    REELS — Full-screen TikTok-style
@@ -3679,7 +3763,7 @@ body.dark .notif-item:hover {
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.25s var(--spring);
+  transition: background-color 0.25s var(--spring), color 0.25s var(--spring), border-color 0.25s var(--spring), box-shadow 0.25s var(--spring), transform 0.25s var(--spring), opacity 0.25s var(--spring), filter 0.25s var(--spring);
 }
 .reels-back-btn:hover {
   background: rgba(139, 92, 246, 0.6);
@@ -3858,7 +3942,7 @@ body.dark .notif-item:hover {
   align-items: center;
   justify-content: center;
   font-size: 20px;
-  transition: all 0.25s var(--spring);
+  transition: background-color 0.25s var(--spring), color 0.25s var(--spring), border-color 0.25s var(--spring), box-shadow 0.25s var(--spring), transform 0.25s var(--spring), opacity 0.25s var(--spring), filter 0.25s var(--spring);
 }
 
 .reel-action.liked .reel-action-icon {
@@ -3955,7 +4039,7 @@ body.dark .notif-item:hover {
   align-items: center;
   justify-content: center;
   z-index: 15;
-  transition: all 0.25s;
+  transition: background-color 0.25s, color 0.25s, border-color 0.25s, box-shadow 0.25s, transform 0.25s, opacity 0.25s, filter 0.25s;
 }
 .reel-delete:hover {
   background: rgba(239, 68, 68, 0.85);
@@ -4173,7 +4257,7 @@ body.dark .notif-item:hover {
   justify-content: center;
   flex-shrink: 0;
   box-shadow: 0 4px 14px rgba(139, 92, 246, 0.35);
-  transition: all 0.2s var(--spring);
+  transition: background-color 0.2s var(--spring), color 0.2s var(--spring), border-color 0.2s var(--spring), box-shadow 0.2s var(--spring), transform 0.2s var(--spring), opacity 0.2s var(--spring), filter 0.2s var(--spring);
 }
 .rcs-send:hover { transform: scale(1.08); }
 .rcs-send:active { transform: scale(0.94); }
@@ -4198,7 +4282,6 @@ body.dark .rcs-panel { background: #14162b; }
 
 /* Light mode tweaks */
 body.light .reels-empty h3 { color: #fff; }
-
 
 /* ================================================
    MULTI-IMAGE POST — Preview Grid + Carousel
@@ -4272,7 +4355,7 @@ body.light .reels-empty h3 { color: #fff; }
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.2s var(--spring);
+  transition: background-color 0.2s var(--spring), color 0.2s var(--spring), border-color 0.2s var(--spring), box-shadow 0.2s var(--spring), transform 0.2s var(--spring), opacity 0.2s var(--spring), filter 0.2s var(--spring);
   z-index: 2;
 }
 .image-preview-remove:hover {
@@ -4295,7 +4378,7 @@ body.light .reels-empty h3 { color: #fff; }
   justify-content: center;
   gap: 4px;
   color: var(--muted);
-  transition: all 0.25s var(--spring);
+  transition: background-color 0.25s var(--spring), color 0.25s var(--spring), border-color 0.25s var(--spring), box-shadow 0.25s var(--spring), transform 0.25s var(--spring), opacity 0.25s var(--spring), filter 0.25s var(--spring);
 }
 .image-preview-add:hover {
   border-color: var(--accent);
@@ -4385,7 +4468,7 @@ body.light .reels-empty h3 { color: #fff; }
   align-items: center;
   justify-content: center;
   opacity: 0;
-  transition: all 0.25s var(--spring);
+  transition: background-color 0.25s var(--spring), color 0.25s var(--spring), border-color 0.25s var(--spring), box-shadow 0.25s var(--spring), transform 0.25s var(--spring), opacity 0.25s var(--spring), filter 0.25s var(--spring);
   z-index: 3;
 }
 .post-carousel:hover .post-carousel-arrow { opacity: 1; }
@@ -4415,7 +4498,7 @@ body.light .reels-empty h3 { color: #fff; }
   height: 6px;
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.45);
-  transition: all 0.25s var(--spring);
+  transition: background-color 0.25s var(--spring), color 0.25s var(--spring), border-color 0.25s var(--spring), box-shadow 0.25s var(--spring), transform 0.25s var(--spring), opacity 0.25s var(--spring), filter 0.25s var(--spring);
   cursor: pointer;
 }
 .post-carousel-dot.active {
@@ -4467,7 +4550,6 @@ body.light .reels-empty h3 { color: #fff; }
 body.dark .image-preview-add {
   background: var(--card-2);
 }
-
 
 /* ================================================
    POST BUTTON — Glowing when content is ready
@@ -4558,9 +4640,8 @@ body.dark .post-send-btn.visible:hover {
   box-shadow:
     0 0 0 3px rgba(139, 92, 246, 0.08),
     0 6px 20px rgba(139, 92, 246, 0.12);
-  transition: all 0.35s var(--smooth);
+  transition: background-color 0.35s var(--smooth), color 0.35s var(--smooth), border-color 0.35s var(--smooth), box-shadow 0.35s var(--smooth), transform 0.35s var(--smooth), opacity 0.35s var(--smooth), filter 0.35s var(--smooth);
 }
-
 
 /* ================================================
    POST BUTTON — Strong visible active state
@@ -4615,9 +4696,8 @@ body.dark .post-send-btn.visible:hover {
     0 0 0 3px rgba(139, 92, 246, 0.12),
     0 8px 24px rgba(139, 92, 246, 0.18),
     0 0 40px rgba(139, 92, 246, 0.08) !important;
-  transition: all 0.4s ease;
+  transition: background-color 0.4s ease, color 0.4s ease, border-color 0.4s ease, box-shadow 0.4s ease, transform 0.4s ease, opacity 0.4s ease, filter 0.4s ease;
 }
-
 
 /* ================================================
    POST BUTTON — Pop-in animation (final version)
@@ -4689,7 +4769,7 @@ body.dark .post-send-btn.visible:hover {
   box-shadow:
     0 0 0 3px rgba(139, 92, 246, 0.1),
     0 8px 24px rgba(139, 92, 246, 0.12) !important;
-  transition: all 0.35s ease;
+  transition: background-color 0.35s ease, color 0.35s ease, border-color 0.35s ease, box-shadow 0.35s ease, transform 0.35s ease, opacity 0.35s ease, filter 0.35s ease;
 }
 
 /* Dark mode — same but brighter */
@@ -4699,7 +4779,6 @@ body.dark .post-send-btn.visible {
     0 0 40px rgba(139, 92, 246, 0.5),
     inset 0 1px 0 rgba(255, 255, 255, 0.25) !important;
 }
-
 
 /* ================================================
    REACTIONS SYSTEM — Picker + Display
@@ -4847,7 +4926,7 @@ body.dark .reaction-picker {
   justify-content: center;
   padding: 0;
   font-family: inherit;
-  transition: all 0.25s var(--spring);
+  transition: background-color 0.25s var(--spring), color 0.25s var(--spring), border-color 0.25s var(--spring), box-shadow 0.25s var(--spring), transform 0.25s var(--spring), opacity 0.25s var(--spring), filter 0.25s var(--spring);
   position: relative;
 }
 
@@ -4965,7 +5044,6 @@ body.dark .reaction-picker {
   }
 }
 
-
 /* ================================================
    FINAL REACTION PICKER — Global Fixed Position
    ================================================ */
@@ -5007,7 +5085,7 @@ body.dark .reaction-picker-global {
   justify-content: center;
   padding: 0;
   font-family: inherit;
-  transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition: background-color 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), color 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), border-color 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), filter 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
   position: relative;
 }
 
@@ -5041,7 +5119,6 @@ body.dark .reaction-picker-global {
 .reaction-picker {
   display: none !important;
 }
-
 
 /* ================================================
    REPOST + QUOTE STYLES
@@ -5253,7 +5330,6 @@ body.dark .repost-menu {
   z-index: 11 !important;
 }
 
-
 /* ================================================
    SETTINGS PAGE
    ================================================ */
@@ -5312,7 +5388,6 @@ body.dark .repost-menu {
   font-weight: 700;
 }
 
-
 /* ================================================
    BLOCK SYSTEM STYLES
    ================================================ */
@@ -5326,7 +5401,7 @@ body.dark .repost-menu {
   border: 1px solid var(--border);
   border-radius: 12px;
   cursor: pointer;
-  transition: all 0.2s var(--spring);
+  transition: background-color 0.2s var(--spring), color 0.2s var(--spring), border-color 0.2s var(--spring), box-shadow 0.2s var(--spring), transform 0.2s var(--spring), opacity 0.2s var(--spring), filter 0.2s var(--spring);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -5403,7 +5478,7 @@ body.dark .repost-menu {
   font-weight: 700;
   font-family: inherit;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: background-color 0.2s, color 0.2s, border-color 0.2s, box-shadow 0.2s, transform 0.2s, opacity 0.2s, filter 0.2s;
   flex-shrink: 0;
 }
 .btn-unblock:hover {
@@ -5412,7 +5487,6 @@ body.dark .repost-menu {
   border-color: #22c55e;
 }
 .btn-unblock:disabled { opacity: 0.5; cursor: not-allowed; }
-
 
 /* ================================================
    COMMENT ENHANCEMENTS — reply, like, delete
@@ -5474,7 +5548,7 @@ body.dark .repost-menu {
   align-items: center;
   gap: 5px;
   border-radius: 6px;
-  transition: all 0.2s var(--spring);
+  transition: background-color 0.2s var(--spring), color 0.2s var(--spring), border-color 0.2s var(--spring), box-shadow 0.2s var(--spring), transform 0.2s var(--spring), opacity 0.2s var(--spring), filter 0.2s var(--spring);
 }
 .c-like-btn:hover,
 .c-reply-btn:hover { color: var(--accent); }
@@ -5517,7 +5591,7 @@ body.dark .repost-menu {
   font-weight: 700;
   font-family: inherit;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: background-color 0.2s, color 0.2s, border-color 0.2s, box-shadow 0.2s, transform 0.2s, opacity 0.2s, filter 0.2s;
   flex-shrink: 0;
 }
 .c-reply-send:hover { background: var(--accent-hover); }
@@ -5531,7 +5605,6 @@ body.dark .repost-menu {
   .comment.is-reply { margin-left: 32px; }
   .comment-actions { gap: 8px; }
 }
-
 
 /* ================================================
    REPLY LOAD-MORE + FIXED LAYOUT
@@ -5557,7 +5630,7 @@ body.dark .repost-menu {
   color: var(--accent);
   cursor: pointer;
   border-radius: 8px;
-  transition: all 0.2s var(--spring);
+  transition: background-color 0.2s var(--spring), color 0.2s var(--spring), border-color 0.2s var(--spring), box-shadow 0.2s var(--spring), transform 0.2s var(--spring), opacity 0.2s var(--spring), filter 0.2s var(--spring);
 }
 .load-more-replies:hover {
   background: var(--accent-light);
@@ -5601,7 +5674,6 @@ body.dark .repost-menu {
   }
 }
 
-
 /* ================================================
    POST EDIT
    ================================================ */
@@ -5621,7 +5693,7 @@ body.dark .repost-menu {
   color: var(--muted);
   padding: 6px 8px;
   border-radius: 8px;
-  transition: all 0.2s var(--spring);
+  transition: background-color 0.2s var(--spring), color 0.2s var(--spring), border-color 0.2s var(--spring), box-shadow 0.2s var(--spring), transform 0.2s var(--spring), opacity 0.2s var(--spring), filter 0.2s var(--spring);
 }
 .post-owner-actions .edit-btn:hover {
   background: var(--accent-light);
@@ -5697,7 +5769,6 @@ body.dark .repost-menu {
   pointer-events: none;
 }
 
-
 /* ================================================
    POST LAYOUT — Cleaner Hierarchy + 3-Dot Menu
    ================================================ */
@@ -5723,7 +5794,7 @@ body.dark .repost-menu {
   justify-content: center;
   margin-left: auto;
   flex-shrink: 0;
-  transition: all 0.2s var(--spring);
+  transition: background-color 0.2s var(--spring), color 0.2s var(--spring), border-color 0.2s var(--spring), box-shadow 0.2s var(--spring), transform 0.2s var(--spring), opacity 0.2s var(--spring), filter 0.2s var(--spring);
 }
 .post-menu-btn:hover {
   background: var(--hover);
@@ -5775,7 +5846,7 @@ body.dark .repost-menu {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  transition: all 0.2s var(--spring);
+  transition: background-color 0.2s var(--spring), color 0.2s var(--spring), border-color 0.2s var(--spring), box-shadow 0.2s var(--spring), transform 0.2s var(--spring), opacity 0.2s var(--spring), filter 0.2s var(--spring);
 }
 .action-btn i { font-size: 17px; }
 .action-btn:hover {
@@ -5825,7 +5896,7 @@ body.dark .post-menu-popup {
   cursor: pointer;
   border-radius: 10px;
   text-align: left;
-  transition: all 0.15s;
+  transition: background-color 0.15s, color 0.15s, border-color 0.15s, box-shadow 0.15s, transform 0.15s, opacity 0.15s, filter 0.15s;
 }
 .post-menu-popup button:hover { background: var(--hover); }
 .post-menu-popup button i {
@@ -5844,7 +5915,6 @@ body.dark .post-menu-popup {
 
 /* Hide old owner actions if any remain */
 .post-owner-actions { display: none !important; }
-
 
 /* ================================================
    REPORT SYSTEM
@@ -5891,7 +5961,7 @@ body.dark .post-menu-popup {
   font-weight: 600;
   color: var(--text);
   text-align: left;
-  transition: all 0.2s var(--spring);
+  transition: background-color 0.2s var(--spring), color 0.2s var(--spring), border-color 0.2s var(--spring), box-shadow 0.2s var(--spring), transform 0.2s var(--spring), opacity 0.2s var(--spring), filter 0.2s var(--spring);
 }
 .report-reason:hover {
   border-color: var(--accent);
@@ -5969,7 +6039,6 @@ body.dark .post-menu-popup {
   color: var(--muted);
   margin-top: 2px;
 }
-
 
 /* ================================================
    NOTIFICATION GROUPING — stacked avatars
@@ -6058,176 +6127,51 @@ body.dark .nas-av.nas-more {
   }
 }
 
-
-
-
 /* ================================================
    EMOJI PICKER v3 — clean rebuild
    ================================================ */
 
-.emoji-picker {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  max-height: 55vh;
-  background: var(--card);
-  border-top-left-radius: 20px;
-  border-top-right-radius: 20px;
-  border-top: 1px solid var(--border);
-  box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.18);
-  z-index: 9997;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  animation: emojiSheetUp 0.28s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
 
-@keyframes emojiSheetUp {
-  from { transform: translateY(100%); }
-  to { transform: translateY(0); }
-}
 
-.ep-header {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--border-soft);
-  flex-shrink: 0;
-}
-.ep-header > i { color: var(--muted); font-size: 14px; }
 
-.ep-search {
-  flex: 1;
-  padding: 9px 14px;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-  background: var(--card-2);
-  color: var(--text);
-  outline: none;
-  font-family: inherit;
-  font-size: 13.5px;
-}
-.ep-search:focus { border-color: var(--accent); }
 
-.ep-close {
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
-  border: none;
-  background: var(--hover);
-  color: var(--muted);
-  font-size: 15px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s;
-  flex-shrink: 0;
-}
-.ep-close:hover { background: var(--accent-light); color: var(--accent); }
 
-.ep-tabs {
-  display: flex;
-  gap: 4px;
-  padding: 8px 12px;
-  overflow-x: auto;
-  scrollbar-width: none;
-  border-bottom: 1px solid var(--border-soft);
-  background: var(--card-2);
-  flex-shrink: 0;
-}
-.ep-tabs::-webkit-scrollbar { display: none; }
 
-.ep-tab {
-  padding: 6px 14px;
-  border-radius: 999px;
-  border: none;
-  background: transparent;
-  color: var(--muted);
-  font-family: inherit;
-  font-size: 12.5px;
-  font-weight: 700;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: all 0.2s;
-}
-.ep-tab:hover { background: var(--hover); color: var(--text); }
-.ep-tab.active { background: var(--accent); color: #fff; }
 
-.ep-section {
-  padding: 8px 14px 6px;
-  border-bottom: 1px solid var(--border-soft);
-  flex-shrink: 0;
-}
-.ep-section-title {
-  font-size: 11px;
-  font-weight: 800;
-  color: var(--muted);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  margin-bottom: 6px;
-}
-.ep-recent-row {
-  display: flex;
-  gap: 4px;
-  flex-wrap: wrap;
-}
 
-.ep-grid {
-  flex: 1;
-  overflow-y: auto;
-  padding: 10px 12px 20px;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(42px, 1fr));
-  gap: 4px;
-  scrollbar-width: thin;
-}
 
-.ep-emoji {
-  width: 100%;
-  aspect-ratio: 1;
-  border: none;
-  background: transparent;
-  border-radius: 10px;
-  font-size: 26px;
-  line-height: 1;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  transition: all 0.15s cubic-bezier(0.34, 1.56, 0.64, 1);
-  font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji",
-               "Android Emoji", "EmojiOne Color", emoji, sans-serif;
-}
-.ep-emoji:hover {
-  background: var(--hover);
-  transform: scale(1.2);
-}
-.ep-emoji:active { transform: scale(1.05); }
 
-body.dark .emoji-picker {
-  background: #14162b;
-  box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.6);
-}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 /* Chat mode */
 .emoji-picker-chat {
   max-height: 42vh;
 }
-.emoji-picker-chat .ep-header { display: none; }
-.emoji-picker-chat .ep-tabs { padding: 6px 10px; }
-.emoji-picker-chat .ep-tab { padding: 5px 12px; font-size: 12px; }
-.emoji-picker-chat .ep-grid {
-  grid-template-columns: repeat(auto-fill, minmax(38px, 1fr));
-  gap: 2px;
-  padding: 6px 8px 12px;
-}
-.emoji-picker-chat .ep-emoji { font-size: 22px; }
-.emoji-picker-chat .ep-section { padding: 6px 10px 4px; }
-.emoji-picker-chat .ep-section-title { font-size: 10px; }
+
+
+
+
+
+
+
 
 /* Chat slot */
 .chat-emoji-slot {
@@ -6235,7 +6179,7 @@ body.dark .emoji-picker {
   height: 0;
   transition: height 0.28s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
-.chat-emoji-slot.open { height: 42vh; }
+
 
 /* Desktop — floating picker */
 @media (min-width: 900px) {
@@ -6253,12 +6197,12 @@ body.dark .emoji-picker {
     right: 20px;
     bottom: 20px;
   }
-  .chat-emoji-slot.open { height: 42vh; }
+  
 }
 
 @media (max-width: 480px) {
-  .ep-emoji { font-size: 24px; }
-  .ep-grid { grid-template-columns: repeat(auto-fill, minmax(38px, 1fr)); gap: 2px; }
+  
+  
 }
 
 /* ================================================
@@ -6323,7 +6267,7 @@ body.dark .emoji-picker {
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.2s;
+  transition: background-color 0.2s, color 0.2s, border-color 0.2s, box-shadow 0.2s, transform 0.2s, opacity 0.2s, filter 0.2s;
   flex-shrink: 0;
 }
 .ep-close:hover { background: var(--accent-light); color: var(--accent); }
@@ -6351,7 +6295,7 @@ body.dark .emoji-picker {
   font-weight: 700;
   cursor: pointer;
   white-space: nowrap;
-  transition: all 0.2s;
+  transition: background-color 0.2s, color 0.2s, border-color 0.2s, box-shadow 0.2s, transform 0.2s, opacity 0.2s, filter 0.2s;
 }
 .ep-tab:hover { background: var(--hover); color: var(--text); }
 .ep-tab.active { background: var(--accent); color: #fff; }
@@ -6398,7 +6342,7 @@ body.dark .emoji-picker {
   align-items: center;
   justify-content: center;
   padding: 0;
-  transition: all 0.15s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition: background-color 0.15s cubic-bezier(0.34, 1.56, 0.64, 1), color 0.15s cubic-bezier(0.34, 1.56, 0.64, 1), border-color 0.15s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.15s cubic-bezier(0.34, 1.56, 0.64, 1), transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.15s cubic-bezier(0.34, 1.56, 0.64, 1), filter 0.15s cubic-bezier(0.34, 1.56, 0.64, 1);
   font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji",
                "Android Emoji", "EmojiOne Color", emoji, sans-serif;
 }
@@ -6467,7 +6411,7 @@ body.dark .emoji-picker {
   line-height: 1.2;
   color: var(--text);
   word-break: break-all;
-  transition: all 0.25s ease;
+  transition: background-color 0.25s ease, color 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease, transform 0.25s ease, opacity 0.25s ease, filter 0.25s ease;
   font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji",
                "Android Emoji", emoji, inherit;
 }
@@ -6491,7 +6435,7 @@ body.dark .emoji-picker {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition: background-color 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), color 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), border-color 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), filter 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 .chat-emoji-btn:hover {
   background: var(--hover);
@@ -6604,7 +6548,6 @@ body.dark .emoji-picker {
   }
 }
 
-
 /* ================================================
    EMOJI PICKER — header with preview + backspace
    ================================================ */
@@ -6635,7 +6578,7 @@ body.dark .emoji-picker {
   word-break: break-all !important;
   display: flex !important;
   align-items: center !important;
-  transition: all 0.2s ease !important;
+  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease, opacity 0.2s ease, filter 0.2s ease !important;important;
   font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji",
                "Android Emoji", "EmojiOne Color", emoji, inherit !important;
   -webkit-overflow-scrolling: touch !important;
@@ -6663,7 +6606,7 @@ body.dark .emoji-picker {
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
-  transition: all 0.18s ease !important;
+  transition: background-color 0.18s ease, color 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease, opacity 0.18s ease, filter 0.18s ease !important;important;
   flex-shrink: 0 !important;
 }
 
@@ -6697,7 +6640,6 @@ body.dark .emoji-picker {
   height: 34px !important;
   font-size: 14px !important;
 }
-
 
 /* ================================================
    BETTER FEED UX — skeleton, empty, pull-refresh
@@ -6748,11 +6690,6 @@ body.dark .emoji-picker {
 
 .sk-content { display: flex; flex-direction: column; }
 
-@keyframes skShimmer {
-  0% { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
-}
-
 /* ---------- Empty state ---------- */
 
 .empty-state {
@@ -6769,10 +6706,6 @@ body.dark .emoji-picker {
   margin-bottom: 18px;
   display: inline-block;
   animation: emptyIconFloat 3s ease-in-out infinite;
-}
-@keyframes emptyIconFloat {
-  0%, 100% { transform: translateY(0) rotate(0deg); }
-  50% { transform: translateY(-6px) rotate(-3deg); }
 }
 .empty-state-title {
   font-size: 20px;
@@ -6810,7 +6743,7 @@ body.dark .emoji-picker {
   font-family: inherit;
   cursor: pointer;
   box-shadow: 0 4px 14px rgba(24,119,242,0.28);
-  transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition: background-color 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), color 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), border-color 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), filter 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 .empty-state-btn:hover {
   transform: translateY(-2px);
@@ -6884,7 +6817,6 @@ body.dark .pull-refresh-indicator {
   .empty-state-text { font-size: 14px; }
   .empty-state-btn { padding: 11px 18px; font-size: 13.5px; }
 }
-
 
 /* ================================================
    LIKE LIST + STORY VIEWERS
@@ -7099,7 +7031,7 @@ body.dark .pull-refresh-indicator {
   align-items: center !important;
   justify-content: center !important;
   padding: 0 !important;
-  transition: all 0.22s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+  transition: background-color 0.22s cubic-bezier(0.34, 1.56, 0.64, 1), color 0.22s cubic-bezier(0.34, 1.56, 0.64, 1), border-color 0.22s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.22s cubic-bezier(0.34, 1.56, 0.64, 1), transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.22s cubic-bezier(0.34, 1.56, 0.64, 1), filter 0.22s cubic-bezier(0.34, 1.56, 0.64, 1) !important;important;
   font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji",
                "Android Emoji", "EmojiOne Color", emoji, sans-serif !important;
 }
@@ -7150,7 +7082,6 @@ body.dark .pull-refresh-indicator {
   .sv-react-fly { font-size: 36px !important; }
 }
 
-
 /* ================================================
    STORY REPLY BAR
    ================================================ */
@@ -7185,7 +7116,7 @@ body.dark .pull-refresh-indicator {
   align-items: center;
   gap: 10px;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease, opacity 0.2s ease, filter 0.2s ease;
 }
 .sv-reply-trigger:hover {
   background: rgba(0, 0, 0, 0.75);
@@ -7245,7 +7176,7 @@ body.dark .pull-refresh-indicator {
   justify-content: center;
   flex-shrink: 0;
   font-size: 15px;
-  transition: all 0.2s ease;
+  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease, opacity 0.2s ease, filter 0.2s ease;
 }
 
 .sv-reply-send {
@@ -7295,7 +7226,6 @@ body.dark .pull-refresh-indicator {
   display: none !important;
 }
 
-
 /* ================================================
    STORY REPLY FEEDBACK STATES
    ================================================ */
@@ -7334,7 +7264,6 @@ body.dark .pull-refresh-indicator {
   transition-timing-function: linear !important;
 }
 
-
 /* ================================================
    ONBOARDING
    ================================================ */
@@ -7370,7 +7299,7 @@ body.dark .pull-refresh-indicator {
   height: 5px;
   border-radius: 999px;
   background: var(--border);
-  transition: all 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition: background-color 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), color 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), border-color 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), filter 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 .ob-dot.active {
   background: var(--accent);
@@ -7432,7 +7361,7 @@ body.dark .pull-refresh-indicator {
   font-weight: 700;
   cursor: pointer;
   box-shadow: 0 6px 20px rgba(24,119,242,0.35);
-  transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition: background-color 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), color 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), border-color 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), filter 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
   min-width: 200px;
 }
 .ob-primary:hover { transform: translateY(-2px); box-shadow: 0 10px 28px rgba(24,119,242,0.45); }
@@ -7448,7 +7377,7 @@ body.dark .pull-refresh-indicator {
   font-size: 15px;
   font-weight: 700;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease, opacity 0.2s ease, filter 0.2s ease;
 }
 .ob-secondary:hover { border-color: var(--accent); color: var(--accent); }
 
@@ -7555,7 +7484,7 @@ body.dark .pull-refresh-indicator {
   border: 1px solid var(--border);
   border-radius: 14px;
   margin-bottom: 8px;
-  transition: all 0.2s ease;
+  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease, opacity 0.2s ease, filter 0.2s ease;
 }
 .ob-user-avatar {
   width: 44px;
@@ -7597,7 +7526,7 @@ body.dark .pull-refresh-indicator {
   font-weight: 700;
   cursor: pointer;
   flex-shrink: 0;
-  transition: all 0.2s ease;
+  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease, opacity 0.2s ease, filter 0.2s ease;
   display: inline-flex;
   align-items: center;
   gap: 5px;
@@ -7614,7 +7543,6 @@ body.dark .pull-refresh-indicator {
   .ob-icon { font-size: 60px; }
   .ob-users { max-height: 260px; }
 }
-
 
 /* ================================================
    ONBOARDING — Cover photo
@@ -7637,7 +7565,7 @@ body.dark .pull-refresh-indicator {
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.2s ease;
+  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease, opacity 0.2s ease, filter 0.2s ease;
   position: relative;
 }
 .ob-cover:hover {
@@ -7683,7 +7611,7 @@ body.dark .pull-refresh-indicator {
   font-size: 12px;
   font-weight: 700;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease, opacity 0.2s ease, filter 0.2s ease;
   z-index: 2;
 }
 .ob-cover-btn:hover {
@@ -7692,7 +7620,6 @@ body.dark .pull-refresh-indicator {
 }
 .ob-cover-btn:active { transform: scale(0.95); }
 .ob-cover-btn i { font-size: 12px; }
-
 
 /* ================================================
    CHAT: image, reply, reaction, menu
@@ -7913,7 +7840,6 @@ body.dark .chat-msg-reply { background: rgba(255, 255, 255, 0.06); }
   .chat-msg-image img { max-height: 280px; }
 }
 
-
 /* ================================================
    CHAT COMPOSER — layout fix
    ================================================ */
@@ -7943,7 +7869,7 @@ body.dark .chat-msg-reply { background: rgba(255, 255, 255, 0.06); }
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
-  transition: all 0.18s ease !important;
+  transition: background-color 0.18s ease, color 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease, opacity 0.18s ease, filter 0.18s ease !important;important;
   padding: 0 !important;
 }
 .chat-composer .chat-emoji-btn:hover {
@@ -7995,7 +7921,7 @@ body.dark .chat-msg-reply { background: rgba(255, 255, 255, 0.06); }
   align-items: center !important;
   justify-content: center !important;
   box-shadow: 0 3px 10px rgba(24,119,242,0.3) !important;
-  transition: all 0.18s ease !important;
+  transition: background-color 0.18s ease, color 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease, opacity 0.18s ease, filter 0.18s ease !important;important;
   padding: 0 !important;
 }
 .chat-composer .chat-send-btn:hover {
@@ -8010,7 +7936,6 @@ body.dark .chat-msg-reply { background: rgba(255, 255, 255, 0.06); }
   .chat-composer .chat-send-btn { width: 38px !important; height: 38px !important; min-width: 38px !important; font-size: 14px !important; }
   .chat-composer #chat-input { padding: 9px 14px !important; font-size: 14px !important; }
 }
-
 
 /* ================================================
    CHAT IMAGE — better bubble + full viewer
@@ -8167,7 +8092,7 @@ body.dark .chat-msg-reply { background: rgba(255, 255, 255, 0.06); }
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.2s ease;
+  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease, opacity 0.2s ease, filter 0.2s ease;
   text-decoration: none;
 }
 .img-viewer-btn:hover {
@@ -8188,7 +8113,6 @@ body.dark .chat-msg-reply { background: rgba(255, 255, 255, 0.06); }
   .img-viewer-btn { width: 42px; height: 42px; font-size: 16px; }
   .img-viewer-img { max-width: 100vw; max-height: 85vh; border-radius: 0; }
 }
-
 
 /* ================================================
    OVERLAY PAGES — hide bottom nav + full coverage
@@ -8249,7 +8173,6 @@ body:has(.onboarding:not(.hidden)) .mobile-bottom-nav {
   background: var(--bg) !important;
 }
 
-
 /* Fallback: body.overlay-open hides bottom nav */
 body.overlay-open .mobile-bottom-nav {
   display: none !important;
@@ -8262,7 +8185,6 @@ body.overlay-open .mobile-bottom-nav {
   z-index: 210 !important;
   background: var(--bg) !important;
 }
-
 
 /* ================================================
    UNIFIED SEARCH
@@ -8303,7 +8225,7 @@ body.overlay-open .mobile-bottom-nav {
   font-weight: 700;
   white-space: nowrap;
   cursor: pointer;
-  transition: all 0.18s ease;
+  transition: background-color 0.18s ease, color 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease, opacity 0.18s ease, filter 0.18s ease;
 }
 .search-tab:hover { background: var(--hover); color: var(--text); }
 .search-tab.active { background: var(--accent); color: #fff; }
@@ -8520,7 +8442,6 @@ body.dark .search-recent-item:hover {
   .search-tab span { display: inline; }
 }
 
-
 /* ================================================
    FULL-PAGE SEARCH
    ================================================ */
@@ -8561,7 +8482,7 @@ body.dark .search-recent-item:hover {
   border: 1px solid transparent;
   border-radius: 999px;
   padding: 0 44px 0 40px;
-  transition: all 0.2s ease;
+  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease, opacity 0.2s ease, filter 0.2s ease;
 }
 .search-page-input-wrap:focus-within {
   background: var(--card);
@@ -8606,7 +8527,7 @@ body.dark .search-recent-item:hover {
   align-items: center;
   justify-content: center;
   font-size: 12px;
-  transition: all 0.2s ease;
+  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease, opacity 0.2s ease, filter 0.2s ease;
 }
 .search-page-clear:hover { background: var(--accent-light); color: var(--accent); }
 .search-page-clear.hidden { display: none !important; }
@@ -8680,7 +8601,6 @@ body.dark .search-recent-item:hover {
 .search-page-body .search-recent-item { padding: 12px 14px; font-size: 14.5px; border-radius: 12px; }
 .search-page-body .search-recent-item i { font-size: 15px; color: var(--accent); opacity: 0.7; }
 
-
 /* ================================================
    PROFILE — JOIN DATE
    ================================================ */
@@ -8698,7 +8618,6 @@ body.dark .search-recent-item:hover {
   opacity: 0.75;
 }
 
-
 /* ================================================
    PROFILE — MUTUAL FOLLOWERS
    ================================================ */
@@ -8712,7 +8631,7 @@ body.dark .search-recent-item:hover {
   border: 1px solid var(--border);
   border-radius: 14px;
   margin-bottom: 12px;
-  transition: all 0.2s ease;
+  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease, opacity 0.2s ease, filter 0.2s ease;
   animation: fadeUpSoft 0.4s var(--smooth);
 }
 .profile-mutual:hover {
@@ -8757,7 +8676,6 @@ body.dark .search-recent-item:hover {
   color: var(--text);
 }
 
-
 /* ================================================
    PROFILE — PHOTOS TAB
    ================================================ */
@@ -8784,7 +8702,7 @@ body.dark .search-recent-item:hover {
   cursor: pointer;
   background: var(--card-2);
   position: relative;
-  transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition: background-color 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), color 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), border-color 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), filter 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 .profile-photo-cell::after {
@@ -8859,7 +8777,6 @@ body.dark .profile-photo-cell:hover {
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.5);
 }
 
-
 /* ================================================
    PROFILE COMPLETION BAR
    ================================================ */
@@ -8871,7 +8788,7 @@ body.dark .profile-photo-cell:hover {
   padding: 14px 16px;
   margin-bottom: 12px;
   cursor: pointer;
-  transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition: background-color 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), color 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), border-color 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), filter 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
   animation: fadeUpSoft 0.45s var(--smooth);
 }
 .profile-completion:hover {
@@ -8972,7 +8889,7 @@ body.dark .profile-photo-cell:hover {
   font-size: 13.5px;
   font-weight: 600;
   color: var(--text);
-  transition: all 0.18s ease;
+  transition: background-color 0.18s ease, color 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease, opacity 0.18s ease, filter 0.18s ease;
 }
 .pc-missing-item:hover {
   background: var(--card);
@@ -9001,7 +8918,6 @@ body.dark .pc-bar-fill {
   .pc-title { font-size: 13px; }
   .pc-missing-item { font-size: 13px; padding: 7px 8px; }
 }
-
 
 /* ================================================
    NOTIFICATION FILTER TABS
@@ -9033,7 +8949,7 @@ body.dark .pc-bar-fill {
   font-weight: 700;
   white-space: nowrap;
   cursor: pointer;
-  transition: all 0.2s var(--spring);
+  transition: background-color 0.2s var(--spring), color 0.2s var(--spring), border-color 0.2s var(--spring), box-shadow 0.2s var(--spring), transform 0.2s var(--spring), opacity 0.2s var(--spring), filter 0.2s var(--spring);
 }
 .notif-tab i { font-size: 12px; }
 .notif-tab:hover {
@@ -9147,7 +9063,6 @@ body.dark .notif-post-media {
   .notif-post-content { max-width: 92vw !important; }
   .notif-post-media img { height: 100px; }
 }
-
 
 /* ================================================
    SETTINGS — DANGER ZONE
@@ -9264,7 +9179,6 @@ body.dark .danger-modal-text {
   background: rgba(239, 68, 68, 0.05);
 }
 
-
 /* ================================================
    PRIVACY SETTINGS
    ================================================ */
@@ -9372,7 +9286,6 @@ body.dark .privacy-toggle-row {
   .privacy-toggle-sub { font-size: 11.5px; }
 }
 
-
 /* ================================================
    GROUP CHAT
    ================================================ */
@@ -9447,7 +9360,7 @@ body.dark .privacy-toggle-row {
   font-size: 12.5px;
   font-weight: 700;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease, opacity 0.2s ease, filter 0.2s ease;
 }
 .selected-member:hover { background: var(--accent); color: #fff; }
 .selected-member i { font-size: 10px; }
@@ -9592,7 +9505,6 @@ body.dark .privacy-toggle-row {
   .gi-name { font-size: 18px; }
 }
 
-
 /* ================================================
    MODAL KEYBOARD FIX — BULLETPROOF OVERRIDE
    ================================================ */
@@ -9641,7 +9553,6 @@ body.dark .privacy-toggle-row {
   }
 }
 
-
 /* ================================================
    MODAL Z-INDEX FIX — must be above all overlays
    ================================================ */
@@ -9686,7 +9597,6 @@ body.dark .privacy-toggle-row {
 #chat-msg-menu {
   z-index: 9999 !important;
 }
-
 
 /* ================================================
    GROUP CHAT COMPOSER — match individual chat style
@@ -9763,7 +9673,7 @@ body.dark .privacy-toggle-row {
   align-items: center !important;
   justify-content: center !important;
   box-shadow: 0 3px 10px rgba(24,119,242,0.3) !important;
-  transition: all 0.18s ease !important;
+  transition: background-color 0.18s ease, color 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease, opacity 0.18s ease, filter 0.18s ease !important;important;
   padding: 0 !important;
 }
 #group-chat-window .chat-send-btn:hover {
@@ -9788,7 +9698,7 @@ body.dark .privacy-toggle-row {
   align-items: center !important;
   justify-content: center !important;
   padding: 0 !important;
-  transition: all 0.18s ease !important;
+  transition: background-color 0.18s ease, color 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease, opacity 0.18s ease, filter 0.18s ease !important;important;
 }
 #group-chat-window .chat-emoji-btn:hover {
   background: var(--hover) !important;
@@ -9828,7 +9738,6 @@ body.dark .privacy-toggle-row {
     font-size: 14px !important;
   }
 }
-
 
 /* ================================================
    S7 — HTTPS WARNING BANNER
@@ -9874,7 +9783,7 @@ body.dark .privacy-toggle-row {
   justify-content: center;
   font-size: 13px;
   flex-shrink: 0;
-  transition: all 0.2s ease;
+  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease, opacity 0.2s ease, filter 0.2s ease;
 }
 .https-warning-banner .hwb-close:hover {
   background: rgba(255, 255, 255, 0.35);
@@ -9904,7 +9813,6 @@ body:has(#https-warning-banner) .topbar {
   body:has(#https-warning-banner) .topbar { margin-top: 38px; }
 }
 
-
 /* ================================================
    S12 — TWO-FACTOR AUTHENTICATION
    ================================================ */
@@ -9933,7 +9841,7 @@ body:has(#https-warning-banner) .topbar {
   letter-spacing: 0.5px;
   user-select: all;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease, opacity 0.15s ease, filter 0.15s ease;
 }
 .backup-code-item:hover {
   border-color: var(--accent);
@@ -9984,7 +9892,6 @@ details summary::-webkit-details-marker {
   #login-2fa-form #login-2fa-code { font-size: 18px; letter-spacing: 4px; }
 }
 
-
 /* ================================================
    S14 — ADMIN PANEL
    ================================================ */
@@ -10015,7 +9922,7 @@ details summary::-webkit-details-marker {
   font-weight: 700;
   white-space: nowrap;
   cursor: pointer;
-  transition: all 0.2s var(--spring);
+  transition: background-color 0.2s var(--spring), color 0.2s var(--spring), border-color 0.2s var(--spring), box-shadow 0.2s var(--spring), transform 0.2s var(--spring), opacity 0.2s var(--spring), filter 0.2s var(--spring);
 }
 .admin-tab:hover { border-color: var(--accent); color: var(--accent); }
 .admin-tab.active {
@@ -10120,7 +10027,7 @@ details summary::-webkit-details-marker {
   font-size: 13.5px;
   font-weight: 700;
   cursor: pointer;
-  transition: all 0.2s var(--spring);
+  transition: background-color 0.2s var(--spring), color 0.2s var(--spring), border-color 0.2s var(--spring), box-shadow 0.2s var(--spring), transform 0.2s var(--spring), opacity 0.2s var(--spring), filter 0.2s var(--spring);
   text-align: left;
 }
 .admin-quick-btn:hover {
@@ -10152,7 +10059,7 @@ details summary::-webkit-details-marker {
   border-radius: 14px;
   padding: 14px 16px;
   margin-bottom: 12px;
-  transition: all 0.2s ease;
+  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease, opacity 0.2s ease, filter 0.2s ease;
 }
 .admin-report-card.pending {
   border-left: 3px solid #f59e0b;
@@ -10254,7 +10161,7 @@ details summary::-webkit-details-marker {
   font-size: 12.5px;
   font-weight: 700;
   cursor: pointer;
-  transition: all 0.2s var(--spring);
+  transition: background-color 0.2s var(--spring), color 0.2s var(--spring), border-color 0.2s var(--spring), box-shadow 0.2s var(--spring), transform 0.2s var(--spring), opacity 0.2s var(--spring), filter 0.2s var(--spring);
 }
 .admin-btn:hover {
   background: var(--accent-light);
@@ -10287,7 +10194,7 @@ details summary::-webkit-details-marker {
   font-size: 14px;
   font-weight: 700;
   cursor: pointer;
-  transition: all 0.2s var(--spring);
+  transition: background-color 0.2s var(--spring), color 0.2s var(--spring), border-color 0.2s var(--spring), box-shadow 0.2s var(--spring), transform 0.2s var(--spring), opacity 0.2s var(--spring), filter 0.2s var(--spring);
 }
 .ban-option:hover {
   border-color: var(--danger);
@@ -10445,7 +10352,6 @@ details summary::-webkit-details-marker {
 body.dark .admin-report-card.pending { border-left-color: #f59e0b; }
 body.dark .admin-report-card.resolved { border-left-color: #22c55e; }
 
-
 /* ================================================
    S15.3 — LOGIN HISTORY
    ================================================ */
@@ -10512,7 +10418,6 @@ body.dark .admin-report-card.resolved { border-left-color: #22c55e; }
   overflow: hidden;
   text-overflow: ellipsis;
 }
-
 
 /* ================================================
    S15.4 — ACTIVE SESSIONS
@@ -10592,7 +10497,7 @@ body.dark .admin-report-card.resolved { border-left-color: #22c55e; }
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  transition: all 0.2s var(--spring);
+  transition: background-color 0.2s var(--spring), color 0.2s var(--spring), border-color 0.2s var(--spring), box-shadow 0.2s var(--spring), transform 0.2s var(--spring), opacity 0.2s var(--spring), filter 0.2s var(--spring);
 }
 .session-revoke:hover {
   background: rgba(239, 68, 68, 0.1);

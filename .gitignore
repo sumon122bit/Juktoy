@@ -1,70 +1,38 @@
-# DATABASE
-social.db
-social.db-shm
-social.db-wal
-*.db
-*.sqlite
-
-# SECRETS
-.secret_key
-.juktoy_state.json
+# Secrets — NEVER commit
 .env
 .env.*
-!.env.example
-*_secret*
-*_key.txt
+*.key
+*.pem
 
-# USER UPLOADS
+# Runtime state
+.juktoy_state.json
+.juktoy_state.json.lock
+
+# User uploaded content (runtime, not source)
 static/uploads/
-!static/uploads/.gitkeep
 
-# BACKUPS
-*.bak
-*.bak.*
-app.py.bak.*
-static/*.bak.*
-templates/*.bak.*
+# Backups / cleanup history
+_cleanup_backup/
 .backup/
 .backups/
-backup_*.zip
+backups/
+*.bak-*
+*.before-*
 
-# PYTHON
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-venv/
-env/
-ENV/
-.pytest_cache/
-
-# BUILD / OS
-.DS_Store
-Thumbs.db
-*.log
-
-# DEV SCRIPTS
-fix-*.py
-s1-*.py
-s2-*.py
-s3-*.py
-s4-*.py
-patch-*.py
-sdpfix.py
-stripfix.py
-run.sh
-gunicorn.sh
-*.broken.*
-social.db
-social.db-wal
-social.db-shm
-www/static/uploads/
-.env
-*.db
-*.db-shm
-*.db-wal
-*.bak
-.juktoy_state.json
+# Python
 __pycache__/
 *.pyc
+.venv/
+venv/
+
+# Dev DB
+social.db
+
+# Android/APK
+android/
+*.apk
+*.aab
+
+# OS
+.DS_Store
+Thumbs.db

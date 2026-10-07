@@ -7,6 +7,24 @@
   "use strict";
 
   // ============================================
+  // S22 / Series 10 — Debug-gated logging
+  // Runs on localhost only (or when ?debug=1 in URL).
+  // ============================================
+  var _CALL_DEBUG_MODE = (
+    window.location.hostname === "localhost" ||
+    window.location.hostname === "127.0.0.1" ||
+    /[?&]debug=1/.test(window.location.search)
+  );
+  function _cdlog() {
+    if (!_CALL_DEBUG_MODE) return;
+    try { console.log.apply(console, arguments); } catch (e) {}
+  }
+  function _cdwarn() {
+    if (!_CALL_DEBUG_MODE) return;
+    try { console.warn.apply(console, arguments); } catch (e) {}
+  }
+
+  // ============================================
   // State
   // ============================================
   var CALL = {
@@ -20,13 +38,18 @@
     muted: false,
     cameraOff: false,
     speakerOn: true,
+    _facing: "user",   // S30.10 - camera facing mode
     iceServers: [
       { urls: "stun:stun.l.google.com:19302" },
       { urls: "stun:stun1.l.google.com:19302" },
     ],
     seenCallIds: {},       // dedupe
     bannerCallId: null,
+    _starting: false,      // S30.3 - sync lock for startCall/accept
+    _gen: 0,               // S30.3 - increment on every new call (cancel-safe)
   };
+  // S29.3 - idempotency guard so we only send ONE end request per call
+  var _endSyncSent = false;
 
   // ============================================
   // Utils
@@ -73,7 +96,7 @@
 
   function toast(msg) {
     if (typeof window.showToast === "function") return window.showToast(msg);
-    console.log("[CALL]", msg);
+    _cdlog("[CALL]", msg);
   }
 
   // ============================================
@@ -218,7 +241,17 @@
     var constraints = kind === "video"
       ? { audio: true, video: { width: { ideal: 720 }, height: { ideal: 1280 }, facingMode: "user" } }
       : { audio: true, video: false };
+
+    // S30.3 - capture the call generation. If call ends while we're awaiting
+    // getUserMedia, stop the stream instead of assigning it to CALL.localStream.
+    var _gen = CALL._gen || 0;
+
     return navigator.mediaDevices.getUserMedia(constraints).then(function (stream) {
+      if ((CALL._gen || 0) !== _gen || !CALL.active) {
+        // call was cancelled while waiting for permission → drop the stream
+        try { stream.getTracks().forEach(function(t){ t.stop(); }); } catch(e){}
+        return Promise.reject(new Error("call cancelled"));
+      }
       CALL.localStream = stream;
       return stream;
     });
@@ -249,24 +282,63 @@
     };
 
     pc.ontrack = function (ev) {
+      // S30.10 - always attach to a media stream
+      if (!CALL.remoteStream) CALL.remoteStream = new MediaStream();
+      try { CALL.remoteStream.addTrack(ev.track); } catch (e) {}
+
       var remote = $("co-video-remote");
       if (remote) {
-        if (!CALL.remoteStream) CALL.remoteStream = new MediaStream();
-        try { CALL.remoteStream.addTrack(ev.track); } catch (e) {}
         remote.srcObject = CALL.remoteStream;
         remote.play().catch(function () {});
+      }
+
+      // For audio-only calls, create a hidden <audio> element
+      if (ev.track.kind === "audio" && !CALL._remoteAudioEl) {
+        try {
+          var a = document.createElement("audio");
+          a.autoplay = true;
+          a.playsInline = true;
+          a.style.display = "none";
+          a.srcObject = CALL.remoteStream;
+          document.body.appendChild(a);
+          CALL._remoteAudioEl = a;
+          a.play().catch(function () {});
+        } catch (e) {}
       }
     };
 
     pc.onconnectionstatechange = function () {
-      console.log("[CALL] pc state:", pc.connectionState);
-      if (pc.connectionState === "failed" || pc.connectionState === "disconnected") {
-        // Try to recover, but if truly failed → end
-        setTimeout(function () {
-          if (pc.connectionState === "failed" || pc.connectionState === "closed") {
-            // force end
+      _cdlog("[CALL] pc state:", pc.connectionState);
+
+      // S30.10 - graceful handling of connection failures
+      if (pc.connectionState === "connected") {
+        // clear any pending disconnect watchdog
+        if (CALL._discTimer) { clearTimeout(CALL._discTimer); CALL._discTimer = null; }
+        if (CALL._connFailed) CALL._connFailed = false;
+        return;
+      }
+
+      if (pc.connectionState === "disconnected") {
+        // temporary network blip — give 12s grace before ending
+        if (CALL._discTimer) return;
+        CALL._discTimer = setTimeout(function () {
+          CALL._discTimer = null;
+          if (pc.connectionState === "disconnected" || pc.connectionState === "failed") {
+            _cdwarn("[CALL] disconnected too long → ending");
+            try { toast("সংযোগ হারিয়ে গেছে"); } catch (e) {}
+            endCall("connection_lost");
           }
-        }, 3000);
+        }, 12000);
+        return;
+      }
+
+      if (pc.connectionState === "failed" || pc.connectionState === "closed") {
+        if (CALL._connFailed) return;   // only handle once
+        CALL._connFailed = true;
+        if (CALL._discTimer) { clearTimeout(CALL._discTimer); CALL._discTimer = null; }
+        _cdwarn("[CALL] pc failed → ending");
+        try { toast("সংযোগ ব্যর্থ হয়েছে"); } catch (e) {}
+        endCall("connection_failed");
       }
     };
 
@@ -281,85 +353,144 @@
   }
 
   // ============================================
+  // S30.8 - Unified call ticker
+  //   Polls /api/calls/<id> once per tick and handles:
+  //     • answer arrival (caller side)
+  //     • ICE candidate append (both sides)
+  //     • remote-end detection (both sides)
+  //   Replaces 3 separate timers (was ~3.8 req/sec/client).
+  // ============================================
+  var _callTicker = null;
+  var _callTickCallId = null;
+  var _callTickRole = null;   // "caller" | "callee"
+  var _callTickPhase = null;  // "answer" | "active"
+  var _callTickSeen = { caller: 0, callee: 0 };
+
+  function _startCallTicker(callId, role, phase) {
+    _stopCallTicker();
+    _callTickCallId = callId;
+    _callTickRole = role;
+    _callTickPhase = phase;
+    _callTickSeen = { caller: 0, callee: 0 };
+
+    var isCaller = (role === "caller");
+
+    _callTicker = setInterval(function () {
+      if (!_callTickCallId) return;
+      api("/api/calls/" + _callTickCallId).then(function (c) {
+        // safety: call may have been closed
+        if (!CALL.active || CALL.active.id !== _callTickCallId) return;
+
+        // ---------- Phase 1: caller waiting for answer ----------
+        if (_callTickPhase === "answer") {
+          // pull callee's ICE while ringing
+          if (isCaller && c.callee_ice && CALL.pc) {
+            try {
+              var arr = JSON.parse(c.callee_ice) || [];
+              for (var i = _callTickSeen.callee; i < arr.length; i++) {
+                try { CALL.pc.addIceCandidate(new RTCIceCandidate(arr[i])); } catch (e) {}
+              }
+              _callTickSeen.callee = arr.length;
+            } catch (e) {}
+          }
+
+          if (c.status === "active" && c.answer) {
+            if (CALL.pc && CALL.pc.signalingState !== "stable") {
+              try {
+                CALL.pc.setRemoteDescription({ type: "answer", sdp: c.answer });
+              } catch (e) { _cdwarn("[CALL] setRemote answer:", e); }
+            }
+            // promote to active phase
+            _callTickPhase = "active";
+            setSub("", false);
+            if (CALL.active) {
+              setKind(CALL.active.kind);
+              setVideoMode(CALL.active.kind);
+              renderActions("active", CALL.active.kind);
+              wireActiveButtons();
+              startDurationTimer();
+            }
+          } else if (c.status === "declined" || c.status === "ended" || c.status === "missed") {
+            var msg = (c.status === "declined") ? "\u0995\u09b2 \u09a1\u09bf\u0995\u09b2\u09be\u0987\u09a8 \u0995\u09b0\u09be \u09b9\u09df\u09c7\u099b\u09c7"
+                     : (c.status === "missed")  ? "\u0995\u09c7\u0989 \u0995\u09b2 \u09a7\u09b0\u09c7\u09a8\u09bf"
+                     : "\u0995\u09b2 \u09b6\u09c7\u09b7 \u09b9\u09df\u09c7\u099b\u09c7";
+            toast(msg);
+            cleanup(true);
+          }
+          return;
+        }
+
+        // ---------- Phase 2: active call ----------
+        if (_callTickPhase === "active") {
+          // pull counterpart's ICE
+          var remoteList = isCaller ? c.callee_ice : c.caller_ice;
+          var seenKey = isCaller ? "callee" : "caller";
+          if (remoteList && CALL.pc) {
+            try {
+              var arr2 = JSON.parse(remoteList) || [];
+              for (var j = _callTickSeen[seenKey]; j < arr2.length; j++) {
+                try { CALL.pc.addIceCandidate(new RTCIceCandidate(arr2[j])); } catch (e) {}
+              }
+              _callTickSeen[seenKey] = arr2.length;
+            } catch (e) {}
+          }
+
+          // remote ended?
+          if (c.status === "ended" || c.status === "declined" || c.status === "missed") {
+            if (c.status === "ended") toast("\u0995\u09b2 \u09b6\u09c7\u09b7");
+            if (c.status === "declined") toast("\u0995\u09b2 \u09a1\u09bf\u0995\u09b2\u09be\u0987\u09a8");
+            if (c.status === "missed") toast("\u09ae\u09bf\u09b8 \u0995\u09b2");
+            cleanup(true);
+          }
+        }
+      }).catch(function () {});
+    }, 1500);
+  }
+
+  function _stopCallTicker() {
+    if (_callTicker) {
+      clearInterval(_callTicker);
+      _callTicker = null;
+    }
+    _callTickCallId = null;
+    _callTickRole = null;
+    _callTickPhase = null;
+  }
+
+  // ============================================
   // ICE polling loop (read counterpart's ICE)
   // ============================================
   var _iceSeen = { caller: 0, callee: 0 };
   function startIcePolling(callId, isCaller) {
-    _iceSeen.caller = 0;
-    _iceSeen.callee = 0;
-    var timer = setInterval(function () {
-      api("/api/calls/" + callId).then(function (c) {
-        if (!CALL.pc || CALL.pc.signalingState === "closed") {
-          clearInterval(timer); return;
-        }
-        // My own candidates I already pushed; now pull the counterpart's list
-        var remoteList = isCaller ? c.callee_ice : c.caller_ice;
-        if (!remoteList) return;
-        var arr;
-        try { arr = JSON.parse(remoteList); } catch (e) { arr = []; }
-        var seen = isCaller ? "_cc" : "_cr";
-        var last = CALL[seen] || 0;
-        for (var i = last; i < arr.length; i++) {
-          try { CALL.pc.addIceCandidate(new RTCIceCandidate(arr[i])); } catch (e) {}
-        }
-        CALL[seen] = arr.length;
-      }).catch(function () {});
-    }, 1500);
-    CALL.icePollTimer = timer;
+    // S30.8 - route through unified ticker (role inferred)
+    var role = isCaller ? "caller" : "callee";
+    _startCallTicker(callId, role, "active");
+    CALL.icePollTimer = _callTicker;   // legacy compat
   }
 
   function stopIcePolling() {
-    if (CALL.icePollTimer) {
-      clearInterval(CALL.icePollTimer);
-      CALL.icePollTimer = null;
-    }
-    CALL._cc = 0;
-    CALL._cr = 0;
+    // S30.8 - unified ticker clears everything
+    if (typeof _stopCallTicker === "function") _stopCallTicker();
+    if (CALL.icePollTimer) { clearInterval(CALL.icePollTimer); CALL.icePollTimer = null; }
+    if (CALL.answerPollTimer) { clearInterval(CALL.answerPollTimer); CALL.answerPollTimer = null; }
+    if (CALL.remoteEndTimer) { clearInterval(CALL.remoteEndTimer); CALL.remoteEndTimer = null; }
   }
 
   // ============================================
   // Poll the counterpart's answer (caller side)
   // ============================================
   function startAnswerPolling(callId) {
-    var timer = setInterval(function () {
-      api("/api/calls/" + callId).then(function (c) {
-        if (c.status === "active" && c.answer) {
-          clearInterval(timer);
-          if (CALL.pc && CALL.pc.signalingState !== "stable") {
-            try {
-              CALL.pc.setRemoteDescription({ type: "answer", sdp: c.answer });
-            } catch (e) { console.warn("[CALL] setRemote answer:", e); }
-          }
-          // Caller side — entering active mode
-          console.log("[CALL] caller connected — wiring active UI");
-          setSub("", false);
-          if (CALL.active) {
-            setKind(CALL.active.kind);
-            setVideoMode(CALL.active.kind);
-            renderActions("active", CALL.active.kind);
-            wireActiveButtons();
-            startDurationTimer();
-            startIcePolling(callId, true);
-            startRemoteEndWatch(callId);
-          }
-        } else if (c.status === "declined" || c.status === "ended" || c.status === "missed") {
-          clearInterval(timer);
-          var msg = (c.status === "declined") ? "\u0995\u09b2 \u09a1\u09bf\u0995\u09b2\u09be\u0987\u09a8 \u0995\u09b0\u09be \u09b9\u09df\u09c7\u099b\u09c7"
-                   : (c.status === "missed")  ? "\u0995\u09c7\u0989 \u0995\u09b2 \u09a7\u09b0\u09c7\u09a8\u09bf"
-                   : "\u0995\u09b2 \u09b6\u09c7\u09b7 \u09b9\u09df\u09c7\u099b\u09c7";
-          toast(msg);
-          cleanup(true);
-        }
-      }).catch(function () {});
-    }, 1500);
-    CALL.answerPollTimer = timer;
+    // S30.8 - route through unified ticker
+    _startCallTicker(callId, "caller", "answer");
+    CALL.answerPollTimer = _callTicker;   // legacy compat
   }
 
   function stopAnswerPolling() {
-    if (CALL.answerPollTimer) {
-      clearInterval(CALL.answerPollTimer);
-      CALL.answerPollTimer = null;
-    }
+    // S30.8 - unified ticker clears everything
+    if (typeof _stopCallTicker === "function") _stopCallTicker();
+    if (CALL.icePollTimer) { clearInterval(CALL.icePollTimer); CALL.icePollTimer = null; }
+    if (CALL.answerPollTimer) { clearInterval(CALL.answerPollTimer); CALL.answerPollTimer = null; }
+    if (CALL.remoteEndTimer) { clearInterval(CALL.remoteEndTimer); CALL.remoteEndTimer = null; }
   }
 
   // ============================================
@@ -386,13 +517,16 @@
   // ============================================
   function startCall(username, kind) {
     if (!username) return;
-    if (CALL.active) { toast("একটা কল চলছে"); return; }
+    if (CALL.active || CALL._starting) { toast("একটা কল চলছে"); return; }
+    // S30.3 - synchronous lock prevents double-tap creating two calls
+    CALL._starting = true;
 
     toast("কল করা হচ্ছে...");
     api("/api/calls/start", {
       method: "POST",
       body: JSON.stringify({ username: username, kind: kind }),
     }).then(function (res) {
+      CALL._starting = false;
       CALL.active = {
         id: res.call_id,
         kind: res.kind,
@@ -443,6 +577,7 @@
         endCall("error");
       });
     }).catch(function (err) {
+      CALL._starting = false;
       alert(err.message || "কল শুরু করা যায়নি");
     });
   }
@@ -451,10 +586,12 @@
   // ACCEPT incoming call (callee)
   // ============================================
   function acceptIncoming(callId, fromUser, kind) {
-    console.log("[ACCEPT] ▶ step 1 — start", { callId: callId, user: fromUser && fromUser.username, kind: kind });
+    _cdlog("[ACCEPT] ▶ step 1 — start", { callId: callId, user: fromUser && fromUser.username, kind: kind });
     hideBanner();
-    if (CALL.active) { toast("একটা কল চলছে"); return; }
+    if (CALL.active || CALL._starting) { toast("একটা কল চলছে"); return; }
+    CALL._starting = true;
 
+    CALL._starting = false;
     CALL.active = {
       id: callId,
       kind: kind,
@@ -476,22 +613,22 @@
     showOverlay();
     vib([30, 40, 30]);
 
-    console.log("[ACCEPT] ▶ step 2 — calling /answer accept");
+    _cdlog("[ACCEPT] ▶ step 2 — calling /answer accept");
     api("/api/calls/" + callId + "/answer", {
       method: "POST",
       body: JSON.stringify({ action: "accept" }),
     }).then(function (r) {
-      console.log("[ACCEPT] ✔ step 2 done:", r);
-      console.log("[ACCEPT] ▶ step 3 — getting mic");
+      _cdlog("[ACCEPT] ✔ step 2 done:", r);
+      _cdlog("[ACCEPT] ▶ step 3 — getting mic");
       // Try mic; fallback to no-mic if it fails
       return getLocalStream(kind).then(
         function (stream) {
-          console.log("[ACCEPT] ✔ step 3 mic ok — tracks:",
+          _cdlog("[ACCEPT] ✔ step 3 mic ok — tracks:",
                       stream.getTracks().map(function (t) { return t.kind + ":" + t.readyState; }));
           return { stream: stream, hasMic: true };
         },
         function (err) {
-          console.warn("[ACCEPT] ⚠ step 3 mic FAILED:", err && err.name, err && err.message);
+          _cdwarn("[ACCEPT] ⚠ step 3 mic FAILED:", err && err.name, err && err.message);
           toast("মাইক পাওয়া যায়নি — শুধু শুনতে পারবেন");
           return { stream: null, hasMic: false };
         }
@@ -502,9 +639,9 @@
         var lv = $("co-video-local");
         if (lv) lv.srcObject = res.stream;
       }
-      console.log("[ACCEPT] ▶ step 4 — fetching offer");
+      _cdlog("[ACCEPT] ▶ step 4 — fetching offer");
       return api("/api/calls/" + callId).then(function (c) {
-        console.log("[ACCEPT] ✔ step 4 got call:", {
+        _cdlog("[ACCEPT] ✔ step 4 got call:", {
           status: c.status,
           hasOffer: !!(c.offer),
           offerLen: c.offer ? c.offer.length : 0,
@@ -516,18 +653,18 @@
       var stream = res.stream;
       if (!c.offer) throw new Error("offer missing on server (caller didn't upload)");
 
-      console.log("[ACCEPT] ▶ step 5 — create peer + setRemote");
+      _cdlog("[ACCEPT] ▶ step 5 — create peer + setRemote");
       var pc = createPeer(callId, false);
       if (stream) attachLocalTracks(pc);
 
       return pc.setRemoteDescription({ type: "offer", sdp: c.offer }).then(function () {
-        console.log("[ACCEPT] ✔ step 5 remote set");
-        console.log("[ACCEPT] ▶ step 6 — createAnswer");
+        _cdlog("[ACCEPT] ✔ step 5 remote set");
+        _cdlog("[ACCEPT] ▶ step 6 — createAnswer");
         return pc.createAnswer();
       }).then(function (answer) {
-        console.log("[ACCEPT] ✔ step 6 answer ready, sdp len:", answer.sdp.length);
+        _cdlog("[ACCEPT] ✔ step 6 answer ready, sdp len:", answer.sdp.length);
         return pc.setLocalDescription(answer).then(function () {
-          console.log("[ACCEPT] ▶ step 7 — posting answer-sdp");
+          _cdlog("[ACCEPT] ▶ step 7 — posting answer-sdp");
           return api("/api/calls/" + callId + "/answer-sdp", {
             method: "POST",
             body: JSON.stringify({ answer: answer.sdp }),
@@ -535,7 +672,7 @@
         });
       });
     }).then(function () {
-      console.log("[ACCEPT] ✔ step 7 done — entering active mode");
+      _cdlog("[ACCEPT] ✔ step 7 done — entering active mode");
       setSub("", false);
       setKind(kind);
       renderActions("active", kind);
@@ -543,7 +680,7 @@
       startDurationTimer();
       startIcePolling(callId, false);
       startRemoteEndWatch(callId);
-      console.log("[ACCEPT] ✅ fully connected");
+      _cdlog("[ACCEPT] ✅ fully connected");
     }).catch(function (err) {
       console.error("[ACCEPT] ❌ FAILED at some step:", err);
       console.error("[ACCEPT] ❌ error name:", err && err.name, "| message:", err && err.message);
@@ -584,38 +721,80 @@
       spk.classList.toggle("active", !CALL.speakerOn);
       var i = spk.querySelector("i");
       if (i) i.className = CALL.speakerOn ? "fa-solid fa-volume-high" : "fa-solid fa-volume-xmark";
+
+      // S30.10 - actually apply: mute remote audio element (visual consistent with button)
+      var remote = $("co-video-remote");
+      if (remote) remote.muted = !CALL.speakerOn;
+      // also toggle for audio-only calls (no video element, but WebAudio attached elsewhere)
+      try {
+        if (CALL._remoteAudioEl) CALL._remoteAudioEl.muted = !CALL.speakerOn;
+      } catch (e) {}
     };
 
     var end = $("co-end");
     if (end) end.onclick = function () { endCall("hangup"); };
 
     var sw = $("co-switch");
-    if (sw) sw.onclick = function () { toast("ক্যামেরা সুইচ শীঘ্রই"); };
+    if (sw) sw.onclick = async function () {
+      // S30.10 - real camera flip
+      if (!CALL.localStream) return;
+      var vt = CALL.localStream.getVideoTracks();
+      if (!vt.length) { toast("শুধু ভিডিও কলে"); return; }
+
+      // toggle facingMode and re-getUserMedia for the video track
+      var newMode = CALL._facing === "user" ? "environment" : "user";
+      var oldTrack = vt[0];
+      try {
+        sw.disabled = true;
+        var newStream = await navigator.mediaDevices.getUserMedia({
+          audio: false,
+          video: { facingMode: newMode, width: { ideal: 720 }, height: { ideal: 1280 } }
+        });
+        var newVid = newStream.getVideoTracks()[0];
+        if (!newVid) throw new Error("no video track");
+
+        // swap track on all peer senders
+        if (CALL.pc) {
+          var senders = CALL.pc.getSenders();
+          for (var i = 0; i < senders.length; i++) {
+            if (senders[i].track && senders[i].track.kind === "video") {
+              try { await senders[i].replaceTrack(newVid); } catch (e) {}
+            }
+          }
+        }
+        // stop old track + remove from localStream
+        try { oldTrack.stop(); } catch (e) {}
+        try { CALL.localStream.removeTrack(oldTrack); } catch (e) {}
+        CALL.localStream.addTrack(newVid);
+
+        // update preview video element
+        var lv = $("co-video-local");
+        if (lv) lv.srcObject = CALL.localStream;
+
+        CALL._facing = newMode;
+        if (navigator.vibrate) navigator.vibrate(10);
+      } catch (err) {
+        _cdwarn("[CALL] switch camera failed:", err);
+        toast("ক্যামেরা সুইচ ব্যর্থ");
+      } finally {
+        sw.disabled = false;
+      }
+    };
   }
 
   // ============================================
   // Watch for remote hangup (both sides)
   // ============================================
   function startRemoteEndWatch(callId) {
-    if (CALL.remoteEndTimer) clearInterval(CALL.remoteEndTimer);
-    CALL.remoteEndTimer = setInterval(function () {
-      api("/api/calls/" + callId).then(function (c) {
-        if (c.status === "ended" || c.status === "declined" || c.status === "missed") {
-          clearInterval(CALL.remoteEndTimer);
-          if (c.status === "ended") toast("কল শেষ");
-          if (c.status === "declined") toast("কল ডিক্লাইন");
-          if (c.status === "missed") toast("মিস কল");
-          cleanup(true);
-        }
-      }).catch(function () {});
-    }, 800);
+    // S30.8 - no-op; unified ticker handles remote-end detection
   }
 
   function stopRemoteEndWatch() {
-    if (CALL.remoteEndTimer) {
-      clearInterval(CALL.remoteEndTimer);
-      CALL.remoteEndTimer = null;
-    }
+    // S30.8 - unified ticker clears everything
+    if (typeof _stopCallTicker === "function") _stopCallTicker();
+    if (CALL.icePollTimer) { clearInterval(CALL.icePollTimer); CALL.icePollTimer = null; }
+    if (CALL.answerPollTimer) { clearInterval(CALL.answerPollTimer); CALL.answerPollTimer = null; }
+    if (CALL.remoteEndTimer) { clearInterval(CALL.remoteEndTimer); CALL.remoteEndTimer = null; }
   }
 
   // ============================================
@@ -633,6 +812,15 @@
   }
 
   function cleanup(silent) {
+    _endSyncSent = false;
+    CALL._starting = false;
+    // S30.10 - clear connection watchdog
+    if (CALL._discTimer) { clearTimeout(CALL._discTimer); CALL._discTimer = null; }
+    CALL._connFailed = false;
+    // S30.3 - reset remote stream (was: old tracks accumulated across calls)
+    CALL.remoteStream = null;
+    CALL._cc = 0;
+    CALL._cr = 0;
     try { if (CALL.pc) CALL.pc.close(); } catch (e) {}
     CALL.pc = null;
     stopLocalStream();
@@ -643,6 +831,10 @@
 
     var remote = $("co-video-remote");
     if (remote) remote.srcObject = null;
+    if (CALL._remoteAudioEl) {
+      try { CALL._remoteAudioEl.pause(); CALL._remoteAudioEl.srcObject = null; CALL._remoteAudioEl.remove(); } catch (e) {}
+      CALL._remoteAudioEl = null;
+    }
     var local = $("co-video-local");
     if (local) local.srcObject = null;
     var vw = $("co-video-wrap");
@@ -651,6 +843,7 @@
     CALL.active = null;
     CALL.muted = false;
     CALL.cameraOff = false;
+    CALL._facing = "user";
     var ov = $("call-overlay");
     if (ov) ov.classList.remove("video-mode");
 
@@ -669,7 +862,7 @@
 
     var avatar = caller && caller.profile_pic
       ? '<img src="' + esc(caller.profile_pic) + '" alt="">'
-      : (caller && caller.display_name ? caller.display_name.charAt(0).toUpperCase() : "?");
+      : esc((caller && caller.display_name || "?").charAt(0).toUpperCase());
 
     b.innerHTML =
       '<div class="call-mini-avatar">' + avatar + '</div>' +
@@ -703,8 +896,15 @@
   // Polling loop — runs app-wide
   // ============================================
   function startPolling() {
-    if (CALL.pollTimer) { clearInterval(CALL.pollTimer); CALL.pollTimer = null; }
-    console.log("[CALL] startPolling called");
+    // S22 batch — clear previous timer first (prevents duplicates)
+    if (CALL.pollTimer) {
+      clearInterval(CALL.pollTimer);
+      clearTimeout(CALL.pollTimer);
+      CALL.pollTimer = null;
+    }
+    _cdlog("[CALL] startPolling called");
+    // S30.11 - adaptive interval: 3.5s foreground, 12s background
+    // (was: always 3.5s even when tab hidden → wasted server load)
     CALL.pollTimer = setInterval(function () {
       // Series 4B fix — poll even when tab is hidden (multi-tab testing)
       if (!_getMe()) return;
@@ -713,7 +913,7 @@
       api("/api/calls/poll").then(function (d) {
         // Series 4B debug logging
         if (d.incoming) {
-          console.log("[CALL POLL] incoming found:", d.incoming, d.incoming_caller);
+          _cdlog("[CALL POLL] incoming found:", d.incoming, d.incoming_caller);
         }
         // Incoming call?
         if (d.incoming && d.incoming_caller) {
@@ -723,8 +923,9 @@
         } else {
           hideBanner();
         }
-      }).catch(function (e) { console.log("[CALL POLL] error:", e); });
-    }, 3500);
+      }).catch(function (e) { _cdlog("[CALL POLL] error:", e); });
+    }, 3500); // (legacy — replaced by recursive setTimeout above) */
+    /* end legacy */
   }
 
   // ============================================
@@ -733,58 +934,66 @@
   // Debug exposure
   window.CALL_DEBUG = CALL;
   window.callStatus = function () {
-    if (!CALL.active) { console.log("[CALL DEBUG] no active call"); return; }
+    if (!CALL.active) { _cdlog("[CALL DEBUG] no active call"); return; }
     var id = CALL.active.id;
-    console.log("[CALL DEBUG] id =", id, "| role =", CALL.active.role, "| kind =", CALL.active.kind);
+    _cdlog("[CALL DEBUG] id =", id, "| role =", CALL.active.role, "| kind =", CALL.active.kind);
     api("/api/calls/" + id).then(function (c) {
-      console.log("[CALL DEBUG] server status:", c.status);
-      console.log("[CALL DEBUG] caller_last_seen:", c.caller_last_seen);
-      console.log("[CALL DEBUG] callee_last_seen:", c.callee_last_seen);
-      console.log("[CALL DEBUG] end_reason:", c.end_reason);
+      _cdlog("[CALL DEBUG] server status:", c.status);
+      _cdlog("[CALL DEBUG] caller_last_seen:", c.caller_last_seen);
+      _cdlog("[CALL DEBUG] callee_last_seen:", c.callee_last_seen);
+      _cdlog("[CALL DEBUG] end_reason:", c.end_reason);
       return c;
     });
   };
 
   window.callStartPolling = function () {
-    console.log("[CALL] manual start requested");
+    _cdlog("[CALL] manual start requested");
     startPolling();
     return "ok";
   };
   // Series 4D — end the call synchronously when the tab unloads/refreshes
   function endCallSync(reason) {
+    if (_endSyncSent) return;
     if (!CALL.active || !CALL.active.id) return;
+    _endSyncSent = true;
     var id = CALL.active.id;
-    // Try sync XHR so the request outlives the unload
+    var token = "";
     try {
-      var token = "";
-      try {
-        var m = document.cookie.match(/(?:^|;\s*)csrf_token=([^;]*)/);
-        token = m ? decodeURIComponent(m[1]) : "";
-      } catch (e) {}
-      var xhr = new XMLHttpRequest();
-      xhr.open("POST", "/api/calls/" + id + "/end", false); // async = false
-      xhr.setRequestHeader("Content-Type", "application/json");
-      if (token) xhr.setRequestHeader("X-CSRF-Token", token);
-      xhr.send(JSON.stringify({ reason: reason || "refresh" }));
-      console.log("[CALL] endCallSync sent for", id);
+      var m = document.cookie.match(/(?:^|;\s*)csrf_token=([^;]*)/);
+      token = m ? decodeURIComponent(m[1]) : "";
+    } catch (e) {}
+    // S30.1 - keepalive fetch survives page dismissal
+    try {
+      var baseUrl = (typeof BASE_URL === "string") ? BASE_URL : "";
+      fetch(baseUrl + "/api/calls/" + id + "/end", {
+        method: "POST",
+        credentials: "include",
+        keepalive: true,
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRF-Token": token
+        },
+        body: JSON.stringify({ reason: reason || "refresh" })
+      }).catch(function(){});
+      _cdlog("[CALL] endCallSync sent for", id);
     } catch (e) {
-      console.warn("[CALL] endCallSync failed:", e);
+      _cdwarn("[CALL] endCallSync failed:", e);
     }
   }
 
-  // Aggressive: fires earlier than beforeunload on some mobile browsers
+  // S30.11 - visibilitychange → immediate poll for incoming calls
   document.addEventListener("visibilitychange", function () {
-    if (document.visibilityState === "hidden" && CALL.active && CALL.active.id) {
-      // Only fire the immediate end if the tab is truly going away
-      // We distinguish "app switch" from "background fetch" by checking if
-      // the call has been active for at least 2 seconds
-      var uptime = Date.now() - (CALL.startedAt || 0);
-      if (uptime > 2000) {
-        console.log("[CALL] visibility hidden → sending /end");
-        endCallSync("hidden");
-      }
+    if (!document.hidden && CALL.pollTimer && !CALL.active) {
+      // fire an immediate poll (don't wait for the 12s)
+      try { startPolling(); } catch (e) {}
     }
-  }, { capture: true });
+  });
+
+  // S29.3 - visibilitychange handler REMOVED.
+  // Previously this ended the call whenever the tab became hidden
+  // (user switched apps/tabs, locked the screen, etc.), which broke
+  // long calls. Real "page is going away" is now handled by
+  // pagehide (mobile) + beforeunload (desktop) below.
 
   window.addEventListener("beforeunload", function () {
     endCallSync("unload");
@@ -793,32 +1002,31 @@
     if (e && e.persisted) return;
     endCallSync("pagehide");
   });
-  window.addEventListener("unload", function () {
-    endCallSync("unload2");
-  });
+  // S29.3 - removed redundant 'unload' handler.
+  // beforeunload + pagehide already cover every real unload scenario.
 
   window.startVoiceCall = function (username) { startCall(username, "audio"); };
 
   // Series 4B — manual debug helper (type callDebug() in console)
   window.callDebug = function () {
-    console.log("[CALL DEBUG] me =", _getMe());
+    _cdlog("[CALL DEBUG] me =", _getMe());
     return api("/api/calls/poll").then(function (d) {
-      console.log("[CALL DEBUG] poll =", d);
+      _cdlog("[CALL DEBUG] poll =", d);
       return d;
     });
   };
   window.callForceShowBanner = function () {
     return api("/api/calls/poll").then(function (d) {
       if (d.incoming && d.incoming_caller) {
-        console.log("[CALL DEBUG] forcing banner");
+        _cdlog("[CALL DEBUG] forcing banner");
         showBanner(d.incoming, d.incoming_caller);
       } else {
-        console.log("[CALL DEBUG] no incoming to show");
+        _cdlog("[CALL DEBUG] no incoming to show");
       }
       return d;
     });
   };
-  console.log("[CALL] debug helpers ready: callDebug(), callForceShowBanner()");
+  _cdlog("[CALL] debug helpers ready: callDebug(), callForceShowBanner()");
   window.startVideoCall = function (username) { startCall(username, "video"); };
 
   // ============================================
@@ -845,7 +1053,7 @@
         }
       }, 250);
     }
-    console.log("[CALL] module ready");
+    _cdlog("[CALL] module ready");
   }
 
   if (document.readyState === "loading") {

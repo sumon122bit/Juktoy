@@ -1,3 +1,7 @@
+/* S30.4 - dvh fallback */
+@supports (height: 100dvh) {
+  /* modern browsers use dvh */
+}
 /* ================================================
    REELS v4 — Coral Theme + Toggle + Centered
    ================================================ */
@@ -13,7 +17,7 @@
 
 #reels-feed {
   width: 100% !important;
-  height: 100vh !important;
+  height: 100dvh !important;
   height: 100dvh !important;
   overflow-y: scroll !important;
   overflow-x: hidden !important;
@@ -28,7 +32,7 @@
 #reels-feed .reel-item {
   position: relative !important;
   width: 100% !important;
-  height: 100vh !important;
+  height: 100dvh !important;
   height: 100dvh !important;
   scroll-snap-align: start !important;
   scroll-snap-stop: always !important;
@@ -87,7 +91,7 @@
   align-items: center !important;
   justify-content: center !important;
   cursor: pointer !important;
-  transition: all 0.2s ease !important;
+  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease, opacity 0.2s ease, filter 0.2s ease !important;important;
 }
 #reels-page .reels-back-btn:hover {
   background: rgba(255,107,107,0.35) !important;
@@ -132,7 +136,7 @@
   align-items: center !important;
   justify-content: center !important;
   padding: 0 !important;
-  transition: all 0.25s ease !important;
+  transition: background-color 0.25s ease, color 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease, transform 0.25s ease, opacity 0.25s ease, filter 0.25s ease !important;important;
 }
 #reels-page .reel-toggle-actions:hover {
   background: rgba(255,107,107,0.35) !important;

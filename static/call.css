@@ -429,7 +429,7 @@
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  transition: all 0.18s ease;
+  transition: background-color 0.18s ease, color 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease, opacity 0.18s ease, filter 0.18s ease;
 }
 .call-log-btn:hover {
   background: var(--accent, #FF6B6B);

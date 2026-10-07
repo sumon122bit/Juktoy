@@ -3,25 +3,27 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="theme-color" content="#f0f2f5">
-<meta name="color-scheme" content="light">
-<title>JUKTOY-- A Connected Bangladesh</title>
+<meta name="theme-color" content="#fff8f5" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#1a0f0e" media="(prefers-color-scheme: dark)">
+<meta name="color-scheme" content="light dark">
+<title>JUKTOY — A Connected Bangladesh</title>
+<meta name="description" content="JUKTOY — বাংলাদেশের নিজস্ব সোশ্যাল প্ল্যাটফর্ম। সংযুক্ত মানুষ, উন্নত কথোপকথন, উজ্জ্বল আগামী।">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&family=Inter:wght@400;500;600;700;800&family=Great+Vibes&family=Dancing+Script:wght@600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-<link rel="stylesheet" href="/static/style.css?v=2070">
-<link rel="stylesheet" href="/static/upgrade.css?v=1">
-<link rel="stylesheet" href="/static/premium.css?v=1">
-<link rel="stylesheet" href="/static/reels.css?v=1">
-<link rel="stylesheet" href="/static/call.css?v=6">
-<link rel="stylesheet" href="/static/messages.css?v=2">
+<link rel="stylesheet" href="/static/style.css?v=153626">
+<link rel="stylesheet" href="/static/upgrade.css?v=153626">
+<link rel="stylesheet" href="/static/premium.css?v=153626">
+<link rel="stylesheet" href="/static/reels.css?v=153626">
+<link rel="stylesheet" href="/static/call.css?v=153626">
+<link rel="stylesheet" href="/static/messages.css?v=153626">
 </head>
 <body class="light">
 <!-- Series 4D — boot splash (prevents login flash) -->
 <div id="app-loader" class="app-loader">
   <div class="app-loader-inner">
-    <div class="app-loader-logo"><i class="fa-solid fa-leaf"></i></div>
+    <div class="app-loader-logo"><svg viewBox="0 0 48 48" class="jk-logo-svg" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><path d="M 31 6 L 31 33 Q 31 44 22 44 Q 13 44 13 33" stroke="currentColor" stroke-width="5.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/><circle cx="40" cy="12" r="4.2" stroke="currentColor" stroke-width="2.6" fill="none"/></svg></div>
     <div class="app-loader-spinner"></div>
   </div>
 </div>
@@ -33,13 +35,13 @@
   <button id="auth-theme-toggle" class="auth-theme-btn"><i class="fa-solid fa-moon"></i></button>
   <div class="auth-card">
     <div class="brand">
-      <div class="brand-logo"><i class="fa-solid fa-leaf"></i></div>
+      <div class="brand-logo"><svg viewBox="0 0 48 48" class="jk-logo-svg" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><path d="M 31 6 L 31 33 Q 31 44 22 44 Q 13 44 13 33" stroke="currentColor" stroke-width="5.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/><circle cx="40" cy="12" r="4.2" stroke="currentColor" stroke-width="2.6" fill="none"/></svg></div>
       <h1 class="brand-name">JUKTOY</h1>
       <p class="tagline">A Connected Bangladesh</p>
     </div>
     <form id="login-form" class="form">
-      <div class="input-group"><i class="fa-regular fa-user input-icon"></i><input type="text" name="username" placeholder="ইমেইল বা ইউজারনেম" required></div>
-      <div class="input-group"><i class="fa-solid fa-lock input-icon"></i><input type="password" name="password" placeholder="পাসওয়ার্ড" required id="login-password"><i class="fa-regular fa-eye toggle-eye" data-target="login-password"></i></div>
+      <div class="input-group"><i class="fa-regular fa-user input-icon"></i><input type="text" name="username" placeholder="ইমেইল বা ইউজারনেম" required autocomplete="username"></div>
+      <div class="input-group"><i class="fa-solid fa-lock input-icon"></i><input type="password" name="password" placeholder="পাসওয়ার্ড" required id="login-password" autocomplete="current-password"><i class="fa-regular fa-eye toggle-eye" data-target="login-password"></i></div>
       <div class="form-options">
         <label class="remember-me"><input type="checkbox" checked><span>মনে রাখুন</span></label>
         <a href="#" class="forgot-link" id="open-forgot">পাসওয়ার্ড ভুলে গেছেন?</a>
@@ -56,7 +58,7 @@
       </p>
       <div class="input-group">
         <i class="fa-solid fa-key input-icon"></i>
-        <input type="text" id="login-2fa-code" placeholder="123456" inputmode="numeric" maxlength="9" autocomplete="one-time-code">
+        <input type="text" id="login-2fa-code" placeholder="123456" inputmode="numeric" maxlength="11" autocomplete="one-time-code">
       </div>
       <button type="submit" class="btn-primary">যাচাই করুন</button>
       <p id="login-2fa-backup-line" style="text-align:center;font-size:12.5px;color:var(--muted);margin-top:8px;display:none">
@@ -73,16 +75,16 @@
     <form id="register-form" class="form hidden">
       <div class="input-group"><i class="fa-regular fa-user input-icon"></i><input type="text" name="username" placeholder="ইউজারনেম (ইংরেজিতে)" required></div>
       <div class="input-group"><i class="fa-regular fa-id-badge input-icon"></i><input type="text" name="display_name" placeholder="আপনার নাম" required></div>
-      <div class="input-group"><i class="fa-solid fa-lock input-icon"></i><input type="password" name="password" placeholder="পাসওয়ার্ড (৬+ অক্ষর)" required id="register-password"><i class="fa-regular fa-eye toggle-eye" data-target="register-password"></i></div>
+      <div class="input-group"><i class="fa-solid fa-lock input-icon"></i><input type="password" name="password" placeholder="পাসওয়ার্ড (৬+ অক্ষর)" required id="register-password" autocomplete="new-password"><i class="fa-regular fa-eye toggle-eye" data-target="register-password"></i></div>
       <button type="submit" class="btn-primary">অ্যাকাউন্ট তৈরি করুন</button>
     </form>
     <div id="auth-message" class="message"></div>
     <div class="divider"><span>অথবা</span></div>
     <div class="social-login">
       <button type="button" class="social-btn google" id="btn-google-login" title="Google দিয়ে লগইন"><i class="fab fa-google"></i></button>
-      <button type="button" class="social-btn facebook"><i class="fab fa-facebook-f"></i></button>
-      <button type="button" class="social-btn apple"><i class="fab fa-apple"></i></button>
-      <button type="button" class="social-btn phone"><i class="fas fa-mobile-alt"></i></button>
+      <button type="button" class="social-btn facebook" disabled title="Facebook Sign-In শীঘ্রই আসছে" aria-disabled="true"><i class="fab fa-facebook-f"></i></button>
+      <button type="button" class="social-btn apple" disabled title="Apple Sign-In শীঘ্রই আসছে" aria-disabled="true"><i class="fab fa-apple"></i></button>
+      <button type="button" class="social-btn phone" disabled title="Phone Sign-In শীঘ্রই আসছে" aria-disabled="true"><i class="fas fa-mobile-alt"></i></button>
     </div>
     <p class="footer-text" id="footer-login">অ্যাকাউন্ট নেই? <a href="#" id="switch-register">সাইন আপ করুন</a></p>
     <p class="footer-text hidden" id="footer-register">অ্যাকাউন্ট আছে? <a href="#" id="switch-login">লগ ইন করুন</a></p>
@@ -95,11 +97,17 @@
   <!-- TOPBAR -->
   <header class="topbar">
     <button id="menu-toggle" class="menu-toggle" title="মেনু"><i class="fa-solid fa-bars"></i></button>
-    <div class="brand"><i class="fa-solid fa-leaf"></i><span>JUKTOY</span></div>
+    <div class="brand"><svg viewBox="0 0 48 48" class="jk-logo-svg" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><path d="M 31 6 L 31 33 Q 31 44 22 44 Q 13 44 13 33" stroke="currentColor" stroke-width="5.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/><circle cx="40" cy="12" r="4.2" stroke="currentColor" stroke-width="2.6" fill="none"/></svg><span>JUKTOY</span></div>
 
     <div class="search-wrap" id="search-wrap">
-      <i class="fa-solid fa-magnifying-glass search-icon"></i>
-      <input type="text" id="search-input" placeholder="মানুষ, পোস্ট, বিষয় খুঁজুন..." autocomplete="off" readonly>
+      <div class="search-pill" id="search-pill">
+        <i class="fa-solid fa-magnifying-glass search-icon" id="search-icon" role="button" aria-label="Search" tabindex="0"></i>
+        <input type="text" id="search-input" placeholder="Search anything..." autocomplete="off" spellcheck="false" aria-label="Search" aria-controls="search-results" aria-expanded="false">
+        <button type="button" class="search-clear hidden" id="search-clear" aria-label="Clear search">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+        <kbd class="search-kbd" aria-hidden="true" id="search-kbd-hint"></kbd>
+      </div>
       <div id="search-results" class="search-results hidden">
         <div class="search-tabs" id="search-tabs">
           <button type="button" class="search-tab active" data-type="all"><i class="fa-solid fa-magnifying-glass"></i> সব</button>
@@ -165,7 +173,7 @@
       <i class="fa-solid fa-moon" id="theme-icon"></i>
       <span id="theme-label-text">ডার্ক মোড</span>
     </div>
-    <button class="theme-switch" id="theme-switch" aria-label="Toggle theme">
+    <button class="theme-switch" id="theme-switch" aria-label="Toggle theme" role="switch" aria-checked="false">
       <span class="switch-knob"></span>
     </button>
   </div>
@@ -176,7 +184,7 @@
           <i class="fa-solid fa-right-from-bracket"></i> লগআউট
         </button>
         <div class="sidebar-tagline">
-          <i class="fa-solid fa-leaf"></i>
+          <svg viewBox="0 0 48 48" class="jk-logo-svg" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><path d="M 31 6 L 31 33 Q 31 44 22 44 Q 13 44 13 33" stroke="currentColor" stroke-width="5.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/><circle cx="40" cy="12" r="4.2" stroke="currentColor" stroke-width="2.6" fill="none"/></svg>
           <p>Better people<br>Better conversations<br>A brighter tomorrow</p>
         </div>
       </div>
@@ -203,28 +211,42 @@
         </div>
       </section>
 
-      <!-- COMPOSER -->
-      <div class="composer-box">
-        <div class="composer-row-top">
+      <div class="composer-card" id="composer-card">
+        <div class="composer-top">
           <div class="composer-avatar" id="composer-avatar"></div>
-          <textarea id="post-content" placeholder="আপনার মনে কী আছে?" rows="1"></textarea>
+          <textarea id="post-content" placeholder="আপনার মনে কী আছে?" rows="2" autocomplete="off" spellcheck="false"></textarea>
         </div>
+        <div class="composer-divider"></div>
+        <div class="composer-bottom">
+          <div class="composer-tools">
+            <button type="button" class="composer-tool-btn" data-tool="photo" id="btn-pick-images" title="ছবি যোগ করুন" aria-label="Add photo">
+              <i class="fa-regular fa-image"></i>
+              <span>ছবি</span>
+            </button>
+            <button type="button" class="composer-tool-btn" data-tool="emoji" id="btn-emoji" title="ইমোজি" aria-label="Emoji">
+              <i class="fa-regular fa-face-smile"></i>
+              <span>ইমোজি</span>
+            </button>
+            <button type="button" class="composer-tool-btn composer-tool-reel" data-tool="reel" id="btn-pick-reel" title="রিল আপলোড করুন" aria-label="Upload Reel">
+              <i class="fa-solid fa-video"></i>
+              <span>রিল</span>
+            </button>
+          </div>
+          <button type="button" id="post-btn" class="composer-publish" aria-label="Publish">
+            <span class="cp-label">পোস্ট করুন</span>
+            <svg class="rocket-svg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+              <path d="M2.6 12.2 L21.4 3.1 L14.4 21.2 L11.3 13.6 L2.6 12.2 Z" fill="currentColor"/>
+              <path d="M11.3 13.6 L21.4 3.1" stroke="rgba(255,255,255,0.45)" stroke-width="0.85" stroke-linecap="round" fill="none"/>
+            </svg>
+          </button>
+        </div>
+      </div>
 
-        <!-- Multi-image preview grid -->
+      <!-- Multi-image preview grid -->
         <div id="image-preview-grid" class="image-preview-grid hidden"></div>
 
         <!-- Hidden file input -->
         <input type="file" id="image-file-input" accept="image/*" multiple style="display:none">
-
-        <div class="composer-divider-line"></div>
-        <div class="composer-row-bottom">
-          <div class="composer-icons">
-            <button class="c-icon-btn" data-tool="photo" id="btn-pick-images" title="ছবি যোগ করুন"><i class="fa-regular fa-image"></i><span>ছবি</span></button>
-                        <button class="c-icon-btn" data-tool="emoji" title="ইমোজি" id="btn-emoji"><i class="fa-regular fa-face-smile"></i><span>ইমোজি</span></button>
-          </div>
-          <button id="post-btn" class="post-send-btn" title="পোস্ট করুন"><i class="fa-solid fa-arrow-up"></i></button>
-        </div>
-      </div>
 
       <!-- FEED -->
       <div id="feed-list"></div>
@@ -280,29 +302,54 @@
 <nav class="mobile-bottom-nav" id="mbn-main">
   <button class="mbn-item active" data-mbn="home"><i class="fa-solid fa-house"></i><span>হোম</span></button>
   <button class="mbn-item" data-mbn="explore"><i class="fa-regular fa-compass"></i><span>খুঁজুন</span></button>
-  <button class="mbn-item mbn-create" data-mbn="create"><i class="fa-solid fa-plus"></i></button>
   <button class="mbn-item" data-mbn="reel"><i class="fa-solid fa-film"></i><span>রিল</span></button>
   <button class="mbn-item" data-mbn="messages"><i class="fa-regular fa-comment-dots"></i><span>চ্যাট</span><span class="notif-dot hidden" id="mbn-msg-badge">0</span></button>
+  <button class="mbn-item" data-mbn="notifications"><i class="fa-regular fa-bell"></i><span>খবর</span><span class="notif-dot hidden" id="mbn-notif-badge">0</span></button>
+  <button class="mbn-item" data-mbn="profile"><i class="fa-regular fa-user"></i><span>আমি</span></button>
 </nav>
 <!-- ============ PROFILE PAGE ============ -->
 <div id="profile-page" class="profile-page hidden">
   <div class="profile-topbar">
-    <button id="profile-back" class="back-btn"><i class="fa-solid fa-arrow-left"></i></button>
+    <button id="profile-back" class="back-btn" aria-label="Back"><i class="fa-solid fa-arrow-left"></i></button>
     <span class="profile-topbar-title">প্রোফাইল</span>
-    <button id="profile-edit-icon" class="back-btn hidden"><i class="fa-solid fa-pen"></i></button>
-  </div>
-  <div class="profile-cover"><div class="cover-gradient"></div><img id="profile-page-cover" class="profile-cover-image hidden" alt="Cover photo"></div>
-  <div class="profile-info">
-    <div class="profile-avatar-wrap"><div class="profile-avatar" id="profile-page-avatar"></div></div>
-    <div class="profile-name-row">
-      <div>
-        <h2 id="profile-page-name">নাম</h2>
-        <p id="profile-page-username" class="profile-username">@username</p>
-        <p id="profile-page-joined" class="profile-joined">
-          <i class="fa-regular fa-calendar"></i> <span>—</span>
-        </p>
-      </div>
+    <div class="profile-topbar-actions">
+      <button id="profile-msg-btn" class="back-btn" title="Message" aria-label="Message"><i class="fa-regular fa-comment-dots"></i></button>
+      <button id="profile-search-btn" class="back-btn" title="Search" aria-label="Search"><i class="fa-solid fa-magnifying-glass"></i></button>
+      <button id="profile-refresh-btn" class="back-btn" title="Refresh" aria-label="Refresh"><i class="fa-solid fa-rotate"></i></button>
+      <button id="profile-edit-icon" class="back-btn hidden" aria-label="Edit"><i class="fa-solid fa-pen"></i></button>
     </div>
+  </div>
+
+  <!-- Batch 1: Follow requests banner (own profile only) -->
+  <div id="profile-follow-requests" class="follow-requests-banner hidden">
+    <div class="frb-icon"><i class="fa-solid fa-user-clock"></i></div>
+    <div class="frb-body">
+      <div class="frb-title">ফলো রিকোয়েস্ট</div>
+      <div class="frb-sub" id="frb-count">0 জন অপেক্ষা করছেন</div>
+    </div>
+    <button class="frb-open" id="frb-open-btn" type="button">দেখুন <i class="fa-solid fa-chevron-right"></i></button>
+  </div>
+  <div class="profile-cover" id="profile-cover-clickable">
+<div class="cover-gradient"></div>
+<img id="profile-page-cover" class="profile-cover-image hidden" alt="Cover photo">
+
+</div>
+<div class="profile-info">
+<div class="profile-avatar-float">
+<div class="profile-avatar" id="profile-page-avatar"></div>
+</div>
+<div class="profile-name-row">
+<h2 id="profile-page-name" class="profile-signature-name">নাম</h2>
+<p id="profile-page-username" class="profile-username">@username</p>
+</div>
+<div class="profile-bio-cv-row">
+<p id="profile-page-bio" class="profile-hero-bio">বায়ো নেই</p>
+<button class="profile-moreinfo-btn" id="profile-open-cv" type="button"><i class="fa-solid fa-file-lines"></i><span>CV</span><i class="fa-solid fa-chevron-right"></i></button>
+</div>
+<!-- S39 — Action buttons row: [Follow/Following] [Msg] [⋮] -->
+<div class="profile-buttons" id="profile-buttons"></div>
+<p id="profile-page-joined" class="profile-joined"><i class="fa-regular fa-calendar"></i> <span>—</span></p>
+</div>
     <div id="profile-page-mutual" class="profile-mutual hidden"></div>
     <div id="profile-completion" class="profile-completion hidden">
       <div class="pc-header">
@@ -317,30 +364,51 @@
       </div>
       <div class="pc-missing hidden" id="pc-missing"></div>
     </div>
-    <p id="profile-page-bio" class="profile-bio">বায়ো নেই</p>
+    <!-- Batch 5 — highlights row -->
+    <div id="profile-highlights" class="pf-highlights-row hidden"></div>
+
+    <!-- Batch 5 — similar accounts row -->
+    <div id="profile-similar" class="pf-similar-section hidden"></div>
     <div class="profile-stats">
       <div class="stat-item"><span class="stat-num" id="stat-posts">0</span><span class="stat-label">পোস্ট</span></div>
       <div class="stat-item"><span class="stat-num">0</span><span class="stat-label">ফলোয়ার</span></div>
       <div class="stat-item"><span class="stat-num">0</span><span class="stat-label">ফলোয়িং</span></div>
     </div>
-    <div class="profile-buttons" id="profile-buttons"></div>
-  </div>
-  <div class="profile-tabs">
+
+    <!-- Batch 2 — Close friends & Favorites row (own profile) -->
+    <div id="profile-cf-row" class="profile-cf-row hidden">
+      <button type="button" class="cf-tile" id="cf-close-open">
+        <i class="fa-solid fa-star-of-life"></i>
+        <span class="cf-tile-label">Close Friends</span>
+        <span class="cf-tile-count" id="cf-close-count">0</span>
+      </button>
+      <button type="button" class="cf-tile" id="cf-fav-open">
+        <i class="fa-solid fa-star"></i>
+        <span class="cf-tile-label">Favorites</span>
+        <span class="cf-tile-count" id="cf-fav-count">0</span>
+      </button>
+    </div>
+    <!-- /profile-cf-row -->
+
+    <div class="profile-tabs" id="profile-tabs-scroll">
     <button class="profile-tab active" data-tab="posts"><i class="fa-solid fa-table-cells-large"></i> পোস্ট</button>
-    <button class="profile-tab" data-tab="photos"><i class="fa-regular fa-images"></i> ছবি</button>
-    <button class="profile-tab" data-tab="about"><i class="fa-regular fa-id-card"></i> পরিচিতি</button>
-  </div>
+    <button class="profile-tab" data-tab="reels"><i class="fa-solid fa-film"></i> রিল</button>
+            <button class="profile-tab" data-tab="liked" id="pt-liked"><i class="fa-solid fa-heart"></i> লাইকড</button>
+    <button class="profile-tab" data-tab="saved" id="pt-saved"><i class="fa-solid fa-bookmark"></i> সেভড</button>
+    <button class="profile-tab" data-tab="reposts"><i class="fa-solid fa-retweet"></i> রিপোস্ট</button>
+          </div>
   <div class="profile-tab-content">
     <div id="profile-tab-posts" class="profile-tab-pane"></div>
-    <div id="profile-tab-photos" class="profile-tab-pane hidden"><p class="empty-text">📷 এখনো কোনো ছবি নেই</p></div>
-    <div id="profile-tab-about" class="profile-tab-pane hidden">
-      <div class="about-card"><h3>📝 আমার সম্পর্কে</h3><p id="about-bio">বায়ো নেই</p></div>
-      <div class="about-card"><h3>👤 ইউজারনেম</h3><p id="about-username">@username</p></div>
+    <div id="profile-tab-reels" class="profile-tab-pane hidden"></div>
+            <div id="profile-tab-liked" class="profile-tab-pane hidden"></div>
+    <div id="profile-tab-saved" class="profile-tab-pane hidden"></div>
+    <div id="profile-tab-reposts" class="profile-tab-pane hidden"></div>
     </div>
   </div>
 </div>
 
 <!-- ============ MESSAGES ============ -->
+
 <div id="messages-page" class="messages-page hidden">
   <div class="messages-topbar">
     <button id="messages-back" class="back-btn"><i class="fa-solid fa-arrow-left"></i></button>
@@ -587,7 +655,37 @@
     <label class="edit-label">আপনার নাম</label>
     <div class="input-group" style="margin-bottom:16px"><i class="fa-regular fa-id-badge input-icon"></i><input type="text" id="edit-name" placeholder="আপনার নাম"></div>
     <label class="edit-label">বায়ো</label>
-    <textarea id="edit-bio" class="edit-bio-input" placeholder="নিজের সম্পর্কে কিছু লিখুন..." maxlength="200"></textarea>
+    <textarea id="edit-bio" class="edit-bio-input" placeholder="নিজের সম্পর্কে কিছু লিখুন..." maxlength="80"></textarea>
+
+    <!-- Batch 8 — extended fields -->
+    <label class="edit-label">সর্বনাম (Pronouns)</label>
+    <div class="input-group" style="margin-bottom:12px">
+      <i class="fa-solid fa-user-tag input-icon"></i>
+      <input type="text" id="edit-pronouns" placeholder="যেমন: she/her, he/him" maxlength="20">
+    </div>
+
+    <label class="edit-label">লোকেশন</label>
+    <div class="input-group" style="margin-bottom:12px">
+      <i class="fa-solid fa-location-dot input-icon"></i>
+      <input type="text" id="edit-location" placeholder="ঢাকা, বাংলাদেশ" maxlength="60">
+    </div>
+
+    <label class="edit-label">ক্যাটাগরি (Business / Creator)</label>
+    <div class="input-group" style="margin-bottom:12px">
+      <i class="fa-solid fa-briefcase input-icon"></i>
+      <select id="edit-category" style="flex:1;background:transparent;border:0;outline:0;color:var(--text);font-family:inherit;font-size:15px;padding:14px 0">
+        <option value="">— নেই —</option>
+        <option value="personal">ব্যক্তিগত</option>
+        <option value="creator">ক্রিয়েটর</option>
+        <option value="business">ব্যবসা</option>
+        <option value="public_figure">পাবলিক ফিগার</option>
+        <option value="brand">ব্র্যান্ড</option>
+        <option value="community">কমিউনিটি</option>
+      </select>
+    </div>
+
+    <label class="edit-label">Bio লিংক (প্রতি লাইনে একটি)</label>
+    <textarea id="edit-bio-links" class="edit-bio-input" placeholder="https://yoursite.com&#10;https://youtube.com/@you" maxlength="500" style="min-height:64px"></textarea>
     <div class="edit-actions">
       <button class="btn-secondary" id="cancel-edit-profile">বাতিল</button>
       <button class="btn-primary" id="save-edit-profile" style="width:auto;padding:12px 28px"><i class="fa-solid fa-check"></i> সেভ করুন</button>
@@ -714,49 +812,8 @@
     <span class="explore-topbar-title">⚙️ সেটিংস</span>
   </div>
   <div class="explore-content">
-
-    <div class="settings-section-header" data-section="security">
-      <i class="fa-solid fa-shield-halved"></i>
-      <span>নিরাপত্তা</span>
-    </div>
-
-    <div class="settings-card" id="security-dashboard-card">
-      <h3><i class="fa-solid fa-gauge-high"></i> Security Overview</h3>
-      <p class="settings-hint">আপনার অ্যাকাউন্ট সুরক্ষার এক নজরে পরিস্থিতি।</p>
-      <div id="security-dashboard">
-        <p style="text-align:center;color:var(--muted);padding:20px">লোড হচ্ছে...</p>
-      </div>
-    </div>
-
-    <div class="settings-card">
-      <h3><i class="fa-solid fa-key"></i> পাসওয়ার্ড পরিবর্তন</h3>
-      <p class="settings-hint">নিরাপত্তার জন্য বর্তমান পাসওয়ার্ড দিয়ে যাচাই করা হবে।</p>
-      <div class="input-group"><i class="fa-solid fa-lock input-icon"></i><input type="password" id="set-current-pw" placeholder="বর্তমান পাসওয়ার্ড"></div>
-      <div class="input-group"><i class="fa-solid fa-lock input-icon"></i><input type="password" id="set-new-pw" placeholder="নতুন পাসওয়ার্ড (৬+ অক্ষর)"></div>
-      <div class="input-group"><i class="fa-solid fa-lock input-icon"></i><input type="password" id="set-confirm-pw" placeholder="নতুন পাসওয়ার্ড আবার লিখুন"></div>
-      <button class="btn-primary" id="btn-change-pw"><i class="fa-solid fa-check"></i> পাসওয়ার্ড বদলান</button>
-    </div>
-
-    <div class="settings-card">
-      <h3><i class="fa-solid fa-at"></i> ইউজারনেম পরিবর্তন</h3>
-      <p class="settings-hint">শুধু ইংরেজি ছোট হাতের অক্ষর (a-z), সংখ্যা (0-9), এবং আন্ডারস্কোর (_) ব্যবহার করুন। এই ইউজারনেম দিয়ে সবাই আপনাকে খুঁজে পাবে।</p>
-      <div class="input-group"><i class="fa-solid fa-at input-icon"></i><input type="text" id="set-username" placeholder="নতুন ইউজারনেম"></div>
-      <button class="btn-primary" id="btn-change-uname"><i class="fa-solid fa-check"></i> ইউজারনেম বদলান</button>
-    </div>
-
-    <div class="settings-card">
-      <h3><i class="fa-solid fa-circle-info"></i> অ্যাকাউন্ট তথ্য</h3>
-      <p class="settings-hint">আপনার বর্তমান ইউজারনেম: <strong id="set-current-uname">—</strong></p>
-    </div>
-
-    <div class="settings-card">
-      <h3><i class="fa-solid fa-flag"></i> আমার রিপোর্ট</h3>
-      <p class="settings-hint">আপনি যেসব কনটেন্ট রিপোর্ট করেছেন এবং তাদের অবস্থা।</p>
-      <div id="my-reports-list" class="my-reports-list">
-        <p class="empty-text" style="padding:12px 0">লোড হচ্ছে...</p>
-      </div>
-    </div>
-
+    <div class="settings-tabs"><button type="button" class="settings-tab active" data-tab="account"><i class="fa-solid fa-user"></i> অ্যাকাউন্ট</button><button type="button" class="settings-tab" data-tab="security"><i class="fa-solid fa-shield-halved"></i> নিরাপত্তা</button><button type="button" class="settings-tab" data-tab="privacy"><i class="fa-solid fa-lock"></i> প্রাইভেসি</button></div>
+    <div class="settings-group active" data-group="account">
     <div class="settings-card" id="email-card">
       <h3><i class="fa-solid fa-envelope"></i> ইমেইল</h3>
       <p class="settings-hint" id="email-status-text">লোড হচ্ছে...</p>
@@ -782,6 +839,57 @@
           <i class="fa-solid fa-plus"></i> ইমেইল যোগ করুন
         </button>
       </div>
+    </div>
+
+    <div class="settings-card">
+      <h3><i class="fa-solid fa-at"></i> ইউজারনেম পরিবর্তন</h3>
+      <p class="settings-hint">শুধু ইংরেজি ছোট হাতের অক্ষর (a-z), সংখ্যা (0-9), এবং আন্ডারস্কোর (_) ব্যবহার করুন। এই ইউজারনেম দিয়ে সবাই আপনাকে খুঁজে পাবে।</p>
+      <div class="input-group"><i class="fa-solid fa-at input-icon"></i><input type="text" id="set-username" placeholder="নতুন ইউজারনেম"></div>
+      <button class="btn-primary" id="btn-change-uname"><i class="fa-solid fa-check"></i> ইউজারনেম বদলান</button>
+    </div>
+
+    <div class="settings-card">
+      <h3><i class="fa-solid fa-circle-info"></i> অ্যাকাউন্ট তথ্য</h3>
+      <p class="settings-hint">আপনার বর্তমান ইউজারনেম: <strong id="set-current-uname">—</strong></p>
+    </div>
+
+    <div class="settings-card">
+      <h3><i class="fa-solid fa-flag"></i> আমার রিপোর্ট</h3>
+      <p class="settings-hint">আপনি যেসব কনটেন্ট রিপোর্ট করেছেন এবং তাদের অবস্থা।</p>
+      <div id="my-reports-list" class="my-reports-list">
+        <p class="empty-text" style="padding:12px 0">লোড হচ্ছে...</p>
+      </div>
+    </div>
+
+    <div class="settings-section-header" data-section="danger">
+      <i class="fa-solid fa-triangle-exclamation"></i>
+      <span>বিপদ অঞ্চল</span>
+    </div>
+
+    <div class="settings-card danger-zone">
+      <h3><i class="fa-solid fa-triangle-exclamation"></i> ডেঞ্জার জোন</h3>
+      <p class="settings-hint">Account ডিলিট করলে আপনার সব posts, messages, stories, followers চিরতরে মুছে যাবে। এটি ফেরানো যাবে না।</p>
+      <button class="btn-secondary danger-btn" id="btn-delete-account">
+        <i class="fa-regular fa-trash-can"></i> অ্যাকাউন্ট ডিলিট করুন
+      </button>
+    </div>
+    </div>
+    <div class="settings-group" data-group="security">
+    <div class="settings-card" id="security-dashboard-card">
+      <h3><i class="fa-solid fa-gauge-high"></i> Security Overview</h3>
+      <p class="settings-hint">আপনার অ্যাকাউন্ট সুরক্ষার এক নজরে পরিস্থিতি।</p>
+      <div id="security-dashboard">
+        <p style="text-align:center;color:var(--muted);padding:20px">লোড হচ্ছে...</p>
+      </div>
+    </div>
+
+    <div class="settings-card">
+      <h3><i class="fa-solid fa-key"></i> পাসওয়ার্ড পরিবর্তন</h3>
+      <p class="settings-hint">নিরাপত্তার জন্য বর্তমান পাসওয়ার্ড দিয়ে যাচাই করা হবে।</p>
+      <div class="input-group"><i class="fa-solid fa-lock input-icon"></i><input type="password" id="set-current-pw" placeholder="বর্তমান পাসওয়ার্ড"></div>
+      <div class="input-group"><i class="fa-solid fa-lock input-icon"></i><input type="password" id="set-new-pw" placeholder="নতুন পাসওয়ার্ড (৬+ অক্ষর)"></div>
+      <div class="input-group"><i class="fa-solid fa-lock input-icon"></i><input type="password" id="set-confirm-pw" placeholder="নতুন পাসওয়ার্ড আবার লিখুন"></div>
+      <button class="btn-primary" id="btn-change-pw"><i class="fa-solid fa-check"></i> পাসওয়ার্ড বদলান</button>
     </div>
 
     <div class="settings-card" id="2fa-card">
@@ -863,11 +971,15 @@
       </button>
     </div>
 
-    <div class="settings-section-header" data-section="privacy">
-      <i class="fa-solid fa-lock"></i>
-      <span>প্রাইভেসি</span>
+    <div class="settings-card">
+      <h3><i class="fa-solid fa-shield-halved"></i> নিরাপত্তা</h3>
+      <p class="settings-hint">অন্য কোনো ডিভাইসে লগইন করা থাকলে সেখান থেকে লগআউট হয়ে যাবে। আপনার এই ডিভাইস চালু থাকবে।</p>
+      <button class="btn-secondary" id="btn-logout-all">
+        <i class="fa-solid fa-right-from-bracket"></i> সব ডিভাইস থেকে লগআউট
+      </button>
     </div>
-
+    </div>
+    <div class="settings-group" data-group="privacy">
     <div class="settings-card">
       <h3><i class="fa-solid fa-lock"></i> প্রাইভেসি</h3>
       <p class="settings-hint">Private account হলে শুধু আপনার followers আপনার posts দেখতে পাবে।</p>
@@ -891,34 +1003,13 @@
     </div>
 
     <div class="settings-card">
-      <h3><i class="fa-solid fa-shield-halved"></i> নিরাপত্তা</h3>
-      <p class="settings-hint">অন্য কোনো ডিভাইসে লগইন করা থাকলে সেখান থেকে লগআউট হয়ে যাবে। আপনার এই ডিভাইস চালু থাকবে।</p>
-      <button class="btn-secondary" id="btn-logout-all">
-        <i class="fa-solid fa-right-from-bracket"></i> সব ডিভাইস থেকে লগআউট
-      </button>
-    </div>
-
-    <div class="settings-section-header" data-section="danger">
-      <i class="fa-solid fa-triangle-exclamation"></i>
-      <span>বিপদ অঞ্চল</span>
-    </div>
-
-    <div class="settings-card danger-zone">
-      <h3><i class="fa-solid fa-triangle-exclamation"></i> ডেঞ্জার জোন</h3>
-      <p class="settings-hint">Account ডিলিট করলে আপনার সব posts, messages, stories, followers চিরতরে মুছে যাবে। এটি ফেরানো যাবে না।</p>
-      <button class="btn-secondary danger-btn" id="btn-delete-account">
-        <i class="fa-regular fa-trash-can"></i> অ্যাকাউন্ট ডিলিট করুন
-      </button>
-    </div>
-
-    <div class="settings-card">
       <h3><i class="fa-solid fa-ban"></i> ব্লক করা ইউজার</h3>
       <p class="settings-hint">এই ইউজারদের পোস্ট আপনার ফিডে দেখাবে না এবং তারা আপনাকে মেসেজ পাঠাতে পারবে না।</p>
       <div id="blocked-users-list" class="blocked-users-list">
         <p class="empty-text" style="padding:12px 0">লোড হচ্ছে...</p>
       </div>
     </div>
-
+    </div>
   </div>
 </div>
 
@@ -1069,7 +1160,7 @@
       <input type="file" id="ob-avatar-input" accept="image/*" style="display:none">
     </div>
 
-    <textarea id="ob-bio" class="ob-bio" placeholder="নিজের সম্পর্কে কিছু লিখুন... (ঐচ্ছিক)" maxlength="200"></textarea>
+    <textarea id="ob-bio" class="ob-bio" placeholder="নিজের সম্পর্কে কিছু লিখুন... (ঐচ্ছিক)" maxlength="80"></textarea>
 
     <div class="ob-btn-row">
       <button class="ob-secondary" data-back="1">পিছনে</button>
@@ -1254,7 +1345,7 @@
   </div>
 </div>
 
-<script src="/static/app.js?v=2714"></script>
+<script src="/static/app.js?v=153626"></script>
 
 
 
@@ -1294,7 +1385,7 @@
   </div>
 </div>
 
-<script src="/static/call.js?v=7"></script>
+<script src="/static/call.js?v=153626"></script>
 <script id="app-loader-watch">
 (function(){
   var splash = document.getElementById("app-loader");
@@ -1317,9 +1408,730 @@
     } catch (e) {}
     check();
   }
-  // Fallback — hide after 1.5s regardless (login page case)
-  setTimeout(hide, 1500);
+  // S30.31 — extended fallback (was 1.5s → login flashed on slow /api/me)
+  // Also: log the boot status so we can debug silently-swallowed errors.
+  setTimeout(function () {
+    try { console.log("[BOOT] fallback triggered — splash hiding"); } catch (e) {}
+    hide();
+  }, 1500);
 })();
+
+// S39 — Platform-aware keyboard shortcut hint
+(function () {
+  var kbd = document.getElementById("search-kbd-hint");
+  if (!kbd) return;
+  var isMac = /Mac|iPhone|iPad|iPod/.test(navigator.platform || navigator.userAgent);
+  kbd.textContent = isMac ? "\u2318 K" : "Ctrl K";
+})();
+</script>
+
+<!-- Batch 3 — QR modal -->
+<div id="qr-modal" class="modal hidden">
+  <div class="modal-content" style="max-width:360px;text-align:center">
+    <button class="close-btn" id="qr-close">×</button>
+    <h3 style="margin-bottom:10px;font-size:18px">🔳 প্রোফাইল QR কোড</h3>
+    <div id="qr-image-wrap" style="display:flex;justify-content:center;padding:14px 0"></div>
+    <p id="qr-username" style="font-size:13px;color:var(--muted);margin-bottom:14px"></p>
+    <button class="btn-secondary" id="qr-copy" style="width:100%">
+      <i class="fa-solid fa-link"></i> লিংক কপি
+    </button>
+  </div>
+</div>
+
+<!-- Batch 8 — Insights / Analytics page -->
+<div id="insights-page" class="explore-page hidden">
+  <div class="explore-topbar">
+    <button id="insights-back" class="back-btn"><i class="fa-solid fa-arrow-left"></i></button>
+    <span class="explore-topbar-title">📊 ইনসাইট</span>
+  </div>
+  <div class="explore-content" style="padding:16px 14px 40px">
+    <div id="insights-body"></div>
+  </div>
+</div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<style id="overrides">
+/* OVERRIDES - loaded after all /static CSS. Sections keep original order. */
+
+/* ===== PROFILE_CLEAN ===== */
+html body #profile-page { overflow-x: hidden !important; max-width: 100vw !important; }
+
+
+
+html body #profile-page-avatar {
+  
+  
+  
+  
+  font-size: 56px !important;
+  border-radius: 40% !important;
+  border: 2px solid #1a0f0e !important;
+  overflow: hidden !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  background: linear-gradient(135deg, #ff6b6b, #fb923c) !important;
+  color: #fff !important;
+  font-weight: 800 !important;
+  box-shadow: none !important;
+}
+html body #profile-page-avatar img {
+  width: 100% !important; height: 100% !important;
+  object-fit: cover !important; border-radius: 40% !important;
+}
+
+/* Name row — avatar-এর ডান পাশে, নাম বড় */
+
+html body #profile-page-name {
+  font-family: "Great Vibes","Dancing Script","Hind Siliguri",cursive !important;
+  font-size: 52px !important;
+  font-weight: 400 !important;
+  line-height: 1.35 !important;
+  letter-spacing: 0.5px !important;
+  margin: 0 0 2px 0 !important;
+  padding: 6px 8px 2px 2px !important;
+  display: inline-block !important;
+  min-height: 1.35em !important;
+  overflow: visible !important;
+  background: linear-gradient(135deg, #ff5757, #fa8c3c) !important;
+  -webkit-background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+  background-clip: text !important;
+  color: transparent !important;
+  word-break: break-word !important;
+}
+
+html body #profile-page-username {
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  color: var(--muted) !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  line-height: 1.3 !important;
+  display: block !important;
+}
+
+/* Bio + CV row — avatar এর নিচে, full width */
+
+html body #profile-page-bio {
+  font-size: 14px !important;
+  line-height: 1.5 !important;
+  color: var(--text-dim) !important;
+  margin: 0 0 10px 0 !important;
+  padding: 0 !important;
+  text-align: left !important;
+  display: block !important;
+  max-width: 100% !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+  overflow-wrap: anywhere !important;
+  word-break: break-word !important;
+  white-space: normal !important;
+  overflow: hidden !important;
+}
+
+html body #profile-open-cv {
+  padding: 8px 16px !important;
+  font-size: 12.5px !important;
+  gap: 6px !important;
+  margin: 0 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  border-radius: 999px !important;
+  background: linear-gradient(135deg, rgba(255,107,107,0.08), rgba(251,146,60,0.06)) !important;
+  border: 1.5px solid var(--accent-light) !important;
+  color: var(--accent) !important;
+  font-weight: 800 !important;
+  cursor: pointer !important;
+  font-family: inherit !important;
+}
+html body #profile-open-cv i:first-child { font-size: 11px !important; }
+html body #profile-open-cv i:last-child { font-size: 9px !important; }
+
+html body #profile-page-joined {
+  text-align: left !important;
+  margin: 14px 0 !important;
+  padding: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 6px !important;
+  font-size: 13px !important;
+  color: var(--muted) !important;
+  clear: both !important;
+}
+
+html body #profile-cover-clickable {
+  width: calc(100% - 32px) !important;
+  max-width: 720px !important;
+  height: 200px !important;
+  margin: 16px auto 0 !important;
+  border-radius: 24px !important;
+  overflow: hidden !important;
+  box-shadow: 0 0 0 1px rgba(255,107,107,0.1), 0 8px 26px rgba(0,0,0,0.08) !important;
+}
+html body #profile-page-cover { border-radius: 24px !important; }
+html body #profile-cover-clickable .cover-gradient { border-radius: 24px !important; }
+
+@media (max-width: 900px) {
+  html body #profile-page-avatar {
+     
+     
+    font-size: 46px !important;
+    border-width: 2px !important;
+  }
+  html body #profile-page-name { font-size: 38px !important; }
+  html body #profile-page-username { font-size: 11.5px !important; }
+  html body #profile-page-bio { font-size: 13px !important; }
+  html body #profile-cover-clickable {
+    width: calc(100% - 24px) !important;
+    height: 180px !important;
+    border-radius: 20px !important;
+  }
+  html body #profile-page-cover,
+  html body #profile-cover-clickable .cover-gradient { border-radius: 20px !important; }
+}
+
+@media (max-width: 400px) {
+  html body #profile-page-avatar {
+     
+     
+    font-size: 42px !important;
+  }
+  html body #profile-page-name { font-size: 32px !important; }
+  html body #profile-cover-clickable {
+    width: calc(100% - 20px) !important;
+    height: 160px !important;
+    border-radius: 18px !important;
+  }
+  html body #profile-page-cover,
+  html body #profile-cover-clickable .cover-gradient { border-radius: 18px !important; }
+}
+
+body.dark #profile-page-avatar { border-color: #000 !important; }
+
+html body #edit-bio, html body #ob-bio {
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+  overflow-wrap: anywhere !important;
+}
+.bio-counter {
+  display: block !important;
+  text-align: right !important;
+  font-size: 11px !important;
+  color: var(--muted) !important;
+  font-weight: 600 !important;
+  margin: -14px 4px 10px 0 !important;
+}
+.bio-counter.warn { color: #f59e0b !important; }
+.bio-counter.danger { color: #dc2626 !important; }
+/* PROFILE HEADER: cover > [avatar | name] > bio+CV. Change --pf-av for size, --pf-av-lift to overlap cover */
+html body #profile-page .profile-info{--pf-av:150px;--pf-av-lift:0px;display:grid!important;grid-template-columns:var(--pf-av) minmax(0,1fr);align-items:center;column-gap:16px;position:relative!important;padding:18px 22px 22px!important;max-width:720px!important;margin:0 auto!important;box-sizing:border-box!important;text-align:left!important}
+html body #profile-page .profile-info>*{grid-column:1/-1}
+html body #profile-page .profile-avatar-float{grid-column:1;grid-row:1;position:relative!important;top:auto!important;left:auto!important;width:var(--pf-av)!important;height:var(--pf-av)!important;margin:calc(-1*var(--pf-av-lift)) 0 0 0!important;padding:0!important;z-index:8!important;cursor:pointer!important}
+html body #profile-page #profile-page-avatar{width:var(--pf-av)!important;height:var(--pf-av)!important;min-width:var(--pf-av)!important;max-width:var(--pf-av)!important}
+html body #profile-page .profile-name-row{grid-column:2;grid-row:1;min-width:0;margin:0!important;padding:0!important;max-width:none!important;display:block!important;text-align:left!important}
+html body #profile-page .profile-bio-cv-row{margin:16px 0 0!important;padding:0!important;display:block!important;max-width:100%!important;text-align:left!important}
+@media(max-width:900px){html body #profile-page .profile-info{--pf-av:124px;padding:16px 18px 18px!important}}
+@media(max-width:400px){html body #profile-page .profile-info{--pf-av:112px;padding:14px!important;column-gap:14px}}
+
+/* ===== TWEAK ===== */
+/* bio avatar-এর নিচে — gap কমাও */
+
+
+
+/* avatar border: হালকা (soft) */
+html body #profile-page-avatar {
+  border: 1.5px solid rgba(26, 15, 14, 0.35) !important;
+}
+body.dark #profile-page-avatar {
+  border-color: rgba(255, 255, 255, 0.25) !important;
+}
+
+/* নাম সামান্য ডানে */
+
+/* ===== NAME_COPY ===== */
+html body #cover-edit-fab { display: none !important; }
+
+html body #profile-page-name {
+  cursor: pointer !important;
+  -webkit-tap-highlight-color: rgba(255,107,107,0.15) !important;
+  transition: filter 0.2s ease !important;
+}
+html body #profile-page-name.lp-active {
+  filter: brightness(1.2) drop-shadow(0 0 14px rgba(255,107,107,0.5)) !important;
+}
+
+#name-copy-toast {
+  position: fixed;
+  bottom: 30px;
+  left: 50%;
+  transform: translateX(-50%) translateY(80px);
+  background: var(--card, #fff);
+  color: var(--text, #1a0f0e);
+  padding: 12px 22px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,107,107,0.2);
+  font-size: 14px;
+  font-weight: 700;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.18);
+  z-index: 99999;
+  opacity: 0;
+  transition: all 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+  pointer-events: none;
+  font-family: inherit;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+#name-copy-toast.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+body.dark #name-copy-toast {
+  background: #291817;
+  color: #fef3f0;
+  border-color: rgba(255,142,142,0.3);
+}
+
+/* ===== PROFILE_TABS_CLEAN ===== */
+/* Ensure tabs are horizontal row, sibling of profile-info content */
+html body #profile-page .profile-tabs,
+html body #profile-page #profile-tabs-scroll {
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: nowrap !important;
+  width: 100% !important;
+  height: auto !important;
+  max-height: 60px !important;
+  min-height: 48px !important;
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  align-items: stretch !important;
+  justify-content: flex-start !important;
+  padding: 0 20px !important;
+  margin: 20px 0 0 0 !important;
+  box-sizing: border-box !important;
+  gap: 2px !important;
+  scrollbar-width: none !important;
+  -webkit-overflow-scrolling: touch !important;
+  border-top: 1px solid var(--border-soft, #eef0f3) !important;
+  border-bottom: 1px solid var(--border, #e4e6eb) !important;
+}
+html body #profile-page #profile-tabs-scroll::-webkit-scrollbar { display: none !important; }
+
+html body #profile-page .profile-tab {
+  flex: 0 0 auto !important;
+  white-space: nowrap !important;
+  padding: 14px 16px !important;
+  font-size: 13.5px !important;
+  font-weight: 700 !important;
+  color: var(--muted) !important;
+  background: transparent !important;
+  border: none !important;
+  border-bottom: 3px solid transparent !important;
+  cursor: pointer !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px !important;
+  margin-bottom: -1px !important;
+}
+html body #profile-page .profile-tab.active {
+  color: var(--accent) !important;
+  border-bottom-color: var(--accent) !important;
+  font-weight: 800 !important;
+}
+
+html body #profile-page .profile-tab-content {
+  display: block !important;
+  padding: 18px 22px 100px !important;
+  min-height: 200px !important;
+  max-width: 720px !important;
+  margin: 0 auto !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+}
+html body #profile-page .profile-tab-pane {
+  display: block !important;
+  width: 100% !important;
+}
+html body #profile-page .profile-tab-pane.hidden {
+  display: none !important;
+}
+
+@media (max-width: 480px) {
+  html body #profile-page .profile-tabs,
+  html body #profile-page #profile-tabs-scroll { padding: 0 12px !important; }
+  html body #profile-page .profile-tab { padding: 12px 12px !important; font-size: 12.5px !important; }
+}
+</style>
+<!-- PROFILE_CLEAN: merged into overrides -->
+
+<script>
+(function(){
+  if (window.__profileCleanV3) return;
+  window.__profileCleanV3 = true;
+  var MAX = 80;
+  function attachCap(el) {
+    if (!el || el.dataset.bioCapDone === "3") return;
+    el.dataset.bioCapDone = "3";
+    el.setAttribute("maxlength", "80");
+    var parent = el.parentNode;
+    var counter = parent && parent.querySelector(".bio-counter");
+    if (!counter && parent) {
+      counter = document.createElement("span");
+      counter.className = "bio-counter";
+      parent.insertBefore(counter, el.nextSibling);
+    }
+    function enforce() {
+      var a = Array.from(el.value || "");
+      if (a.length > MAX) el.value = a.slice(0, MAX).join("");
+      var n = Array.from(el.value || "").length;
+      if (counter) {
+        counter.textContent = n + " / 80";
+        counter.className = "bio-counter" + (n >= MAX ? " danger" : (n >= 60 ? " warn" : ""));
+      }
+    }
+    el.addEventListener("input", enforce);
+    el.addEventListener("paste", function(){ setTimeout(enforce, 0); });
+    enforce();
+  }
+  function scan() {
+    attachCap(document.getElementById("edit-bio"));
+    attachCap(document.getElementById("ob-bio"));
+  }
+  setInterval(scan, 600);
+  scan();
+  console.log("[PROFILE_CLEAN_V3] ready");
+})();
+</script>
+<!-- /PROFILE_CLEAN -->
+
+
+
+<!-- TWEAK: merged into overrides -->
+<!-- /TWEAK -->
+
+<!-- S39: PHOTO_SHEET removed (duplicate with AVATAR_DIRECT_FIX) -->
+
+<!-- NAME_COPY: merged into overrides -->
+
+<script>
+(function(){
+  if (window.__nameCopy) return;
+  window.__nameCopy = true;
+
+  var lpTimer = null, lpDid = false, lpTarget = null;
+
+  function getUsername() {
+    var u = document.getElementById("profile-page-username");
+    if (!u) return "";
+    return (u.textContent || "").trim().replace(/^@/, "");
+  }
+
+  function showToast(msg) {
+    var t = document.getElementById("name-copy-toast");
+    if (!t) {
+      t = document.createElement("div");
+      t.id = "name-copy-toast";
+      document.body.appendChild(t);
+    }
+    t.innerHTML = msg;
+    requestAnimationFrame(function(){ t.classList.add("show"); });
+    clearTimeout(t._t);
+    t._t = setTimeout(function(){ t.classList.remove("show"); }, 2200);
+  }
+
+  function copyUsername() {
+    var uname = getUsername();
+    if (!uname) return;
+    var val = "@" + uname;
+    if (navigator.vibrate) try { navigator.vibrate(20); } catch(e){}
+
+    function done() {
+      showToast('📋 <span>Copied <strong>@' + uname + '</strong></span>');
+    }
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(val).then(done).catch(function(){
+        // fallback
+        try {
+          var ta = document.createElement("textarea");
+          ta.value = val;
+          ta.style.position = "fixed";
+          ta.style.opacity = "0";
+          document.body.appendChild(ta);
+          ta.select();
+          document.execCommand("copy");
+          ta.remove();
+          done();
+        } catch(e) { done(); }
+      });
+    } else {
+      try {
+        var ta2 = document.createElement("textarea");
+        ta2.value = val;
+        ta2.style.position = "fixed";
+        ta2.style.opacity = "0";
+        document.body.appendChild(ta2);
+        ta2.select();
+        document.execCommand("copy");
+        ta2.remove();
+        done();
+      } catch(e) { done(); }
+    }
+  }
+
+  function startLP(e) {
+    var nm = e.target.closest("#profile-page-name");
+    if (!nm) return;
+    // only own profile
+    try {
+      var d = window._currentProfileData;
+      var s = (typeof state !== "undefined" && state) || window.state;
+      if (!d || !d.user || !s || !s.me || d.user.username !== s.me.username) return;
+    } catch(e){ return; }
+
+    lpTarget = nm; lpDid = false;
+    nm.classList.add("lp-active");
+    clearTimeout(lpTimer);
+    lpTimer = setTimeout(function(){
+      lpDid = true;
+      nm.classList.remove("lp-active");
+      copyUsername();
+    }, 550);
+  }
+  function endLP() {
+    clearTimeout(lpTimer);
+    if (lpTarget) lpTarget.classList.remove("lp-active");
+    lpTarget = null;
+  }
+
+  document.addEventListener("touchstart", startLP, { passive: true });
+  document.addEventListener("touchend", endLP);
+  document.addEventListener("touchcancel", endLP);
+  document.addEventListener("touchmove", endLP, { passive: true });
+  document.addEventListener("mousedown", startLP);
+  document.addEventListener("mouseup", endLP);
+  document.addEventListener("mouseleave", endLP);
+
+  // suppress click after long-press
+  document.addEventListener("click", function(e){
+    if (lpDid && e.target.closest("#profile-page-name")) {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      lpDid = false;
+    }
+  }, true);
+
+  console.log("[NAME_COPY] ready");
+})();
+</script>
+<!-- /NAME_COPY -->
+
+
+
+
+
+
+
+
+<!-- PROFILE_TABS_CLEAN: merged into overrides -->
+<!-- /PROFILE_TABS_CLEAN -->
+
+
+<!-- AVATAR_DIRECT_FIX -->
+<script>
+(function(){
+  if (window.__avatarDirectV2) return;
+  window.__avatarDirectV2 = true;
+
+  function _openSimpleSheet(kind, user, hasPic) {
+    var isAvatar = (kind === "avatar");
+    var title = isAvatar ? "প্রোফাইল ছবি" : "কভার ফটো";
+    var old = document.getElementById("simple-sheet");
+    if (old) old.remove();
+
+    var s = document.createElement("div");
+    s.id = "simple-sheet";
+    s.style.cssText = "position:fixed;left:0;right:0;top:0;bottom:0;z-index:2147483647;display:flex;flex-direction:column;justify-content:flex-end;background:rgba(0,0,0,0.55);";
+    var panel = document.createElement("div");
+    panel.style.cssText = "background:#fff;border-top-left-radius:22px;border-top-right-radius:22px;padding:12px 8px 30px;box-shadow:0 -12px 40px rgba(0,0,0,0.4);";
+    panel.innerHTML =
+      '<div style="width:42px;height:4px;background:#ddd;border-radius:999px;margin:0 auto 12px;"></div>' +
+      '<div style="font-size:16px;font-weight:800;padding:4px 18px 14px;border-bottom:1px solid #eee;margin-bottom:6px;color:#111;text-align:left;">' + title + '</div>' +
+      '<button type="button" data-act="change" style="display:flex;align-items:center;gap:14px;width:100%;padding:15px 18px;background:transparent;border:none;color:#111;font-size:15px;font-weight:700;cursor:pointer;text-align:left;font-family:inherit;border-radius:10px;">' +
+        '<i class="fa-solid fa-camera" style="width:22px;text-align:center;color:#ff6b6b;font-size:17px;"></i><span>' + (isAvatar ? "ছবি পরিবর্তন করুন" : "কভার পরিবর্তন করুন") + '</span></button>' +
+      (hasPic ? '<button type="button" data-act="view" style="display:flex;align-items:center;gap:14px;width:100%;padding:15px 18px;background:transparent;border:none;color:#111;font-size:15px;font-weight:700;cursor:pointer;text-align:left;font-family:inherit;border-radius:10px;">' +
+        '<i class="fa-solid fa-eye" style="width:22px;text-align:center;color:#ff6b6b;font-size:17px;"></i><span>বড় করে দেখুন</span></button>' : '') +
+      (isAvatar ? '<button type="button" data-act="story" style="display:flex;align-items:center;gap:14px;width:100%;padding:15px 18px;background:transparent;border:none;color:#111;font-size:15px;font-weight:700;cursor:pointer;text-align:left;font-family:inherit;border-radius:10px;">' +
+        '<i class="fa-solid fa-circle-plus" style="width:22px;text-align:center;color:#ff6b6b;font-size:17px;"></i><span>নতুন স্টোরি দিন</span></button>' : '') +
+      (hasPic ? '<button type="button" data-act="remove" style="display:flex;align-items:center;gap:14px;width:100%;padding:15px 18px;background:transparent;border:none;color:#e11d48;font-size:15px;font-weight:700;cursor:pointer;text-align:left;font-family:inherit;border-radius:10px;">' +
+        '<i class="fa-solid fa-trash-can" style="width:22px;text-align:center;color:#e11d48;font-size:17px;"></i><span>' + (isAvatar ? "ছবি মুছুন" : "কভার মুছুন") + '</span></button>' : '');
+
+    s.appendChild(panel);
+    document.body.appendChild(s);
+
+    s.addEventListener("click", function(ev){
+      if (ev.target === s) { close(); return; }
+      var b = ev.target.closest("[data-act]");
+      if (!b) return;
+      var act = b.dataset.act;
+      close();
+      setTimeout(function(){ handleAction(act, kind, user); }, 220);
+    });
+
+    function close() {
+      if (s.parentNode) s.parentNode.removeChild(s);
+    }
+  }
+
+  function handleAction(act, kind, user) {
+    console.log("[AVATAR_V2] action:", act, kind);
+    var isAvatar = (kind === "avatar");
+
+    if (act === "change") {
+      try { if (typeof openEditProfile === "function") openEditProfile(); } catch(e){ console.warn("openEditProfile fail", e); }
+      setTimeout(function(){
+        var inp = document.getElementById(isAvatar ? "avatar-input" : "cover-input");
+        if (inp) inp.click();
+        else console.warn("[AVATAR_V2] input not found");
+      }, 320);
+    } else if (act === "view") {
+      var url = isAvatar ? user.profile_pic : user.cover_pic;
+      if (!url) return;
+      if (typeof openImageViewer === "function") openImageViewer(url);
+      else window.open(url, "_blank");
+    } else if (act === "story") {
+      try { if (typeof resetStoryUpload === "function") resetStoryUpload(); } catch(e){}
+      var m = document.getElementById("story-upload-modal");
+      if (m) m.classList.remove("hidden");
+    } else if (act === "remove") {
+      var label = isAvatar ? "প্রোফাইল ছবি" : "কভার ফটো";
+      if (!confirm(label + " মুছবেন?")) return;
+      var endpoint = isAvatar ? "/api/me/avatar" : "/api/me/cover";
+      var payloadKey = isAvatar ? "avatar" : "cover";
+      var headers = { "Content-Type": "application/json" };
+      try {
+        var m2 = document.cookie.match(/csrf_token=([^;]+)/);
+        if (m2) headers["X-CSRF-Token"] = m2[1];
+      } catch(e){}
+      var payload = {};
+      payload[payloadKey] = "";
+      fetch((window.BASE_URL || "") + endpoint, {
+        method: "POST", credentials: "include", headers: headers,
+        body: JSON.stringify(payload)
+      }).then(function(r){ return r.json(); }).then(function(){
+        if (typeof showToast === "function") showToast("✅ " + label + " মুছে ফেলা হয়েছে");
+        var st = window.state || (typeof state !== "undefined" ? state : null);
+        if (st && st.me) {
+          if (isAvatar) st.me.profile_pic = null; else st.me.cover_pic = null;
+        }
+        if (isAvatar && typeof refreshProfileUI === "function") refreshProfileUI();
+        if (!isAvatar && typeof setProfileCover === "function") setProfileCover(null);
+      }).catch(function(){ alert("মুছতে পারা যায়নি"); });
+    }
+  }
+
+  // Direct element binding via delegations — no _own() check, no stops
+  document.addEventListener("click", function(e){
+    var av = e.target.closest("#profile-page-avatar");
+    if (!av) return;
+    console.log("[AVATAR_V2] avatar click detected");
+    var d = window._currentProfileData;
+    if (!d || !d.user) { console.warn("[AVATAR_V2] no profile data"); return; }
+    var myUsername = (window.state && window.state.me && window.state.me.username) ||
+                     (typeof state !== "undefined" && state.me && state.me.username) ||
+                     null;
+    if (!myUsername) { console.warn("[AVATAR_V2] no myUsername"); return; }
+    if (d.user.username !== myUsername) {
+      if (typeof showToast === "function") showToast("এটি আপনার প্রোফাইল নয়");
+      return;
+    }
+    e.preventDefault();
+    e.stopPropagation();
+    _openSimpleSheet("avatar", d.user, !!d.user.profile_pic);
+  }, true);
+
+  document.addEventListener("click", function(e){
+    var cv = e.target.closest("#profile-cover-clickable");
+    if (!cv) return;
+    var d = window._currentProfileData;
+    if (!d || !d.user) return;
+    var myUsername = (window.state && window.state.me && window.state.me.username) ||
+                     (typeof state !== "undefined" && state.me && state.me.username) ||
+                     null;
+    if (!myUsername || d.user.username !== myUsername) return;
+    e.preventDefault();
+    e.stopPropagation();
+    _openSimpleSheet("cover", d.user, !!d.user.cover_pic);
+  }, true);
+
+  console.log("[AVATAR_V2] ready ✅");
+})();
+</script>
+<!-- /AVATAR_DIRECT_FIX -->
+
+<style id="settings-tabs">
+#settings-page .settings-tabs{display:flex;gap:6px;margin:6px 0 14px;padding:4px;background:var(--card-2);border:1px solid var(--border);border-radius:14px}
+#settings-page .settings-tab{flex:1;padding:10px 4px;border:0;border-radius:10px;background:transparent;color:var(--muted);font:700 13px inherit;font-family:inherit;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px}
+#settings-page .settings-tab.active{background:var(--accent);color:#fff}
+#settings-page .settings-group{display:none}
+#settings-page .settings-group.active{display:block}
+</style>
+<script>
+document.addEventListener("click",function(e){var t=e.target.closest&&e.target.closest(".settings-tab");if(!t)return;var p=document.getElementById("settings-page");p.querySelectorAll(".settings-tab").forEach(function(x){x.classList.toggle("active",x===t)});p.querySelectorAll(".settings-group").forEach(function(g){g.classList.toggle("active",g.dataset.group===t.dataset.tab)});p.scrollTop=0});
 </script>
 </body>
 </html>
