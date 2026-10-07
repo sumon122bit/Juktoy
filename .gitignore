@@ -36,3 +36,4 @@ android/
 # OS
 .DS_Store
 Thumbs.db
+www/static/uploads/
