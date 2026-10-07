@@ -8,5 +8,6 @@
 import './core/router.js';
 import './core/state.js';
 import './components/toast.js';
+import './components/avatar.js';
 
 console.log('[MAIN] ES modules foundation loaded ✅');

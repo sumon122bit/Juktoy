@@ -1,15 +1,15 @@
-function avatarInner(name, pic) {
+export function avatarInner(name, pic) {
   if (pic) return `<img src="${escapeHtml(pic)}" alt="${escapeHtml(name)}" loading="lazy" decoding="async">`;
   return initial(name);
 }
 
-function avatarHTML(name, pic, className = "avatar", dataUser = "") {
+export function avatarHTML(name, pic, className = "avatar", dataUser = "") {
   const userAttr = dataUser ? ` data-user="${escapeHtml(dataUser)}"` : "";
   const inner = avatarInner(name, pic);
   return `<div class="${className}"${userAttr}>${inner}</div>`;
 }
 
-function setAvatar(el, name, pic) {
+export function setAvatar(el, name, pic) {
   if (!el) return;
   if (pic) {
     el.innerHTML = `<img src="${escapeHtml(pic)}" alt="${escapeHtml(name)}" loading="lazy" decoding="async">`;
@@ -18,7 +18,7 @@ function setAvatar(el, name, pic) {
   }
 }
 
-function generateAvatarSVG(seed, name) {
+export function generateAvatarSVG(seed, name) {
   let hash = 0;
   const str = String(seed || "user");
   for (let i = 0; i < str.length; i++) {
@@ -71,3 +71,9 @@ function generateAvatarSVG(seed, name) {
   </svg>`;
 }
 
+
+// ---------- Temporary bridge (remove after full ESM migration) ----------
+window.avatarInner = avatarInner;
+window.avatarHTML = avatarHTML;
+window.setAvatar = setAvatar;
+window.generateAvatarSVG = generateAvatarSVG;
