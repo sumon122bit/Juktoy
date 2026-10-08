@@ -19,11 +19,11 @@ export function fillStoryAvatars() {
 let storyGroups = [];       // all active story groups
 let currentGroupIdx = 0;    // which user's stories we're viewing
 let currentStoryIdx = 0;    // which story within the group
-let storyTimer = null;
-let _storyTimerRemaining = 5000;
-let _storyTimerStartTime = 0;
-let _storyTimerPaused = false;
-let _storyTimerDuration = 5000;
+window.storyTimer = null;
+window._storyTimerRemaining = 5000;
+window._storyTimerStartTime = 0;
+window._storyTimerPaused = false;
+window._storyTimerDuration = 5000;
 
 // ---------- Load stories from server ----------
 
@@ -267,7 +267,7 @@ export async function renderCurrentStory() {
 }
 
 export function nextStory() {
-  clearTimeout(storyTimer);
+  clearTimeout(window.storyTimer);
   const group = storyGroups[currentGroupIdx];
   if (!group) return closeStoryViewer();
 
@@ -286,7 +286,7 @@ export function nextStory() {
 }
 
 export function prevStory() {
-  clearTimeout(storyTimer);
+  clearTimeout(window.storyTimer);
   if (currentStoryIdx > 0) {
     currentStoryIdx--;
     renderCurrentStory();
@@ -316,7 +316,7 @@ export function findPrevGroup(from) {
 }
 
 export function closeStoryViewer() {
-  clearTimeout(storyTimer);
+  clearTimeout(window.storyTimer);
   const viewer = document.getElementById("story-viewer");
   if (viewer) viewer.classList.add("hidden");
 
