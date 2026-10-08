@@ -37,3 +37,6 @@ android/
 .DS_Store
 Thumbs.db
 www/static/uploads/
+
+# Friend split review (untracked, not active)
+_friend_split_review/
