@@ -148,7 +148,7 @@ export async function handlePostMenuAction(action, btn, postEl, postId) {
   }
 
   if (action === "report") {
-    openReportModal("post", postId, btn.dataset.owner || "");
+    window.openReportModal("post", postId, btn.dataset.owner || "");
     return;
   }
 }
