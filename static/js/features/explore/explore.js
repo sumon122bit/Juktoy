@@ -114,7 +114,7 @@ export function attachHashtagListeners(container) {
     el.addEventListener("click", (e) => {
       e.preventDefault();
       e.stopPropagation();
-      openHashtag(el.dataset.tag);
+      window.openHashtag(el.dataset.tag);
     });
   });
 }
@@ -130,7 +130,7 @@ export async function openExplorePage() {
 
   await loadTrendingTags();
   await loadTopPosts();
-  await loadSuggestedUsers();
+  await window.loadSuggestedUsers();
 }
 
 // Tabs
@@ -173,7 +173,7 @@ export async function loadTrendingTags() {
       `).join("");
 
     el.querySelectorAll(".tag-chip").forEach((chip) => {
-      chip.addEventListener("click", () => openHashtag(chip.dataset.tag));
+      chip.addEventListener("click", () => window.openHashtag(chip.dataset.tag));
     });
   } catch (err) {
     el.innerHTML = `<div class="explore-empty"><p>লোড করা যায়নি</p></div>`;
@@ -236,8 +236,8 @@ if (typeof _pushPage === "function") {
     }
   };
 
-  const _origOpenHashtag = openHashtag;
-  openHashtag = async function (tag) {
+  const _origOpenHashtag = window.openHashtag;
+  window.openHashtag = async function (tag) {
     await _origOpenHashtag(tag);
     const page = document.getElementById("hashtag-page");
     if (page && !page.classList.contains("hidden")) {

@@ -119,7 +119,7 @@ async function _obFinish(skipped) {
 
   if (typeof window.refreshProfileUI === "function") window.refreshProfileUI();
   if (typeof loadFeed === "function") loadFeed();
-  if (typeof loadRightSidebar === "function") loadRightSidebar();
+  if (typeof window.loadRightSidebar === "function") window.loadRightSidebar();
 }
 
 // -------- Wire up --------
