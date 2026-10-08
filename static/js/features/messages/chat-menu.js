@@ -173,7 +173,7 @@ export function _chatMsgMenu(msgId, isMine, senderName, text, msgEl) {
       } else if (act === "delete") {
         if (!confirm("মেসেজটা মুছবেন?")) return;
         try {
-        _openDeleteMessageSheet(msgId, msgEl, isMine);
+        window._openDeleteMessageSheet(msgId, msgEl, isMine);
       } catch (e) { alert(e.message); }
       }
     });

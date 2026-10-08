@@ -6761,6 +6761,7 @@ function _openDeleteMessageSheet(msgId, msgEl, isMine) {
     });
   });
 }
+window._openDeleteMessageSheet = _openDeleteMessageSheet;
 
 
 
