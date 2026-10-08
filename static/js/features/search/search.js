@@ -8,12 +8,12 @@ let _searchCache = { users: [], posts: [], hashtags: [] };
 
 const RECENT_KEY = "juktoy_recent_searches";
 
-function _getRecentSearches() {
+export function _getRecentSearches() {
   try {
     return JSON.parse(localStorage.getItem(RECENT_KEY) || "[]").slice(0, 8);
   } catch (e) { return []; }
 }
-function _pushRecentSearch(q) {
+export function _pushRecentSearch(q) {
   if (!q || q.length < 2) return;
   try {
     let list = _getRecentSearches().filter(function(x) { return x !== q; });
@@ -22,11 +22,11 @@ function _pushRecentSearch(q) {
     localStorage.setItem(RECENT_KEY, JSON.stringify(list));
   } catch (e) {}
 }
-function _clearRecentSearches() {
+export function _clearRecentSearches() {
   try { localStorage.removeItem(RECENT_KEY); } catch (e) {}
 }
 
-function _renderSearchBody() {
+export function _renderSearchBody() {
   var body = document.getElementById("search-body");
   if (!body) return;
 
@@ -162,7 +162,7 @@ function _renderSearchBody() {
   });
 }
 
-async function _triggerSearch() {
+export async function _triggerSearch() {
   var q = (document.getElementById("search-input").value || "").trim();
   var results = document.getElementById("search-results");
   var body = document.getElementById("search-body");
@@ -194,7 +194,7 @@ async function _triggerSearch() {
   }
 }
 
-function _closeSearchResults() {
+export function _closeSearchResults() {
   var r = document.getElementById("search-results");
   if (r) r.classList.add("hidden");
   var inp = document.getElementById("search-input");
@@ -248,3 +248,11 @@ document.addEventListener("click", function(e) {
   if (e.target.closest(".search-wrap")) return;
   _closeSearchResults();
 });
+
+// ---------- Temporary bridge ----------
+window._getRecentSearches = _getRecentSearches;
+window._pushRecentSearch = _pushRecentSearch;
+window._clearRecentSearches = _clearRecentSearches;
+window._renderSearchBody = _renderSearchBody;
+window._triggerSearch = _triggerSearch;
+window._closeSearchResults = _closeSearchResults;

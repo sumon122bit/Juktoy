@@ -1,4 +1,4 @@
-function triggerBurst(btn) {
+export function triggerBurst(btn) {
   const burst = btn.querySelector(".burst");
   if (!burst) return;
   burst.innerHTML = "";
@@ -22,3 +22,6 @@ function triggerBurst(btn) {
   }, 900);
 }
 
+
+// ---------- Temporary bridge ----------
+window.triggerBurst = triggerBurst;

@@ -1,4 +1,4 @@
-function parseISO(iso) {
+export function parseISO(iso) {
   if (!iso) return new Date(0);
   var str = String(iso);
   // If already has timezone info, use as-is
@@ -9,7 +9,7 @@ function parseISO(iso) {
   return new Date(str.replace(" ", "T") + "Z");
 }
 
-function timeAgo(iso) {
+export function timeAgo(iso) {
   const diff = (Date.now() - parseISO(iso).getTime()) / 1000;
   if (diff < 60) return "এইমাত্র";
   if (diff < 3600) return Math.floor(diff / 60) + " মিনিট আগে";
@@ -17,7 +17,7 @@ function timeAgo(iso) {
   return Math.floor(diff / 86400) + " দিন আগে";
 }
 
-function shortTime(iso) {
+export function shortTime(iso) {
   if (!iso) return "";
   const diff = (Date.now() - parseISO(iso).getTime()) / 1000;
   if (diff < 60) return "এইমাত্র";
@@ -27,12 +27,12 @@ function shortTime(iso) {
   return parseISO(iso).toLocaleDateString("bn-BD", { day: "numeric", month: "short" });
 }
 
-function initial(name) {
+export function initial(name) {
   return (name || "?").charAt(0).toUpperCase();
 }
 
 // S30.15 — Unicode-safe truncation (bengali conjuncts + emoji safe)
-function _trunc(str, maxChars) {
+export function _trunc(str, maxChars) {
   if (!str) return "";
   // Use Array.from to iterate code points, preserving emoji/variation selectors
   // Then join and append ellipsis only if actually trimmed.
@@ -42,7 +42,7 @@ function _trunc(str, maxChars) {
 }
 
 
-function escapeHtml(s) {
+export function escapeHtml(s) {
   return String(s)
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
@@ -50,3 +50,11 @@ function escapeHtml(s) {
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
 }
+
+// ---------- Temporary bridge ----------
+window.parseISO = parseISO;
+window.timeAgo = timeAgo;
+window.shortTime = shortTime;
+window.initial = initial;
+window._trunc = _trunc;
+window.escapeHtml = escapeHtml;
