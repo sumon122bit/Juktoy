@@ -148,7 +148,7 @@ export function _chatMsgMenu(msgId, isMine, senderName, text, msgEl) {
         try { await navigator.clipboard.writeText(text || ""); showToast("📋 কপি করা হয়েছে"); }
         catch (e) { showToast("কপি করা যায়নি"); }
       } else if (act === "forward") {
-        try { await _openForwardModal(parseInt(msgId), text); }
+        try { await window._openForwardModal(parseInt(msgId), text); }
         catch (e) { showToast("ফরওয়ার্ড খোলা যায়নি"); }
       } else if (act === "star") {
         try {
@@ -167,7 +167,7 @@ export function _chatMsgMenu(msgId, isMine, senderName, text, msgEl) {
           showToast(res.starred ? "⭐ স্টার করা হয়েছে" : "স্টার সরানো হয়েছে");
         } catch (e) { alert(e.message); }
       } else if (act === "select") {
-        _enterChatMultiSelect(parseInt(msgId));
+        window._enterChatMultiSelect(parseInt(msgId));
       } else if (act === "info") {
         _showMessageInfo(msgEl, msgId, isMine, senderName);
       } else if (act === "delete") {
