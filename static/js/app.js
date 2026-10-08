@@ -135,255 +135,6 @@ function showMessage(text, type = "") {
   el.className = "message " + type;
 }
 
-
-// ==================================================
-// AUTH SECTION
-// ==================================================
-
-const switchRegister = document.getElementById("switch-register");
-if (switchRegister) {
-  switchRegister.addEventListener("click", (e) => {
-    e.preventDefault();
-    document.getElementById("login-form").classList.add("hidden");
-    document.getElementById("register-form").classList.remove("hidden");
-    document.getElementById("footer-login").classList.add("hidden");
-    document.getElementById("footer-register").classList.remove("hidden");
-    showMessage("");
-  });
-}
-
-const switchLogin = document.getElementById("switch-login");
-if (switchLogin) {
-  switchLogin.addEventListener("click", (e) => {
-    e.preventDefault();
-    document.getElementById("register-form").classList.add("hidden");
-    document.getElementById("login-form").classList.remove("hidden");
-    document.getElementById("footer-register").classList.add("hidden");
-    document.getElementById("footer-login").classList.remove("hidden");
-    showMessage("");
-  });
-}
-
-document.querySelectorAll(".toggle-eye").forEach((icon) => {
-  icon.addEventListener("click", () => {
-    const target = document.getElementById(icon.dataset.target);
-    if (!target) return;
-    const isPassword = target.type === "password";
-    target.type = isPassword ? "text" : "password";
-    icon.classList.toggle("fa-eye", !isPassword);
-    icon.classList.toggle("fa-eye-slash", isPassword);
-  });
-});
-
-const loginForm = document.getElementById("login-form");
-if (loginForm) {
-  loginForm.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const f = e.target;
-    showMessage("অপেক্ষা করুন...");
-    try {
-      await api("/api/login", {
-        method: "POST",
-        body: JSON.stringify({
-          username: f.username.value,
-          password: f.password.value,
-        }),
-      });
-      showMessage("");
-      await enterApp();
-    } catch (err) {
-      showMessage(err.message, "error");
-    }
-  });
-}
-
-const registerForm = document.getElementById("register-form");
-if (registerForm) {
-  registerForm.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const f = e.target;
-    showMessage("অপেক্ষা করুন...");
-    try {
-      await api("/api/register", {
-        method: "POST",
-        body: JSON.stringify({
-          username: f.username.value,
-          display_name: f.display_name.value,
-          password: f.password.value,
-        }),
-      });
-      showMessage("সফল! এখন লগ ইন করুন", "success");
-      setTimeout(() => document.getElementById("switch-login").click(), 800);
-    } catch (err) {
-      showMessage(err.message, "error");
-    }
-  });
-}
-
-const logoutBtn = document.getElementById("logout-btn");
-if (logoutBtn) {
-  logoutBtn.addEventListener("click", async () => {
-    try {
-      await api("/api/logout", { method: "POST" });
-    } catch (e) {}
-    // S30.29 — full state wipe (was: only state.me null → previous data leaked)
-    state.me = null;
-    window._currentProfileData = null;
-    window._pendingImages = [];
-    // Clear feed
-    try {
-      var _fl = document.getElementById("feed-list");
-      if (_fl) _fl.innerHTML = "";
-    } catch (e) {}
-    // Clear conversations
-    try {
-      var _ci = document.getElementById("conv-items");
-      if (_ci) _ci.innerHTML = "";
-      var _gi = document.getElementById("group-items");
-      if (_gi) _gi.innerHTML = "";
-    } catch (e) {}
-    // Close chat / chat polling
-    try { if (typeof stopChatPolling === "function") stopChatPolling(); } catch (e) {}
-    try { if (typeof window.stopGroupPolling === "function") window.stopGroupPolling(); } catch (e) {}
-    // Hide any open overlay pages
-    try {
-      ["profile-page","messages-page","explore-page","hashtag-page",
-       "notifications-page","saved-page","reels-page","story-viewer",
-       "settings-page","chat-window","group-chat-window"].forEach(function(id){
-        var el = document.getElementById(id);
-        if (el) el.classList.add("hidden");
-      });
-      document.body.classList.remove("messages-chat-open","overlay-open","reels-active");
-    } catch (e) {}
-    // Reset composer
-    try {
-      var _pc = document.getElementById("post-content");
-      if (_pc) _pc.value = "";
-      if (typeof resetComposerImages === "function") resetComposerImages();
-    } catch (e) {}
-    // Now switch views
-    document.getElementById("app-view").classList.add("hidden");
-    document.getElementById("auth-view").classList.remove("hidden");
-    closeSidebar();
-  });
-}
-document.querySelectorAll(".nav-item").forEach((item) => {
-  item.addEventListener("click", (e) => {
-    e.preventDefault();
-    document.querySelectorAll(".nav-item").forEach((n) => n.classList.remove("active"));
-    item.classList.add("active");
-
-    const nav = item.dataset.nav;
-    if (nav === "profile" && state.me) {
-      closeSidebar();
-      openProfile(state.me.username);
-    } else if (nav === "home") {
-      closeSidebar();
-      [
-        "profile-page",
-        "messages-page",
-        "explore-page",
-        "hashtag-page",
-        "notifications-page",
-        "saved-page",
-        "reels-page",
-        "story-viewer",
-        "profile-modal"
-      ].forEach((id) => document.getElementById(id)?.classList.add("hidden"));
-      if (typeof _PageStack !== "undefined") _PageStack.length = 0;
-      if (state.me) loadFeed();
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    } else if (nav === "messages") {
-      closeSidebar();
-      window.openMessagesPage();
-    } else if (nav === "suggestions") {
-      // S19.1 — open Explore page, focus users tab
-      closeSidebar();
-      openExplorePage();
-      setTimeout(() => {
-        var usersTab = document.querySelector('.explore-tab[data-etab="users"]');
-        if (usersTab) usersTab.click();
-      }, 200);
-    } else if (nav === "explore") {
-      closeSidebar();
-      openExplorePage();
-    } else if (nav === "reels") {
-      closeSidebar();
-      openReelsPage();
-    } else if (nav === "notifications") {
-      closeSidebar();
-      showToast("🔔 নোটিফিকেশন শীঘ্রই আসছে!");
-    } else if (nav === "bookmarks") {
-      closeSidebar();
-      if (typeof window.openSavedPage === "function") window.openSavedPage();
-    } else if (nav === "settings") {
-      closeSidebar();
-      if (typeof window.openSettingsPage === "function") window.openSettingsPage();
-    } else {
-      closeSidebar();
-    }
-  });
-});
-
-// ==================================================
-// APP VIEW
-// ==================================================
-
-const _enterAppHooks = [];
-// S22 / Series 6 — expose to window so call.js, stats pill, and any
-// external module can register hooks reliably (const is NOT on window).
-window._enterAppHooks = _enterAppHooks;
-
-async function enterApp() {
-  const { user } = await api("/api/me");
-  if (!user) return;
-  state.me = user;
-
-  document.getElementById("auth-view").classList.add("hidden");
-  document.getElementById("app-view").classList.remove("hidden");
-
-  refreshProfileUI();
- window.__highlightNextPost = true; 
-await loadFeed();
-  updateUnreadBadge();
-
-  // Run post-entry hooks (isolated: one failure won't break others)
-  for (const hook of _enterAppHooks) {
-    try {
-      await hook();
-    } catch (err) {
-      console.error("[JUKTOY] enterApp hook failed:", err);
-    }
-  }
-}
-
-function refreshProfileUI() {
-  const u = state.me;
-  if (!u) return;
-
-  const topAvatar = document.getElementById("topbar-avatar");
-  if (topAvatar) {
-    setAvatar(topAvatar, u.display_name, u.profile_pic);
-    topAvatar.onclick = () => openProfile(u.username);
-  }
-
-  setAvatar(document.getElementById("composer-avatar"), u.display_name, u.profile_pic);
-
-  const sp = document.getElementById("sidebar-profile");
-  if (sp) {
-    sp.innerHTML = `
-      ${avatarHTML(u.display_name, u.profile_pic, "avatar-lg")}
-      <div class="name-lg">${escapeHtml(u.display_name)}</div>
-      <div class="uname-sm">@${escapeHtml(u.username)}</div>
-    `;
-  }
-
-  const bioEl = document.getElementById("bio-text");
-  if (bioEl) bioEl.textContent = u.bio || "বায়ো নেই";
-}
-window.refreshProfileUI = refreshProfileUI;
-
-
 // ==================================================
 // PROFILE PAGE
 // ==================================================
@@ -786,7 +537,7 @@ if (saveEditProfile) {
       const meRes = await api("/api/me");
       state.me = meRes.user;
 
-      refreshProfileUI();
+      window.refreshProfileUI();
       await loadFeed();
 
       const profilePage = document.getElementById("profile-page");
@@ -856,7 +607,7 @@ if (saveEditProfile) {
   (async () => {
     try {
       const { user } = await api("/api/me");
-      if (user) await enterApp();
+      if (user) await window.enterApp();
     } catch (e) {}
   })();
 })();
@@ -1053,7 +804,7 @@ async function loadRightSidebar() {
   } catch (e) {}
 }
 
-_enterAppHooks.push(() => loadRightSidebar());
+window._enterAppHooks.push(() => loadRightSidebar());
 
 
 // S19.3 — "সব দেখুন" → open first unseen story
@@ -1089,9 +840,9 @@ _enterAppHooks.push(() => loadRightSidebar());
 
 // ==================================================
 
-// ---------- Hook into enterApp ----------
+// ---------- Hook into window.enterApp ----------
 
-_enterAppHooks.push(() => loadStories());
+window._enterAppHooks.push(() => loadStories());
 
 
 // Load suggested users
@@ -1327,7 +1078,7 @@ openProfile = async function (username) {
 };
 
 
-_enterAppHooks.push(() => {
+window._enterAppHooks.push(() => {
   _initHistoryOnce();
   _PageStack.length = 0; // reset on login
 });
@@ -1733,8 +1484,8 @@ window.bindPostEvents = function() {
   attachCarouselListeners(document.getElementById("feed-list"));
 };
 
-// Also run on enterApp for initial feed
-_enterAppHooks.push(() => {
+// Also run on window.enterApp for initial feed
+window._enterAppHooks.push(() => {
   setTimeout(() => {
     attachCarouselListeners(document.getElementById("feed-list"));
   }, 500);
@@ -1889,7 +1640,7 @@ window.bindPostEvents = function () {
 };
 
 // Also after initial feed render
-_enterAppHooks.push(() => {
+window._enterAppHooks.push(() => {
   setTimeout(() => {
     document.querySelectorAll(".like-btn").forEach((btn) => {
       applyReactionStyles(btn, btn.dataset.reaction || "");
@@ -3179,9 +2930,9 @@ document.addEventListener("click", function(e) {
 }, true);
 
 
-// Auto-start for new users after enterApp
-const _origEnterAppOb = enterApp;
-enterApp = async function () {
+// Auto-start for new users after window.enterApp
+const _origEnterAppOb = window.enterApp;
+window.enterApp = async function () {
   await _origEnterAppOb();
   if (state.me && !state.me.onboarded) {
     setTimeout(function() { if (typeof window.startOnboarding === "function") window.startOnboarding(); }, 400);
@@ -3525,7 +3276,7 @@ window._pending2fa = { token: null };
         return;
       }
       showMessage("");
-      await enterApp();
+      await window.enterApp();
     } catch (err) {
       showMessage(err.message, "error");
     }
@@ -3545,7 +3296,7 @@ window._pending2fa = { token: null };
       });
       showMessage("");
       document.getElementById("login-2fa-code").value = "";
-      await enterApp();
+      await window.enterApp();
       if (res.used_backup) {
         showToast("✅ Backup code ব্যবহৃত। বাকি: " + res.backup_codes_remaining);
       }
@@ -4160,8 +3911,8 @@ async function _checkAdminStatus() {
   }
 }
 
-// Call after enterApp
-_enterAppHooks.push(_checkAdminStatus);
+// Call after window.enterApp
+window._enterAppHooks.push(_checkAdminStatus);
 
 
 // ---- Open admin page ----
@@ -4881,7 +4632,7 @@ console.log("[S15.1] strong password check attached ✅");
   }
 
   // Start polling after login
-  _enterAppHooks.push(function () {
+  window._enterAppHooks.push(function () {
     startPolling();
     _lastPollAt = Date.now();
   });
@@ -5096,7 +4847,7 @@ document.addEventListener("click", async function (e) {
       })
     });
     if (state.me) state.me.username = res.username;
-    if (typeof refreshProfileUI === "function") refreshProfileUI();
+    if (typeof window.refreshProfileUI === "function") window.refreshProfileUI();
     var cu = document.getElementById("set-current-uname");
     if (cu) cu.textContent = "@" + res.username;
     showToast("✅ ইউজারনেম পরিবর্তন হয়েছে");
@@ -10079,7 +9830,7 @@ window._reloadSheetComments = _reloadSheetComments;
         // refresh
         var me = await api("/api/me");
         if (me && me.user) state.me = me.user;
-        if (typeof refreshProfileUI === "function") refreshProfileUI();
+        if (typeof window.refreshProfileUI === "function") window.refreshProfileUI();
         if (typeof loadFeed === "function") loadFeed();
         // close modal
         var m = document.getElementById("edit-profile-modal");

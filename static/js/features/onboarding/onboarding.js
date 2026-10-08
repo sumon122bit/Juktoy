@@ -117,7 +117,7 @@ async function _obFinish(skipped) {
   var el = document.getElementById("onboarding");
   if (el) el.classList.add("hidden");
 
-  if (typeof refreshProfileUI === "function") refreshProfileUI();
+  if (typeof window.refreshProfileUI === "function") window.refreshProfileUI();
   if (typeof loadFeed === "function") loadFeed();
   if (typeof loadRightSidebar === "function") loadRightSidebar();
 }
