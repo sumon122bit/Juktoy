@@ -12,5 +12,6 @@ import './components/avatar.js';
 import './components/image.js';
 import './components/sidebar.js';
 import './components/theme.js';
+import './components/composer.js';
 
 console.log('[MAIN] ES modules foundation loaded ✅');

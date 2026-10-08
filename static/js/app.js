@@ -1537,32 +1537,32 @@ function resetComposerImages() {
 
 // ---------- Override updateComposerState to consider images ----------
 
-const _origUpdateComposerState = updateComposerState;
-updateComposerState = function() {
-  if (!postContent || !postBtn) return;
-  postContent.style.height = "auto";
-  postContent.style.height = Math.min(postContent.scrollHeight, 180) + "px";
-  const hasText = postContent.value.trim().length > 0;
+const _origUpdateComposerState = window.updateComposerState;
+window.updateComposerState = function() {
+  if (!window.postContent || !window.postBtn) return;
+  window.postContent.style.height = "auto";
+  window.postContent.style.height = Math.min(window.postContent.scrollHeight, 180) + "px";
+  const hasText = window.postContent.value.trim().length > 0;
   const hasImages = _pendingImages.length > 0;
   const active = hasText || hasImages;
-  postBtn.classList.toggle("visible", active);
+  window.postBtn.classList.toggle("visible", active);
 
   // Glow composer when something is ready
-  const composer = postBtn.closest(".composer-box");
+  const composer = window.postBtn.closest(".composer-box");
   if (composer) composer.classList.toggle("has-content", active);
 };
 
 // ---------- Override post creation handler ----------
 
-// Remove old postBtn click handler by cloning
-if (postBtn) {
-  const newPostBtn = postBtn.cloneNode(true);
-  postBtn.parentNode.replaceChild(newPostBtn, postBtn);
-  postBtn = newPostBtn;   // S30.29 — reassign so const-holder keeps working
+// Remove old window.postBtn click handler by cloning
+if (window.postBtn) {
+  const newPostBtn = window.postBtn.cloneNode(true);
+  window.postBtn.parentNode.replaceChild(newPostBtn, window.postBtn);
+  window.postBtn = newPostBtn;   // S30.29 — reassign so const-holder keeps working
 
   newPostBtn.addEventListener("click", async () => {
-    if (!postContent) return;
-    const text = postContent.value.trim();
+    if (!window.postContent) return;
+    const text = window.postContent.value.trim();
     const media = _pendingImages.slice();
 
     if (!text && !media.length) return;
@@ -1576,7 +1576,7 @@ if (postBtn) {
         method: "POST",
         body: JSON.stringify({ content: text, media }),
       });
-      postContent.value = "";
+      window.postContent.value = "";
       resetComposerImages();
       updateComposerState();
       window.__highlightNextPost = true;
