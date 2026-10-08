@@ -40,3 +40,5 @@ www/static/uploads/
 
 # Friend split review (untracked, not active)
 _friend_split_review/
+*.bak
+*.bak-*
