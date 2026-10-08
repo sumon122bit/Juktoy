@@ -10,5 +10,6 @@ import './core/state.js';
 import './components/toast.js';
 import './components/avatar.js';
 import './components/image.js';
+import './components/sidebar.js';
 
 console.log('[MAIN] ES modules foundation loaded ✅');
