@@ -5,11 +5,11 @@
 // কারণ এরা app.js এর globals (._pushPage, _closeTopPage) use করে
 // ==================================================
 
-import './features/calls/call.js?v=153650';
-import './features/saved/saved.js?v=153650';
-import './features/messages/messages.js?v=153650';
-import './features/notifications/notifications.js?v=153650';
-import './features/reels/reels.js?v=153650';
-import './features/stories/stories.js?v=153650';
+import './features/calls/call.js?v=153652';
+import './features/saved/saved.js?v=153652';
+import './features/messages/messages.js?v=153652';
+import './features/notifications/notifications.js?v=153652';
+import './features/reels/reels.js?v=153652';
+import './features/stories/stories.js?v=153652';
 
 console.log('[MAIN-LATE] Late modules loaded ✅');
