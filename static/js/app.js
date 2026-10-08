@@ -315,7 +315,7 @@ document.querySelectorAll(".nav-item").forEach((item) => {
       showToast("🔔 নোটিফিকেশন শীঘ্রই আসছে!");
     } else if (nav === "bookmarks") {
       closeSidebar();
-      openSavedPage();
+      if (typeof window.openSavedPage === "function") window.openSavedPage();
     } else if (nav === "settings") {
       closeSidebar();
       openSettingsPage();
@@ -1211,6 +1211,7 @@ bindPostEvents = function() {
 // ==================================================
 
 const _PageStack = [];
+  window._PageStack = _PageStack;
 let _historyBooted = false;
 let _lastBackPress = 0;
 
@@ -1226,6 +1227,7 @@ function _pushPage(name) {
   _PageStack.push(name);
   history.pushState({ page: name }, "", "");
 }
+  window._pushPage = _pushPage;
 
 function _closeTopPage() {
   const top = _PageStack.pop();
@@ -1258,6 +1260,7 @@ function _closeTopPage() {
   }
   return true;
 }
+  window._closeTopPage = _closeTopPage;
 
 // Handle hardware back button + browser back
 let _lastPopstateAt = 0;
@@ -1334,65 +1337,6 @@ _enterAppHooks.push(() => {
 });
 
 
-// ==================================================
-// SAVED PAGE
-// ==================================================
-
-async function openSavedPage() {
-  const page = document.getElementById("saved-page");
-  if (!page) return;
-  page.classList.remove("hidden");
-  const list = document.getElementById("saved-list");
-  list.innerHTML = `<p style="text-align:center;color:var(--muted);padding:40px 20px">লোড হচ্ছে...</p>`;
-
-  try {
-    const posts = await api("/api/saves");
-    if (!posts.length) {
-      list.innerHTML = `<div class="explore-empty">
-        <i class="fa-regular fa-bookmark"></i>
-        <p>এখনো কোনো পোস্ট সেভ করেননি।<br>পোস্টের নিচে <strong>সেভ</strong> বাটনে চাপ দিন!</p>
-      </div>`;
-      return;
-    }
-    list.innerHTML = posts.map(postHTML).join("");
-    bindPostEvents();
-    attachHashtagListeners(list);
-  } catch (err) {
-    list.innerHTML = `<div class="explore-empty"><p>লোড করা যায়নি</p></div>`;
-  }
-}
-
-const savedBackBtn = document.getElementById("saved-back");
-if (savedBackBtn) {
-  const fresh = savedBackBtn.cloneNode(true);
-  savedBackBtn.parentNode.replaceChild(fresh, savedBackBtn);
-  fresh.addEventListener("click", () => {
-    if (_PageStack.length > 0) history.back();
-    else document.getElementById("saved-page")?.classList.add("hidden");
-  });
-}
-
-// Wrap openSavedPage to push stack
-const _origOpenSavedPage = openSavedPage;
-openSavedPage = async function () {
-  await _origOpenSavedPage();
-  const page = document.getElementById("saved-page");
-  if (page && !page.classList.contains("hidden")) {
-    _pushPage("saved");
-  }
-};
-
-// Extend _closeTopPage to handle saved
-const _origCloseTopPage = _closeTopPage;
-_closeTopPage = function () {
-  const top = _PageStack[_PageStack.length - 1];
-  if (top === "saved") {
-    _PageStack.pop();
-    document.getElementById("saved-page")?.classList.add("hidden");
-    return true;
-  }
-  return _origCloseTopPage();
-};
 
 
 // ==================================================
@@ -3078,6 +3022,7 @@ _closeTopPage = function () {
   }
   return _origCloseTopPageSettings();
 };
+  window._closeTopPage = _closeTopPage;
 
 
 // ==================================================
@@ -5675,6 +5620,7 @@ _closeTopPage = function() {
   _updateOverlayClass();
   return result;
 };
+  window._closeTopPage = _closeTopPage;
 
 
 // ==================================================
@@ -7967,6 +7913,7 @@ _closeTopPage = function () {
   }
   return _origCloseTopPageAdmin();
 };
+  window._closeTopPage = _closeTopPage;
 
 // ---- Nav item click ----
 document.addEventListener("click", function (e) {
@@ -10911,6 +10858,7 @@ _closeTopPage = function _closeTopPageUnified() {
   try { if (typeof _updateOverlayClass === "function") _updateOverlayClass(); } catch (e) {}
   return true;
 };
+  window._closeTopPage = _closeTopPage;
 console.log("[S29.10] unified _closeTopPage registered");
 
 
