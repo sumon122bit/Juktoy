@@ -9,7 +9,7 @@ let _currentCommentReelId = null;
 
 // ---------- Open Reels page ----------
 
-export async function openReelsPage() {
+async function openReelsPage() {
   const page = document.getElementById("reels-page");
   if (!page) return;
   page.classList.remove("hidden");
@@ -21,7 +21,7 @@ export async function openReelsPage() {
 
 // ---------- Load all reels ----------
 
-export async function loadReels() {
+async function loadReels() {
   console.log("[REELS] loadReels() called");
   const feed = document.getElementById("reels-feed");
   const empty = document.getElementById("reels-empty");
@@ -84,7 +84,7 @@ export async function loadReels() {
 
 // ---------- Reel item HTML ----------
 
-export function reelHTML(r, idx) {
+function reelHTML(r, idx) {
   const isOwn = state.me && state.me.username === r.username;
   const avatar = r.profile_pic
     ? `<img src="${escapeHtml(r.profile_pic)}" alt="" loading="lazy" decoding="async">`
@@ -171,7 +171,7 @@ document.addEventListener("click", function (e) {
 
 
 // ---------- Premium double-tap heart effect ----------
-export function playReelHeart(item) {
+function playReelHeart(item) {
   const burst = item.querySelector(".reel-heart-burst");
   const ring = item.querySelector(".reel-heart-ring");
   const flash = item.querySelector(".reel-flash");
@@ -235,7 +235,7 @@ export function playReelHeart(item) {
 }
 
 // ---------- Reel more-menu (bottom sheet) ----------
-export function openReelMoreMenu(item) {
+function openReelMoreMenu(item) {
   const reelId = item.dataset.id;
   const isOwn = item.dataset.own === "1";
   const isSaved = item.dataset.saved === "1";
@@ -332,7 +332,7 @@ document.addEventListener("click", function (e) {
 
 // ---------- Attach events to each reel ----------
 
-export function attachReelListeners() {
+function attachReelListeners() {
   document.querySelectorAll(".reel-item").forEach((item) => {
     const id = item.dataset.id;
     const video = item.querySelector(".reel-video");
@@ -473,7 +473,7 @@ export function attachReelListeners() {
 
 // ---------- Play/Pause ----------
 
-export function togglePlayPause(video, indicator) {
+function togglePlayPause(video, indicator) {
   if (video.paused) {
     video.play().catch(() => {});
     if (indicator) {
@@ -495,7 +495,7 @@ export function togglePlayPause(video, indicator) {
 
 // ---------- Intersection Observer: auto-play visible reel ----------
 
-export function setupReelObserver() {
+function setupReelObserver() {
   if (_reelObserver) _reelObserver.disconnect();
 
   const feed = document.getElementById("reels-feed");
@@ -569,7 +569,7 @@ export function setupReelObserver() {
 
 // ---------- Close Reels page ----------
 
-export function closeReelsPage() {
+function closeReelsPage() {
   // Pause all videos
   document.querySelectorAll(".reel-video").forEach((v) => {
     v.pause();
@@ -583,7 +583,7 @@ export function closeReelsPage() {
 
 // ---------- Reel Comments Sheet ----------
 
-export async function openReelComments(reelId) {
+async function openReelComments(reelId) {
   _currentCommentReelId = reelId;
   const sheet = document.getElementById("reel-comments-sheet");
   if (!sheet) return;
@@ -591,7 +591,7 @@ export async function openReelComments(reelId) {
   await loadReelComments(reelId);
 }
 
-export async function loadReelComments(reelId) {
+async function loadReelComments(reelId) {
   const list = document.getElementById("rcs-list");
   if (!list) return;
   list.innerHTML = `<p style="text-align:center;color:var(--muted);padding:20px">লোড হচ্ছে...</p>`;
@@ -671,7 +671,7 @@ document.getElementById("btn-choose-reel")?.addEventListener("click", () => reel
 document.getElementById("reels-upload-btn")?.addEventListener("click", openReelUpload);
 document.getElementById("reels-empty-upload")?.addEventListener("click", openReelUpload);
 
-export function openReelUpload() {
+function openReelUpload() {
   resetReelUpload();
   reelUploadModal.classList.remove("hidden");
 }
@@ -701,7 +701,7 @@ if (reelFileInput) {
   });
 }
 
-export function readFileAsDataURL(file) {
+function readFileAsDataURL(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = (e) => resolve(e.target.result);
@@ -716,7 +716,7 @@ reelUploadModal?.addEventListener("click", (e) => {
   if (e.target === reelUploadModal) resetReelUpload();
 });
 
-export function resetReelUpload() {
+function resetReelUpload() {
   _pendingReelVideo = null;
   if (reelFileInput) reelFileInput.value = "";
   if (reelUploadEmpty) reelUploadEmpty.classList.remove("hidden");
@@ -805,19 +805,3 @@ document.addEventListener("keydown", (e) => {
 });
 
 
-
-// ---------- Temporary bridge ----------
-window.openReelsPage = openReelsPage;
-window.loadReels = loadReels;
-window.reelHTML = reelHTML;
-window.playReelHeart = playReelHeart;
-window.openReelMoreMenu = openReelMoreMenu;
-window.attachReelListeners = attachReelListeners;
-window.togglePlayPause = togglePlayPause;
-window.setupReelObserver = setupReelObserver;
-window.closeReelsPage = closeReelsPage;
-window.openReelComments = openReelComments;
-window.loadReelComments = loadReelComments;
-window.openReelUpload = openReelUpload;
-window.readFileAsDataURL = readFileAsDataURL;
-window.resetReelUpload = resetReelUpload;

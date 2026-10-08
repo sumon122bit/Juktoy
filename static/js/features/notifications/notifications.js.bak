@@ -1,4 +1,4 @@
-export async function openNotificationsPage() {
+async function openNotificationsPage() {
   const page = document.getElementById("notifications-page");
   if (!page) return;
   page.classList.remove("hidden");
@@ -7,7 +7,7 @@ export async function openNotificationsPage() {
   // unread until the user taps them (or uses "mark all" button).
 }
 
-export async function loadNotifications() {
+async function loadNotifications() {
   const list = document.getElementById("notif-list");
   if (!list) return;
   list.innerHTML = `<p style="text-align:center;color:var(--muted);padding:40px 20px">লোড হচ্ছে...</p>`;
@@ -79,7 +79,7 @@ export async function loadNotifications() {
 
 // ---------- Grouping logic ----------
 
-export function _notifGroupKey(n) {
+function _notifGroupKey(n) {
   if (n.type === "like" && n.post_id) return "like:" + n.post_id;
   if (n.type === "repost" && n.post_id) return "repost:" + n.post_id;
   if (n.type === "comment_like" && n.post_id) return "clike:" + n.post_id;
@@ -87,11 +87,11 @@ export function _notifGroupKey(n) {
   return null; // comment, comment_reply — no grouping
 }
 
-export function _notifTimeMs(n) {
+function _notifTimeMs(n) {
   return new Date(String(n.created_at).replace(" ", "T") + "Z").getTime();
 }
 
-export function groupNotifications(notifs) {
+function groupNotifications(notifs) {
   const groups = [];
   const used = new Set();
   const WINDOW = 48 * 3600 * 1000;
@@ -127,12 +127,12 @@ export function groupNotifications(notifs) {
 
 // ---------- Group rendering ----------
 
-export function _notifAvatarMini(actorName, actorPic) {
+function _notifAvatarMini(actorName, actorPic) {
   if (actorPic) return `<img src="${escapeHtml(actorPic)}" alt="" loading="lazy" decoding="async">`;
   return initial(actorName);
 }
 
-export function _notifGroupAction(type) {
+function _notifGroupAction(type) {
   if (type === "like") return "আপনার পোস্টে লাইক দিয়েছেন";
   if (type === "repost") return "আপনার পোস্ট রিপোস্ট করেছেন";
   if (type === "comment_like") return "আপনার কমেন্টে লাইক দিয়েছেন";
@@ -140,7 +140,7 @@ export function _notifGroupAction(type) {
   return "নোটিফিকেশন";
 }
 
-export function notifGroupHTML(g) {
+function notifGroupHTML(g) {
   const items = g.items;
   const count = items.length;
   const action = _notifGroupAction(g.type);
@@ -218,7 +218,7 @@ export function notifGroupHTML(g) {
 
 // ---------- (old loadNotifications end) ----------
 
-export function notifHTML(n) {
+function notifHTML(n) {
   const avatar = n.actor_pic
     ? `<img src="${escapeHtml(n.actor_pic)}" alt="" loading="lazy" decoding="async">`
     : initial(n.actor_name);
@@ -287,7 +287,7 @@ export function notifHTML(n) {
   `;
 }
 
-export async function updateNotifBadge() {
+async function updateNotifBadge() {
   try {
     const data = await api("/api/notifications/unread/count");
     const count = data.count || 0;
@@ -397,15 +397,3 @@ if (_origNavNotif) {
 // Initial call when entering app
 _enterAppHooks.push(() => updateNotifBadge());
 
-
-// ---------- Temporary bridge ----------
-window.openNotificationsPage = openNotificationsPage;
-window.loadNotifications = loadNotifications;
-window._notifGroupKey = _notifGroupKey;
-window._notifTimeMs = _notifTimeMs;
-window.groupNotifications = groupNotifications;
-window._notifAvatarMini = _notifAvatarMini;
-window._notifGroupAction = _notifGroupAction;
-window.notifGroupHTML = notifGroupHTML;
-window.notifHTML = notifHTML;
-window.updateNotifBadge = updateNotifBadge;

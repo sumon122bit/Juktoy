@@ -3,7 +3,7 @@
 // SVG AVATAR GENERATOR (for stories)
 // ==================================================
 
-export function fillStoryAvatars() {
+function fillStoryAvatars() {
   document.querySelectorAll(".story-hex-content[data-avatar]").forEach((el) => {
     if (el.dataset.filled === "1") return;
     const parts = (el.dataset.avatar || "").split(":");
@@ -27,7 +27,7 @@ let _storyTimerDuration = 5000;
 
 // ---------- Load stories from server ----------
 
-export async function loadStories() {
+async function loadStories() {
   const row = document.querySelector(".stories-row");
   if (!row) return;
   try {
@@ -67,7 +67,7 @@ export async function loadStories() {
 
 // ---------- Open viewer ----------
 
-export async function openStoryViewer(groupIdx, storyIdx) {
+async function openStoryViewer(groupIdx, storyIdx) {
   if (!storyGroups[groupIdx]) return;
   currentGroupIdx = groupIdx;
   currentStoryIdx = storyIdx || 0;
@@ -79,7 +79,7 @@ export async function openStoryViewer(groupIdx, storyIdx) {
   await renderCurrentStory();
 }
 
-export async function renderCurrentStory() {
+async function renderCurrentStory() {
   const group = storyGroups[currentGroupIdx];
   if (!group) return closeStoryViewer();
 
@@ -266,7 +266,7 @@ export async function renderCurrentStory() {
   }
 }
 
-export function nextStory() {
+function nextStory() {
   clearTimeout(storyTimer);
   const group = storyGroups[currentGroupIdx];
   if (!group) return closeStoryViewer();
@@ -285,7 +285,7 @@ export function nextStory() {
   }
 }
 
-export function prevStory() {
+function prevStory() {
   clearTimeout(storyTimer);
   if (currentStoryIdx > 0) {
     currentStoryIdx--;
@@ -299,7 +299,7 @@ export function prevStory() {
   }
 }
 
-export function findNextGroup(from) {
+function findNextGroup(from) {
   for (let i = from + 1; i < storyGroups.length; i++) {
     if (storyGroups[i].user.username === state.me.username) continue;
     return i;
@@ -307,7 +307,7 @@ export function findNextGroup(from) {
   return -1;
 }
 
-export function findPrevGroup(from) {
+function findPrevGroup(from) {
   for (let i = from - 1; i >= 0; i--) {
     if (storyGroups[i].user.username === state.me.username) continue;
     return i;
@@ -315,7 +315,7 @@ export function findPrevGroup(from) {
   return -1;
 }
 
-export function closeStoryViewer() {
+function closeStoryViewer() {
   clearTimeout(storyTimer);
   const viewer = document.getElementById("story-viewer");
   if (viewer) viewer.classList.add("hidden");
@@ -362,7 +362,7 @@ export function closeStoryViewer() {
   } catch (e) {}
 }
 
-export async function deleteCurrentStory(sid) {
+async function deleteCurrentStory(sid) {
   if (!confirm("এই স্টোরি মুছে ফেলবেন?")) return;
   try {
     await api(`/api/stories/${sid}`, { method: "DELETE" });
@@ -429,7 +429,7 @@ if (storyUploadModal) {
   });
 }
 
-export function resetStoryUpload() {
+function resetStoryUpload() {
   pendingStoryMedia = null;
   if (storyFileInput) storyFileInput.value = "";
   if (storyUploadEmpty) storyUploadEmpty.classList.remove("hidden");
@@ -574,16 +574,3 @@ if (typeof _pushPage === "function") {
     }
   };
 }
-
-// ---------- Temporary bridge ----------
-window.fillStoryAvatars = fillStoryAvatars;
-window.loadStories = loadStories;
-window.openStoryViewer = openStoryViewer;
-window.renderCurrentStory = renderCurrentStory;
-window.nextStory = nextStory;
-window.prevStory = prevStory;
-window.findNextGroup = findNextGroup;
-window.findPrevGroup = findPrevGroup;
-window.closeStoryViewer = closeStoryViewer;
-window.deleteCurrentStory = deleteCurrentStory;
-window.resetStoryUpload = resetStoryUpload;

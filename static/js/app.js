@@ -295,7 +295,7 @@ document.querySelectorAll(".nav-item").forEach((item) => {
       window.scrollTo({ top: 0, behavior: "smooth" });
     } else if (nav === "messages") {
       closeSidebar();
-      openMessagesPage();
+      window.openMessagesPage();
     } else if (nav === "suggestions") {
       // S19.1 — open Explore page, focus users tab
       closeSidebar();
@@ -564,7 +564,7 @@ async function openProfile(username) {
         var mBtn = document.getElementById("btn-msg");
         if (mBtn) mBtn.onclick = function() {
           document.getElementById("profile-page").classList.add("hidden");
-          openMessagesPage().then(function() { openChat(u.username); });
+          window.openMessagesPage().then(function() { openChat(u.username); });
         };
         var wBtn = document.getElementById("btn-profile-wave");
         if (wBtn) wBtn.onclick = function() {
@@ -884,7 +884,7 @@ if (topCreateBtn) {
 // Top messages button
 const topMessagesBtn = document.getElementById("top-messages-btn");
 if (topMessagesBtn) {
-  topMessagesBtn.addEventListener("click", openMessagesPage);
+  topMessagesBtn.addEventListener("click", function() { if (typeof window.openMessagesPage === "function") window.openMessagesPage(); });
 }
 
 // Mobile bottom nav
@@ -928,7 +928,7 @@ document.querySelectorAll(".mbn-item").forEach((btn) => {
         console.error("[MBNAV] openReelsPage is not defined!");
       }
     } else if (target === "messages") {
-      if (typeof openMessagesPage === "function") openMessagesPage();
+      if (typeof window.openMessagesPage === "function") window.openMessagesPage();
     } else if (target === "notifications") {
       if (typeof openNotificationsPage === "function") openNotificationsPage();
     } else if (target === "profile" && state.me) {
@@ -1251,8 +1251,8 @@ function _closeTopPage() {
     var _cw = document.getElementById("chat-window");
     if (_cw) _cw.classList.add("hidden");
     document.body.classList.remove("messages-chat-open");   // restore topbar
-    if (typeof currentChatUser !== "undefined") currentChatUser = null;
-    if (typeof lastMsgCount !== "undefined") lastMsgCount = 0;
+    if (typeof window.currentChatUser !== "undefined") window.currentChatUser = null;
+    if (typeof window.lastMsgCount !== "undefined") window.lastMsgCount = 0;
     if (typeof loadConversations === "function") loadConversations();
     if (typeof _updateOverlayClass === "function") _updateOverlayClass();
   }
@@ -3122,13 +3122,13 @@ async function toggleBlock(e) {
     // S30.18 — refresh conversation list, close chat if blocking
     try {
       if (typeof loadConversations === "function") loadConversations();
-      if (res.blocked && typeof currentChatUser !== "undefined" && currentChatUser === username) {
+      if (res.blocked && typeof window.currentChatUser !== "undefined" && window.currentChatUser === username) {
         if (typeof stopChatPolling === "function") stopChatPolling();
         var cw = document.getElementById("chat-window");
         if (cw) cw.classList.add("hidden");
         document.body.classList.remove("messages-chat-open");
-        currentChatUser = null;
-        lastMsgCount = 0;
+        window.currentChatUser = null;
+        window.lastMsgCount = 0;
       }
     } catch (e) {}
   } catch (err) {
@@ -4707,7 +4707,7 @@ document.addEventListener("submit", async function(e) {
   var text = (input.value || "").trim();
   var image = _chatPendingImage || "";
   if (!text && !image) return;
-  if (!currentChatUser) return;
+  if (!window.currentChatUser) return;
 
   var wasFocused = document.activeElement === input;
   input.value = "";
@@ -4723,15 +4723,15 @@ document.addEventListener("submit", async function(e) {
   if (text) tempHTML += '<div class="chat-msg-text">' + escapeHtml(text) + '</div>';
   tempHTML += '<div class="chat-msg-time">এইমাত্র</div>';
   temp.innerHTML = tempHTML;
-  chatMessages.appendChild(temp);
-  chatMessages.scrollTop = chatMessages.scrollHeight;
-  lastMsgCount++;
+  window.chatMessages.appendChild(temp);
+  window.chatMessages.scrollTop = window.chatMessages.scrollHeight;
+  window.lastMsgCount++;
 
   var payload = { content: text, image: image };
   if (_chatReplyTo) payload.parent_id = _chatReplyTo.id;
 
   try {
-    await api("/api/messages/" + encodeURIComponent(currentChatUser), {
+    await api("/api/messages/" + encodeURIComponent(window.currentChatUser), {
       method: "POST",
       body: JSON.stringify(payload),
     });
@@ -4745,7 +4745,7 @@ document.addEventListener("submit", async function(e) {
     await loadConversations();
   } catch (err) {
     temp.remove();
-    lastMsgCount--;
+    window.lastMsgCount--;
     alert(err.message);
   } finally {
     // ALWAYS refocus — keep keyboard up for continuous typing
@@ -5041,7 +5041,7 @@ var _multiSelect = { active: false, ids: new Set(), username: null };
 
 function _enterChatMultiSelect(firstId) {
   _multiSelect.active = true;
-  _multiSelect.username = currentChatUser;
+  _multiSelect.username = window.currentChatUser;
   _multiSelect.ids = new Set();
   if (firstId) _multiSelect.ids.add(String(firstId));
   document.body.classList.add("chat-multi-select");
@@ -5411,13 +5411,13 @@ async function _runChatSearch() {
   document.querySelectorAll(".chat-msg.search-match, .chat-msg.search-current").forEach(function (el) {
     el.classList.remove("search-match", "search-current");
   });
-  if (!q || !currentChatUser) {
+  if (!q || !window.currentChatUser) {
     _chatSearchResults = [];
     if (countEl) countEl.textContent = "";
     return;
   }
   try {
-    var res = await api("/api/chats/" + encodeURIComponent(currentChatUser) + "/search?q=" + encodeURIComponent(q));
+    var res = await api("/api/chats/" + encodeURIComponent(window.currentChatUser) + "/search?q=" + encodeURIComponent(q));
     _chatSearchResults = (res.results || []).map(function (r) { return String(r.id); });
     _chatSearchResults.forEach(function (id) {
       var el = document.querySelector('.chat-msg[data-mid="' + id + '"]');
@@ -5451,9 +5451,9 @@ document.addEventListener("click", function (e) {
   }
 }, true);
 
-// Long-press wiring (event delegation on chatMessages)
-if (chatMessages) {
-  chatMessages.addEventListener("touchstart", function(e) {
+// Long-press wiring (event delegation on window.chatMessages)
+if (window.chatMessages) {
+  window.chatMessages.addEventListener("touchstart", function(e) {
     // Block long-press on date separators
     if (e.target.closest(".chat-date-sep")) return;
     // Block long-press on system messages
@@ -5473,11 +5473,11 @@ if (chatMessages) {
     }, 500);
   }, { passive: true });
 
-  chatMessages.addEventListener("touchend", function() { clearTimeout(_lpTimer); });
-  chatMessages.addEventListener("touchmove", function() { clearTimeout(_lpTimer); });
+  window.chatMessages.addEventListener("touchend", function() { clearTimeout(_lpTimer); });
+  window.chatMessages.addEventListener("touchmove", function() { clearTimeout(_lpTimer); });
 
   // Also support mouse right-click for desktop
-  chatMessages.addEventListener("contextmenu", function(e) {
+  window.chatMessages.addEventListener("contextmenu", function(e) {
     if (e.target.closest(".chat-date-sep")) { e.preventDefault(); return; }
     var msg = e.target.closest(".chat-msg");
     if (!msg) return;
@@ -5489,7 +5489,7 @@ if (chatMessages) {
   });
 
   // Double-tap → love reaction
-  chatMessages.addEventListener("click", async function(e) {
+  window.chatMessages.addEventListener("click", async function(e) {
     var msg = e.target.closest(".chat-msg");
     if (!msg) return;
     if (e.target.closest(".chat-msg-image")) return;
@@ -5665,8 +5665,8 @@ _closeTopPage = function() {
     }
     if (typeof stopChatPolling === "function") stopChatPolling();
     cw.classList.add("hidden");
-    currentChatUser = null;
-    lastMsgCount = 0;
+    window.currentChatUser = null;
+    window.lastMsgCount = 0;
     if (typeof loadConversations === "function") loadConversations();
     _updateOverlayClass();
     return true;
@@ -9092,7 +9092,7 @@ function _vrHideUI() {
 
 async function _vrStart() {
   if (_vr.active) return;
-  if (!currentChatUser) return;
+  if (!window.currentChatUser) return;
 
   console.log("[VR] secure:", window.isSecureContext,
               "| mediaDevices:", !!navigator.mediaDevices,
@@ -9250,9 +9250,9 @@ function _vrStop(cancel) {
 }
 
 async function _vrSend(dataUrl, duration) {
-  if (!currentChatUser) return;
+  if (!window.currentChatUser) return;
   try {
-    var res = await api("/api/messages/" + encodeURIComponent(currentChatUser) + "/voice", {
+    var res = await api("/api/messages/" + encodeURIComponent(window.currentChatUser) + "/voice", {
       method: "POST",
       body: JSON.stringify({ audio: dataUrl, duration: duration }),
     });
@@ -9647,7 +9647,7 @@ async function _openNicknameModal(username) {
       close();
       showToast(val ? "\u09a8\u09bf\u0995\u09a8\u09c7\u09ae \u09b8\u09c7\u09ad \u09b9\u09df\u09c7\u099b\u09c7" : "\u09a8\u09bf\u0995\u09a8\u09c7\u09ae \u09b8\u09b0\u09be\u09a8\u09cb \u09b9\u09df\u09c7\u099b\u09c7");
       await loadConversations();
-      if (currentChatUser === username) await loadChatMessages(true);
+      if (window.currentChatUser === username) await loadChatMessages(true);
     } catch (e) { alert(e.message); }
   }
 
@@ -9892,7 +9892,7 @@ function _openDeleteMessageSheet(msgId, msgEl, isMine) {
     e.preventDefault();
     e.stopPropagation();
 
-    var uname = (typeof currentChatUser !== "undefined") ? currentChatUser : null;
+    var uname = (typeof window.currentChatUser !== "undefined") ? window.currentChatUser : null;
     if (!uname) {
       if (typeof showToast === "function") showToast("চ্যাট খুলুন আগে");
       return;
@@ -10831,8 +10831,8 @@ _closeTopPage = function _closeTopPageUnified() {
     try { if (typeof _exitChatMultiSelect === "function") _exitChatMultiSelect(); } catch (e) {}
     try { if (typeof _closeChatSearch === "function") _closeChatSearch(); } catch (e) {}
     cw.classList.add("hidden");
-    if (typeof currentChatUser !== "undefined") currentChatUser = null;
-    if (typeof lastMsgCount !== "undefined") lastMsgCount = 0;
+    if (typeof window.currentChatUser !== "undefined") window.currentChatUser = null;
+    if (typeof window.lastMsgCount !== "undefined") window.lastMsgCount = 0;
     if (typeof _PageStack !== "undefined" && _PageStack[_PageStack.length - 1] === "chat") {
       _PageStack.pop();
     }
@@ -10898,7 +10898,7 @@ _closeTopPage = function _closeTopPageUnified() {
       try { if (typeof stopChatPolling === "function") stopChatPolling(); } catch (e) {}
       var el = document.getElementById("chat-window");
       if (el) el.classList.add("hidden");
-      if (typeof currentChatUser !== "undefined") currentChatUser = null;
+      if (typeof window.currentChatUser !== "undefined") window.currentChatUser = null;
     }
   };
 
@@ -12330,8 +12330,8 @@ window._reloadSheetComments = _reloadSheetComments;
     var p = document.getElementById("profile-page");
     if (p) p.classList.add("hidden");
     setTimeout(function () {
-      if (typeof openMessagesPage === "function") {
-        openMessagesPage().then(function () {
+      if (typeof window.openMessagesPage === "function") {
+        window.openMessagesPage().then(function () {
           if (typeof openChat === "function") openChat(data.user.username);
         });
       }

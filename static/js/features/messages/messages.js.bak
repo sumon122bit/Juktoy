@@ -5,7 +5,7 @@
 const messagesPage = document.getElementById("messages-page");
 const convItems = document.getElementById("conv-items");
 
-export async function loadConversations() {
+async function loadConversations() {
   if (!convItems) return;
   try {
     const convs = await api("/api/conversations");
@@ -16,7 +16,7 @@ export async function loadConversations() {
   }
 }
 
-export function renderConversations(convs) {
+function renderConversations(convs) {
   if (!Array.isArray(convs) || !convs.length) {
     convItems.innerHTML =
       '<div class="conv-empty">' +
@@ -89,15 +89,15 @@ export function renderConversations(convs) {
 }
 
 const chatWindow = document.getElementById("chat-window");
-window.chatMessages = document.getElementById("chat-messages");
+const chatMessages = document.getElementById("chat-messages");
 const chatForm = document.getElementById("chat-form");
 const chatInput = document.getElementById("chat-input");
 const chatUserInfo = document.getElementById("chat-user-info");
 const newChatModal = document.getElementById("new-chat-modal");
 
-window.currentChatUser = null;
+let currentChatUser = null;
 let chatPollTimer = null;
-window.lastMsgCount = 0;
+let lastMsgCount = 0;
 
 // S29.5 - chat settings cache.
 // These values (theme/nickname/wallpaper/pinned/muted) only change when
@@ -107,13 +107,13 @@ window.lastMsgCount = 0;
 let _chatSettingsCache = {};
 let _chatSettingsInflight = {};
 
-export function _invalidateChatSettings(username) {
+function _invalidateChatSettings(username) {
   if (!username) return;
   delete _chatSettingsCache[username];
   delete _chatSettingsInflight[username];
 }
 
-export function _getChatSettings(username) {
+function _getChatSettings(username) {
   if (!username) return Promise.resolve(null);
   if (_chatSettingsCache[username]) {
     return Promise.resolve(_chatSettingsCache[username]);
@@ -135,19 +135,19 @@ export function _getChatSettings(username) {
   return p;
 }
 
-export async function openMessagesPage() {
+async function openMessagesPage() {
   if (!messagesPage) return;
   messagesPage.classList.remove("hidden");
   chatWindow.classList.add("hidden");
   document.body.classList.remove("messages-chat-open");
-  window.currentChatUser = null;
+  currentChatUser = null;
   _refreshMsgTitleBadge();
   _loadMsgStoryRow();
   await loadConversations();
 }
 
 // ---------- Horizontal contacts / story row ----------
-export async function _refreshMsgTitleBadge() {
+async function _refreshMsgTitleBadge() {
   try {
     const data = await api("/api/messages/unread/count");
     const n = data.count || 0;
@@ -162,7 +162,7 @@ export async function _refreshMsgTitleBadge() {
   } catch (e) {}
 }
 
-export async function _loadMsgStoryRow() {
+async function _loadMsgStoryRow() {
   var row = document.getElementById("msg-stories-row");
   if (!row) return;
   row.innerHTML = '<div class="msg-story-skel"></div>'.repeat(6);
@@ -279,7 +279,7 @@ export async function _loadMsgStoryRow() {
 }
 
 // ---------- Open story viewer for a specific username ----------
-export function openStoryForUser(username) {
+function openStoryForUser(username) {
   if (!username) return false;
   if (typeof storyGroups === "undefined" || !Array.isArray(storyGroups)) return false;
   // Find group index
@@ -307,11 +307,11 @@ export function openStoryForUser(username) {
   return false;
 }
 
-export async function openChat(username) {
+async function openChat(username) {
   if (!messagesPage) return;
   messagesPage.classList.remove("hidden");
   document.body.classList.add("messages-chat-open");
-  window.currentChatUser = username;
+  currentChatUser = username;
   chatWindow.classList.remove("hidden");
   if (typeof _applyChatPrefs === "function") _applyChatPrefs(username);
 
@@ -324,16 +324,16 @@ export async function openChat(username) {
   if (chatInput) chatInput.focus();
 }
 
-export async function loadChatMessages(scrollToBottom = false) {
-  if (!window.currentChatUser) return;
+async function loadChatMessages(scrollToBottom = false) {
+  if (!currentChatUser) return;
   // S30.2 - snapshot the user we're loading for; if the chat changes mid-flight,
   // abandon this render (was: results from old user could render into new chat)
-  var _myUser = window.currentChatUser;
+  var _myUser = currentChatUser;
 
   try {
     const data = await api("/api/messages/" + encodeURIComponent(_myUser));
     // bail if user changed while we were awaiting
-    if (window.currentChatUser !== _myUser) return;
+    if (currentChatUser !== _myUser) return;
 
     const u = data.user;
 
@@ -350,14 +350,14 @@ export async function loadChatMessages(scrollToBottom = false) {
     var _headerName = u.display_name;
     try {
       var _st = await _getChatSettings(u.username);
-      if (window.currentChatUser !== _myUser) return;
+      if (currentChatUser !== _myUser) return;
       if (_st && _st.nickname && _st.nickname.trim()) {
         _headerName = _st.nickname;
       } else if (data.their_self_nickname && data.their_self_nickname.trim()) {
         _headerName = data.their_self_nickname;
       }
     } catch (e) {}
-    if (window.currentChatUser !== _myUser) return;
+    if (currentChatUser !== _myUser) return;
 
     // S30.2 - only rewrite header if content actually changed (stop 3s flicker)
     var _newHeaderHTML = `
@@ -381,10 +381,10 @@ export async function loadChatMessages(scrollToBottom = false) {
     var _lastId = msgs.length ? String(msgs[msgs.length - 1].id) : "0";
     var _sig = _lastId + ":" + msgs.length + ":" + (data.other_is_typing ? "1" : "0");
 
-    if (window.chatMessages.dataset.sig === _sig && !scrollToBottom) return;
+    if (chatMessages.dataset.sig === _sig && !scrollToBottom) return;
 
     const wasAtBottom =
-      window.chatMessages.scrollHeight - window.chatMessages.scrollTop - window.chatMessages.clientHeight < 120;
+      chatMessages.scrollHeight - chatMessages.scrollTop - chatMessages.clientHeight < 120;
 
     let _lastDay = "";
     const _parts = msgs.map(function (m) {
@@ -397,29 +397,29 @@ export async function loadChatMessages(scrollToBottom = false) {
       }
       return sep + _chatMsgHTML(m, data.me_id);
     });
-    window.chatMessages.innerHTML = _parts.join("");
-    window.chatMessages.dataset.sig = _sig;
-    window.lastMsgCount = msgs.length;
+    chatMessages.innerHTML = _parts.join("");
+    chatMessages.dataset.sig = _sig;
+    lastMsgCount = msgs.length;
 
     if (scrollToBottom || wasAtBottom) {
-      window.chatMessages.scrollTop = window.chatMessages.scrollHeight;
+      chatMessages.scrollTop = chatMessages.scrollHeight;
     }
   } catch (err) {
     // S30.2 - do NOT wipe existing messages on transient error.
     // Show inline indicator instead. Next successful poll will recover.
-    if (window.currentChatUser !== _myUser) return;
-    if (!window.chatMessages.dataset.sig) {
+    if (currentChatUser !== _myUser) return;
+    if (!chatMessages.dataset.sig) {
       // truly empty — show placeholder
-      window.chatMessages.innerHTML = '<div class="conv-empty" style="padding:40px 20px"><p>লোড করা যায়নি</p></div>';
+      chatMessages.innerHTML = '<div class="conv-empty" style="padding:40px 20px"><p>লোড করা যায়নি</p></div>';
     }
     // reset signature so next poll ALWAYS re-renders (was: count matched → early return → stuck)
-    window.chatMessages.dataset.sig = "";
+    chatMessages.dataset.sig = "";
     console.warn("[CHAT] load failed, will retry:", err && err.message);
   }
 }
 
 // S19.11 — date separator helper
-export function _chatDateSepHTML(iso) {
+function _chatDateSepHTML(iso) {
   const d = parseISO(iso);
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -442,7 +442,7 @@ export function _chatDateSepHTML(iso) {
 }
 
 
-export function _presenceText(secs) {
+function _presenceText(secs) {
   if (secs === null || secs === undefined) return { text: "অফলাইন", online: false };
   if (secs < 60) return { text: "অনলাইন", online: true };
   if (secs < 3600) {
@@ -460,7 +460,7 @@ export function _presenceText(secs) {
   return { text: "শেষ দেখা অনেক আগে", online: false };
 }
 
-export function _chatMsgHTML(m, meId) {
+function _chatMsgHTML(m, meId) {
   // Series 3C — deleted message render
   if (m.deleted_at) {
     const _mineDel = m.sender_id === meId;
@@ -542,7 +542,7 @@ export function _chatMsgHTML(m, meId) {
   '</div>';
 }
 
-export function stopChatPolling() {
+function stopChatPolling() {
   if (chatPollTimer) {
     clearInterval(chatPollTimer);
     chatPollTimer = null;
@@ -563,25 +563,25 @@ export function stopChatPolling() {
   } catch (e) {}
 }
 
-export function startChatPolling() {
+function startChatPolling() {
   stopChatPolling();
   chatPollTimer = setInterval(() => {
-    if (window.currentChatUser && messagesPage && !messagesPage.classList.contains("hidden") && !document.hidden) {
+    if (currentChatUser && messagesPage && !messagesPage.classList.contains("hidden") && !document.hidden) {
       loadChatMessages(false);
     }
   }, 3000);
 }
 
 // ---------- Chat 3-dot menu ----------
-export async function _openChatMenu() {
-  if (!window.currentChatUser) return;
+async function _openChatMenu() {
+  if (!currentChatUser) return;
   const old = document.getElementById("chat-menu");
   if (old) old.remove();
 
   // S29.5 - read from cache (populated by openChat / prior menu open)
   let settings = { pinned: false, muted: false };
   try {
-    var _s = await _getChatSettings(window.currentChatUser);
+    var _s = await _getChatSettings(currentChatUser);
     if (_s) settings = _s;
   } catch (e) {}
 
@@ -635,7 +635,7 @@ export async function _openChatMenu() {
     btn.addEventListener("click", async () => {
       const act = btn.dataset.act;
       close();
-      const u = window.currentChatUser;
+      const u = currentChatUser;
       if (!u) return;
 
       if (act === "profile") {
@@ -676,7 +676,7 @@ export async function _openChatMenu() {
           await api("/api/chats/" + encodeURIComponent(u) + "/clear", { method: "POST" });
           showToast("🧹 চ্যাট ক্লিয়ার হয়েছে");
           await loadChatMessages(true);
-          window.lastMsgCount = 0;
+          lastMsgCount = 0;
         } catch (e) { alert(e.message); }
       } else if (act === "block") {
         if (!confirm("@" + u + " কে ব্লক করবেন?")) return;
@@ -686,7 +686,7 @@ export async function _openChatMenu() {
           stopChatPolling();
           document.getElementById("chat-window")?.classList.add("hidden");
           document.body.classList.remove("messages-chat-open");
-          window.currentChatUser = null;
+          currentChatUser = null;
           loadConversations();
         } catch (e) { alert(e.message); }
       }
@@ -712,11 +712,11 @@ document.addEventListener("click", (e) => {
   if (!ci) return;
   let _lastTypingSent = 0;
   ci.addEventListener("input", function () {
-    if (!window.currentChatUser) return;
+    if (!currentChatUser) return;
     const now = Date.now();
     if (now - _lastTypingSent < 2500) return;
     _lastTypingSent = now;
-    api("/api/messages/" + encodeURIComponent(window.currentChatUser) + "/typing", {
+    api("/api/messages/" + encodeURIComponent(currentChatUser) + "/typing", {
       method: "POST",
     }).catch(function () {});
   });
@@ -726,7 +726,7 @@ if (chatForm) {
   chatForm.addEventListener("submit", async (e) => {
     e.preventDefault();
     const text = chatInput.value.trim();
-    if (!text || !window.currentChatUser) return;
+    if (!text || !currentChatUser) return;
 
     chatInput.value = "";
     const sendBtn = document.getElementById("chat-send-btn");
@@ -735,12 +735,12 @@ if (chatForm) {
     const temp = document.createElement("div");
     temp.className = "chat-msg outgoing";
     temp.innerHTML = `${escapeHtml(text)}<div class="chat-msg-time">এইমাত্র</div>`;
-    window.chatMessages.appendChild(temp);
-    window.chatMessages.scrollTop = window.chatMessages.scrollHeight;
-    window.lastMsgCount++;
+    chatMessages.appendChild(temp);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+    lastMsgCount++;
 
     try {
-      await api("/api/messages/" + encodeURIComponent(window.currentChatUser), {
+      await api("/api/messages/" + encodeURIComponent(currentChatUser), {
         method: "POST",
         body: JSON.stringify({ content: text }),
       });
@@ -748,7 +748,7 @@ if (chatForm) {
       await loadConversations();
     } catch (err) {
       temp.remove();
-      window.lastMsgCount--;
+      lastMsgCount--;
       alert(err.message);
     } finally {
       if (sendBtn) sendBtn.disabled = false;
@@ -765,8 +765,8 @@ if (chatCloseBtn) {
     document.body.classList.remove("messages-chat-open");
     if (typeof _exitChatMultiSelect === "function") _exitChatMultiSelect();
     if (typeof _closeChatSearch === "function") _closeChatSearch();
-    window.currentChatUser = null;
-    window.lastMsgCount = 0;
+    currentChatUser = null;
+    lastMsgCount = 0;
     loadConversations();
   });
 }
@@ -853,7 +853,7 @@ if (convSearchInput) {
 // Unread badge on sidebar
 const mbnMessages = document.querySelector('.mbn-item[data-mbn="messages"]');
 
-export async function updateUnreadBadge() {
+async function updateUnreadBadge() {
   try {
     const data = await api("/api/messages/unread/count");
     const count = data.count || 0;
@@ -921,22 +921,3 @@ if (typeof _pushPage === "function") {
     }
   };
 }
-
-// ---------- Temporary bridge ----------
-window.loadConversations = loadConversations;
-window.renderConversations = renderConversations;
-window._invalidateChatSettings = _invalidateChatSettings;
-window._getChatSettings = _getChatSettings;
-window.openMessagesPage = openMessagesPage;
-window._refreshMsgTitleBadge = _refreshMsgTitleBadge;
-window._loadMsgStoryRow = _loadMsgStoryRow;
-window.openStoryForUser = openStoryForUser;
-window.openChat = openChat;
-window.loadChatMessages = loadChatMessages;
-window._chatDateSepHTML = _chatDateSepHTML;
-window._presenceText = _presenceText;
-window._chatMsgHTML = _chatMsgHTML;
-window.stopChatPolling = stopChatPolling;
-window.startChatPolling = startChatPolling;
-window._openChatMenu = _openChatMenu;
-window.updateUnreadBadge = updateUnreadBadge;
