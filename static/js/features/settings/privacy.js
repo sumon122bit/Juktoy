@@ -16,9 +16,9 @@
       : "সবাই আপনার posts দেখতে পাবে";
   }
 
-  // Initialize from state
-  if (state.me) {
-    _apply(!!state.me.is_private);
+  // Initialize from window.state
+  if (window.state && window.state.me) {
+    _apply(!!window.state.me.is_private);
   }
 
   sw.addEventListener("click", async function (e) {
@@ -36,9 +36,9 @@
         method: "POST",
         body: JSON.stringify({ is_private: next }),
       });
-      // S18.9h3 — use ACTUAL saved state from server
+      // S18.9h3 — use ACTUAL saved window.state from server
       var savedPrivate = !!res.is_private;
-      if (state.me) state.me.is_private = savedPrivate ? 1 : 0;
+      if (window.state.me) window.state.me.is_private = savedPrivate ? 1 : 0;
       _apply(savedPrivate);  // re-sync UI with server truth
       showToast(savedPrivate ? "🔒 Private করা হয়েছে — শুধু followers দেখবে" : "🌐 Public করা হয়েছে — সবাই দেখবে");
     } catch (err) {
@@ -64,7 +64,7 @@
 
   window.openProfile = async function (username) {
     await _origOpenProfile(username);
-    // After profile data loaded, check private state
+    // After profile data loaded, check private window.state
     var data = window._currentProfileData;
     if (!data) return;
 
@@ -72,7 +72,7 @@
     var canSee = data.can_see_posts !== false;
     var isFollowing = data.is_following;
     // S18.9h — never show lock on own profile
-    var isSelf = state.me && data.user && state.me.username === data.user.username;
+    var isSelf = window.state.me && data.user && window.state.me.username === data.user.username;
 
     // Add/remove lock icon next to name
     var nameRow = document.querySelector("#profile-page .profile-name-row h2");
