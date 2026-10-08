@@ -46,8 +46,8 @@
 
     pane.querySelectorAll(".profile-photo-cell").forEach(function (cell) {
       cell.addEventListener("click", function () {
-        if (typeof openImageViewer === "function") {
-          openImageViewer(cell.dataset.src);
+        if (typeof window.openImageViewer === "function") {
+          window.openImageViewer(cell.dataset.src);
         }
       });
     });
