@@ -1,4 +1,4 @@
-function resizeImage(file, maxSize = 400, quality = 0.85) {
+export function resizeImage(file, maxSize = 400, quality = 0.85) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -30,3 +30,6 @@ function resizeImage(file, maxSize = 400, quality = 0.85) {
     reader.readAsDataURL(file);
   });
 }
+
+// ---------- Temporary bridge (remove after full ESM migration) ----------
+window.resizeImage = resizeImage;
