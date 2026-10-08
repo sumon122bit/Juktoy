@@ -4,14 +4,14 @@
 
 const THEME_KEY = "juktoy_theme_v2";
 
-function saveTheme(theme) {
+export function saveTheme(theme) {
   try { localStorage.setItem(THEME_KEY, theme); } catch (e) {}
   try {
     document.cookie = THEME_KEY + "=" + theme + "; path=/; max-age=31536000; SameSite=Lax";
   } catch (e) {}
 }
 
-function readSavedTheme() {
+export function readSavedTheme() {
   try {
     const v = localStorage.getItem(THEME_KEY);
     if (v === "light" || v === "dark") return v;
@@ -26,7 +26,7 @@ function readSavedTheme() {
   return null;
 }
 
-function applyTheme(theme) {
+export function applyTheme(theme) {
   const isLight = theme === "light";
 document.body.classList.toggle("light", isLight);
 document.body.classList.toggle("dark", !isLight);
@@ -51,7 +51,7 @@ document.body.classList.toggle("dark", !isLight);
   saveTheme(theme);
 }
 
-function toggleTheme() {
+export function toggleTheme() {
   const isLight = document.body.classList.contains("light");
   applyTheme(isLight ? "dark" : "light");
 }
@@ -61,3 +61,9 @@ const authThemeToggleEl = document.getElementById("auth-theme-toggle");
 
 if (themeSwitchEl) themeSwitchEl.addEventListener("click", toggleTheme);
 if (authThemeToggleEl) authThemeToggleEl.addEventListener("click", toggleTheme);
+
+// ---------- Temporary bridge (remove after full ESM migration) ----------
+window.saveTheme = saveTheme;
+window.readSavedTheme = readSavedTheme;
+window.applyTheme = applyTheme;
+window.toggleTheme = toggleTheme;

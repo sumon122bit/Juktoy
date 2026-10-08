@@ -11,5 +11,6 @@ import './components/toast.js';
 import './components/avatar.js';
 import './components/image.js';
 import './components/sidebar.js';
+import './components/theme.js';
 
 console.log('[MAIN] ES modules foundation loaded ✅');
