@@ -318,7 +318,7 @@ document.querySelectorAll(".nav-item").forEach((item) => {
       if (typeof window.openSavedPage === "function") window.openSavedPage();
     } else if (nav === "settings") {
       closeSidebar();
-      openSettingsPage();
+      if (typeof window.openSettingsPage === "function") window.openSettingsPage();
     } else {
       closeSidebar();
     }
@@ -381,6 +381,7 @@ function refreshProfileUI() {
   const bioEl = document.getElementById("bio-text");
   if (bioEl) bioEl.textContent = u.bio || "বায়ো নেই";
 }
+window.refreshProfileUI = refreshProfileUI;
 
 
 
@@ -2910,119 +2911,6 @@ document.addEventListener("click", function (e) {
   if (username) openProfile(username);
 });
 
-
-// ==================================================
-// SETTINGS PAGE
-// ==================================================
-
-async function openSettingsPage() {
-  const page = document.getElementById("settings-page");
-  if (!page) return;
-  if (!page.classList.contains("hidden")) return;
-
-  // S22 / Series 27B-1 — load security dashboard
-  _loadSecurityDashboard().catch(() => {});
-
-  // S22 / Series 27B-2 — check email verified before 2FA enable
-  _checkEmailGateFor2FA().catch(() => {});
-
-  // S18.9h3 — refresh state.me so privacy toggle shows correct value
-  try {
-    const fresh = await api("/api/me");
-    if (fresh && fresh.user) state.me = fresh.user;
-  } catch (e) {}
-
-  const unameInput = document.getElementById("set-username");
-  if (unameInput && state.me) unameInput.value = state.me.username;
-
-  const curUname = document.getElementById("set-current-uname");
-  if (curUname && state.me) curUname.textContent = "@" + state.me.username;
-
-  ["set-current-pw", "set-new-pw", "set-confirm-pw"].forEach((id) => {
-    const el = document.getElementById(id);
-    if (el) el.value = "";
-  });
-
-  page.classList.remove("hidden");
-  _pushPage("settings");
-}
-
-document.getElementById("btn-change-pw")?.addEventListener("click", async () => {
-  const cur = document.getElementById("set-current-pw").value;
-  const neu = document.getElementById("set-new-pw").value;
-  const conf = document.getElementById("set-confirm-pw").value;
-
-  if (!cur || !neu || !conf) return showToast("সব ফিল্ড পূরণ করুন");
-  if (neu.length < 6) return showToast("পাসওয়ার্ড ৬+ অক্ষর হতে হবে");
-  if (neu !== conf) return showToast("নতুন পাসওয়ার্ড দুইবার একই লিখুন");
-  if (cur === neu) return showToast("নতুন পাসওয়ার্ড পুরোনোর মতো হতে পারে না");
-
-  const btn = document.getElementById("btn-change-pw");
-  btn.disabled = true;
-  btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> অপেক্ষা করুন...';
-  try {
-    await api("/api/me/password", {
-      method: "POST",
-      body: JSON.stringify({ current_password: cur, new_password: neu }),
-    });
-    ["set-current-pw", "set-new-pw", "set-confirm-pw"].forEach((id) => {
-      const el = document.getElementById(id);
-      if (el) el.value = "";
-    });
-    showToast("✅ পাসওয়ার্ড পরিবর্তন হয়েছে");
-  } catch (err) {
-    alert(err.message);
-  } finally {
-    btn.disabled = false;
-    btn.innerHTML = '<i class="fa-solid fa-check"></i> পাসওয়ার্ড বদলান';
-  }
-});
-
-document.getElementById("btn-change-uname")?.addEventListener("click", async () => {
-  const uname = (document.getElementById("set-username").value || "").trim().toLowerCase();
-  if (!uname) return showToast("নতুন ইউজারনেম লিখুন");
-  if (!/^[a-z0-9_]+$/.test(uname)) return showToast("শুধু a-z, 0-9, _ ব্যবহার করুন");
-  if (state.me && uname === state.me.username) return showToast("এটাই আপনার বর্তমান ইউজারনেম");
-
-  const btn = document.getElementById("btn-change-uname");
-  btn.disabled = true;
-  btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> অপেক্ষা করুন...';
-  try {
-    const res = await api("/api/me/username", {
-      method: "POST",
-      body: JSON.stringify({ username: uname }),
-    });
-    state.me.username = res.username;
-    refreshProfileUI();
-
-    const curUname = document.getElementById("set-current-uname");
-    if (curUname) curUname.textContent = "@" + res.username;
-
-    showToast("✅ ইউজারনেম পরিবর্তন হয়েছে");
-  } catch (err) {
-    alert(err.message);
-  } finally {
-    btn.disabled = false;
-    btn.innerHTML = '<i class="fa-solid fa-check"></i> ইউজারনেম বদলান';
-  }
-});
-
-document.getElementById("settings-back")?.addEventListener("click", () => {
-  if (_PageStack.length > 0) history.back();
-  else document.getElementById("settings-page")?.classList.add("hidden");
-});
-
-const _origCloseTopPageSettings = _closeTopPage;
-_closeTopPage = function () {
-  const top = _PageStack[_PageStack.length - 1];
-  if (top === "settings") {
-    _PageStack.pop();
-    document.getElementById("settings-page")?.classList.add("hidden");
-    return true;
-  }
-  return _origCloseTopPageSettings();
-};
-  window._closeTopPage = _closeTopPage;
 
 
 // S39 — wrapper disabled (unified loader at end of file)
@@ -7004,6 +6892,7 @@ async function _loadSecurityDashboard() {
     container.innerHTML = '<p style="color:var(--danger);text-align:center;padding:20px">লোড করা যায়নি</p>';
   }
 }
+window._loadSecurityDashboard = _loadSecurityDashboard;
 
 function _renderSecurityDashboard(d) {
   const c = d.checks || {};
@@ -7241,6 +7130,7 @@ async function _checkEmailGateFor2FA() {
     }
   } catch (e) {}
 }
+window._checkEmailGateFor2FA = _checkEmailGateFor2FA;
 console.log("[S27B-2] email gate ready ✅");
 
 // ═══════════════════════════════════════════════
@@ -8828,7 +8718,7 @@ window._reloadSheetComments = _reloadSheetComments;
           var url2 = window.location.origin + "/u/" + data.user.username;
           navigator.clipboard.writeText(url2).then(function(){ if (typeof showToast === "function") showToast("🔗 লিংক কপি"); });
         } else if (act === "settings") {
-          if (typeof openSettingsPage === "function") openSettingsPage();
+          if (typeof window.openSettingsPage === "function") window.openSettingsPage();
         } else if (act === "mute") {
           if (typeof showToast === "function") showToast("🔔 মিউট (আসছে)");
         } else if (act === "block") {
@@ -12262,52 +12152,3 @@ window._reloadSheetComments = _reloadSheetComments;
 })();
 
 
-// ═══════════════════════════════════════════════
-// S39 — Unified settings loader
-// Replaces 7 separate wrapper functions with one.
-// Runs after base openSettingsPage, then calls
-// every loader in parallel.
-// ═══════════════════════════════════════════════
-(function () {
-  if (window.__s39SettingsLoader) return;
-  window.__s39SettingsLoader = true;
-
-  var LOADERS = [
-    "_loadBlockedUsers",
-    "_loadMyReports",
-    "_load2FAStatus",
-    "_loadEmailStatus",
-    "_loadSessions",
-    "_loadLoginHistory",
-    "_load2FAToggles"
-  ];
-
-  async function runAllLoaders() {
-    var tasks = [];
-    for (var i = 0; i < LOADERS.length; i++) {
-      var name = LOADERS[i];
-      var fn = window[name];
-      if (typeof fn !== "function") continue;
-      try {
-        tasks.push(
-          Promise.resolve(fn()).catch(function (e) {
-            console.error("[S39 settings] " + name + " failed:", e);
-          })
-        );
-      } catch (e) {
-        console.error("[S39 settings] " + name + " threw:", e);
-      }
-    }
-    await Promise.all(tasks);
-  }
-
-  var _origOpenSettings = window.openSettingsPage;
-  if (typeof _origOpenSettings === "function") {
-    window.openSettingsPage = async function () {
-      await _origOpenSettings.apply(this, arguments);
-      await runAllLoaders();
-    };
-  }
-
-  console.log("[S39] unified settings loader ready");
-})();
