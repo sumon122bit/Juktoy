@@ -16,5 +16,8 @@ import './components/theme.js';
 import './components/composer.js';
 import './features/feed/reactions.js';
 import './features/search/search.js';
+import './features/feed/feed.js';
+import './features/feed/comments.js';
+import './features/explore/explore.js';
 
 console.log('[MAIN] ES modules foundation loaded ✅');

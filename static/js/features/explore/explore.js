@@ -2,7 +2,7 @@
 // FOLLOW SYSTEM (frontend)
 // ==================================================
 
-async function toggleFollow(e) {
+export async function toggleFollow(e) {
   const btn = e.currentTarget;
   const username = btn.dataset.username;
   const isFollowing = btn.dataset.following === "1";
@@ -32,7 +32,7 @@ async function toggleFollow(e) {
   }
 }
 
-async function showFollowList(username, type) {
+export async function showFollowList(username, type) {
   try {
     const users = await api("/api/users/" + encodeURIComponent(username) + "/" + type);
 
@@ -94,7 +94,7 @@ async function showFollowList(username, type) {
 // EXPLORE + HASHTAG SYSTEM
 // ==================================================
 
-function linkifyHashtags(text) {
+export function linkifyHashtags(text) {
   // S30.15/30.27 — ReDoS cap + apostrophe-safe hashtag detection
   if (!text) return "";
   var s = String(text);
@@ -108,7 +108,7 @@ function linkifyHashtags(text) {
     });
 }
 
-function attachHashtagListeners(container) {
+export function attachHashtagListeners(container) {
   if (!container) return;
   container.querySelectorAll(".hashtag-link").forEach((el) => {
     el.addEventListener("click", (e) => {
@@ -119,7 +119,7 @@ function attachHashtagListeners(container) {
   });
 }
 
-async function openExplorePage() {
+export async function openExplorePage() {
   const page = document.getElementById("explore-page");
   if (!page) return;
   page.classList.remove("hidden");
@@ -149,7 +149,7 @@ document.querySelectorAll(".explore-tab").forEach((tab) => {
 
 
 // Load trending tags
-async function loadTrendingTags() {
+export async function loadTrendingTags() {
   const el = document.getElementById("explore-trending");
   if (!el) return;
   try {
@@ -181,7 +181,7 @@ async function loadTrendingTags() {
 }
 
 // Load top posts
-async function loadTopPosts() {
+export async function loadTopPosts() {
   const el = document.getElementById("explore-posts");
   if (!el) return;
   try {
@@ -207,7 +207,7 @@ async function loadTopPosts() {
   }
 }
 
-function explorePostHTML(p) {
+export function explorePostHTML(p) {
   return `
     <div class="explore-post-card" data-user="${escapeHtml(p.username)}">
       <div class="explore-post-head">
@@ -245,3 +245,13 @@ if (typeof _pushPage === "function") {
     }
   };
 }
+
+// ---------- Temporary bridge ----------
+window.toggleFollow = toggleFollow;
+window.showFollowList = showFollowList;
+window.linkifyHashtags = linkifyHashtags;
+window.attachHashtagListeners = attachHashtagListeners;
+window.openExplorePage = openExplorePage;
+window.loadTrendingTags = loadTrendingTags;
+window.loadTopPosts = loadTopPosts;
+window.explorePostHTML = explorePostHTML;

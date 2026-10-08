@@ -1,4 +1,4 @@
-async function loadComments(postId, section) {
+export async function loadComments(postId, section) {
   // S32.1 — bail out if section is gone (sheet may have closed)
   if (!section) return;
   const list = section.querySelector(".comments-list");
@@ -24,7 +24,7 @@ const REPLIES_VISIBLE = 2; // কতটা reply ডিফল্টে দেখ
 // S32.2 — comment serial counter + mention linkifier
 let _cmtSerial = 0;
 
-function _linkifyMentions(escaped) {
+export function _linkifyMentions(escaped) {
   // S32.4 — produce clickable mention links (no navigation until JS handler)
   return String(escaped).replace(
     /(^|[\s(])@([\w\u0980-\u09FF\u200c\u200d_]{1,50})/g,
@@ -32,7 +32,7 @@ function _linkifyMentions(escaped) {
   );
 }
 
-function commentHTML(c, postId, isReply = false) {
+export function commentHTML(c, postId, isReply = false) {
   const _serial = ++_cmtSerial;   // S32.2 — sequential number
   const isMine = state.me && state.me.username === c.username;
   const liked = c.i_liked ? "liked" : "";
@@ -85,7 +85,7 @@ function commentHTML(c, postId, isReply = false) {
   `;
 }
 
-function bindCommentEvents(container, postId) {
+export function bindCommentEvents(container, postId) {
   // Like
   container.querySelectorAll(".c-like-btn").forEach((btn) => {
     btn.addEventListener("click", async (e) => {
@@ -226,3 +226,9 @@ function bindCommentEvents(container, postId) {
     });
   });
 }
+
+// ---------- Temporary bridge ----------
+window.loadComments = loadComments;
+window._linkifyMentions = _linkifyMentions;
+window.commentHTML = commentHTML;
+window.bindCommentEvents = bindCommentEvents;

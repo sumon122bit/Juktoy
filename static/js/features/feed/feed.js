@@ -2,7 +2,7 @@
 // FEED
 // ==================================================
 
-async function loadFeed() {
+export async function loadFeed() {
   const list = document.getElementById("feed-list");
   if (!list) return;
 
@@ -49,7 +49,7 @@ async function loadFeed() {
   }
 }
 
-function renderQuotedPost(p) {
+export function renderQuotedPost(p) {
   if (!p) return "";
 
   const username = p.username || "";
@@ -73,7 +73,7 @@ function renderQuotedPost(p) {
   `;
 }
 
-function postHTML(p) {
+export function postHTML(p) {
   const isOwn = state.me && state.me.username === p.username;
 
   // ---- S31 — reactions stack ----
@@ -180,7 +180,7 @@ function postHTML(p) {
   </div>`;
 }
 
-function bindPostEvents() {
+export function bindPostEvents() {
   document.querySelectorAll(".post").forEach((post) => {
     const id = post.dataset.id;
 
@@ -229,3 +229,9 @@ function bindPostEvents() {
     });
   });
 }
+
+// ---------- Temporary bridge ----------
+window.loadFeed = loadFeed;
+window.renderQuotedPost = renderQuotedPost;
+window.postHTML = postHTML;
+window.bindPostEvents = bindPostEvents;
