@@ -188,136 +188,6 @@ window.bindPostEvents = function() {
 };
 
 
-// ==================================================
-// PAGE STACK + HARDWARE BACK BUTTON HANDLER
-// ==================================================
-
-const _PageStack = [];
-  window._PageStack = _PageStack;
-let _historyBooted = false;
-let _lastBackPress = 0;
-
-function _initHistoryOnce() {
-  if (_historyBooted) return;
-  _historyBooted = true;
-  // Base state — so we have something to "stay on"
-  history.replaceState({ page: "home" }, "", window.location.pathname);
-}
-
-function _pushPage(name) {
-  _initHistoryOnce();
-  _PageStack.push(name);
-  history.pushState({ page: name }, "", "");
-}
-  window._pushPage = _pushPage;
-
-function _closeTopPage() {
-  const top = _PageStack.pop();
-  if (!top) return false;
-
-  if (top === "profile") {
-    const el = document.getElementById("profile-page");
-    if (el) el.classList.add("hidden");
-  } else if (top === "messages") {
-    if (typeof stopChatPolling === "function") stopChatPolling();
-    const el = document.getElementById("messages-page");
-    if (el) el.classList.add("hidden");
-  } else if (top === "explore") {
-    const el = document.getElementById("explore-page");
-    if (el) el.classList.add("hidden");
-  } else if (top === "hashtag") {
-    const el = document.getElementById("hashtag-page");
-    if (el) el.classList.add("hidden");
-  } else if (top === "story-viewer") {
-    if (typeof closeStoryViewer === "function") closeStoryViewer();
-  } else if (top === "chat") {
-    if (typeof stopChatPolling === "function") stopChatPolling();
-    var _cw = document.getElementById("chat-window");
-    if (_cw) _cw.classList.add("hidden");
-    document.body.classList.remove("messages-chat-open");   // restore topbar
-    if (typeof window.currentChatUser !== "undefined") window.currentChatUser = null;
-    if (typeof window.lastMsgCount !== "undefined") window.lastMsgCount = 0;
-    if (typeof loadConversations === "function") loadConversations();
-    if (typeof window._updateOverlayClass === "function") window._updateOverlayClass();
-  }
-  return true;
-}
-  window._closeTopPage = _closeTopPage;
-
-// Handle hardware back button + browser back
-let _lastPopstateAt = 0;
-window.addEventListener("popstate", (e) => {
-  // Dedupe: some Android browsers fire popstate twice for one back press
-  const _now = Date.now();
-  if (_now - _lastPopstateAt < 150) return;
-  _lastPopstateAt = _now;
-
-  // If there is an open page, close it
-  if (_PageStack.length > 0) {
-    _closeTopPage();
-    return;
-  }
-
-  // Nothing on the stack — user is trying to exit from home
-  if (state.me) {
-    const now = Date.now();
-    if (now - _lastBackPress < 2000) {
-      // Second press within 2s — let them exit
-      // Do nothing, browser will exit
-      return;
-    }
-    _lastBackPress = now;
-    // Push state again so we stay in the app
-    history.pushState({ page: "home" }, "", "");
-    showToast("আবার back চাপলে অ্যাপ থেকে বের হবেন");
-  }
-});
-
-// ---------- Wire internal back buttons to history.back() ----------
-
-function _rebindBackButton(id) {
-  const old = document.getElementById(id);
-  if (!old) return;
-  const fresh = old.cloneNode(true);
-  old.parentNode.replaceChild(fresh, old);
-  fresh.addEventListener("click", () => {
-    if (_PageStack.length > 0) {
-      history.back();
-    } else {
-      // Fallback: manually close
-      if (id === "profile-back") document.getElementById("profile-page")?.classList.add("hidden");
-      if (id === "explore-back") document.getElementById("explore-page")?.classList.add("hidden");
-      if (id === "hashtag-back") document.getElementById("hashtag-page")?.classList.add("hidden");
-      if (id === "messages-back") document.getElementById("messages-page")?.classList.add("hidden");
-    }
-  });
-}
-
-_rebindBackButton("profile-back");
-_rebindBackButton("explore-back");
-_rebindBackButton("hashtag-back");
-_rebindBackButton("messages-back");
-_rebindBackButton("chat-close");
-_rebindBackButton("sv-close");
-
-// ---------- Wrap open functions to push stack ----------
-
-// window.openProfile
-const _origOpenProfile_stack = window.openProfile;
-window.openProfile = async function (username) {
-  await _origOpenProfile_stack(username);
-  const page = document.getElementById("profile-page");
-  if (page && !page.classList.contains("hidden")) {
-    _pushPage("profile");
-  }
-};
-
-
-window._enterAppHooks.push(() => {
-  _initHistoryOnce();
-  _PageStack.length = 0; // reset on login
-});
-
 
 // ==================================================
 // S19.7 — FOLLOW BACK (from notification)
@@ -356,380 +226,6 @@ document.addEventListener("click", async function (e) {
 
 
 // ==================================================
-// MULTI-IMAGE COMPOSER + CAROUSEL
-// ==================================================
-
-// ---------- Composer: image management ----------
-
-let _pendingImages = []; // array of data URI strings
-const MAX_IMAGES = 10;
-
-const imagePreviewGrid = document.getElementById("image-preview-grid");
-const imageFileInput = document.getElementById("image-file-input");
-const btnPickImages = document.getElementById("btn-pick-images");
-
-if (btnPickImages) {
-  btnPickImages.addEventListener("click", (e) => {
-    e.preventDefault();
-    if (imageFileInput) imageFileInput.click();
-  });
-}
-
-if (imageFileInput) {
-  imageFileInput.addEventListener("change", async (e) => {
-    const files = Array.from(e.target.files || []);
-    if (!files.length) return;
-
-    for (const file of files) {
-      if (_pendingImages.length >= MAX_IMAGES) {
-        showToast(`সর্বোচ্চ ${MAX_IMAGES}টি ছবি`);
-        break;
-      }
-      if (!file.type.startsWith("image/")) continue;
-      if (file.size > 8_000_000) {
-        showToast("ছবির সাইজ ৮ MB এর নিচে হতে হবে");
-        continue;
-      }
-      try {
-        const resized = await resizeImage(file, 1200, 0.8);
-        _pendingImages.push(resized);
-      } catch (err) {
-        console.error("Image resize failed", err);
-      }
-    }
-
-    imageFileInput.value = "";
-    renderImagePreviewGrid();
-    updateComposerState();
-  });
-}
-
-function renderImagePreviewGrid() {
-  if (!imagePreviewGrid) return;
-
-  if (!_pendingImages.length) {
-    imagePreviewGrid.classList.add("hidden");
-    imagePreviewGrid.innerHTML = "";
-    return;
-  }
-
-  imagePreviewGrid.classList.remove("hidden");
-
-  let html = _pendingImages.map((src, i) => `
-    <div class="image-preview-item" data-idx="${i}">
-      <img src="${src}" alt="" loading="lazy" decoding="async">
-      <button class="image-preview-remove" data-idx="${i}" title="মুছুন">
-        <i class="fa-solid fa-xmark"></i>
-      </button>
-    </div>
-  `).join("");
-
-  // Add "more" tile if under max
-  if (_pendingImages.length < MAX_IMAGES) {
-    html += `
-      <div class="image-preview-add" id="image-preview-add-tile">
-        <i class="fa-solid fa-plus"></i>
-        <span>আরও</span>
-      </div>
-    `;
-  }
-
-  imagePreviewGrid.innerHTML = html;
-
-  // Remove handlers
-  imagePreviewGrid.querySelectorAll(".image-preview-remove").forEach((btn) => {
-    btn.addEventListener("click", (e) => {
-      e.preventDefault();
-      const idx = parseInt(btn.dataset.idx);
-      _pendingImages.splice(idx, 1);
-      renderImagePreviewGrid();
-      updateComposerState();
-    });
-  });
-
-  // Add more tile
-  const addTile = document.getElementById("image-preview-add-tile");
-  if (addTile) {
-    addTile.addEventListener("click", () => imageFileInput?.click());
-  }
-}
-
-function resetComposerImages() {
-  _pendingImages = [];
-  renderImagePreviewGrid();
-}
-
-// ---------- Override updateComposerState to consider images ----------
-
-const _origUpdateComposerState = window.updateComposerState;
-window.updateComposerState = function() {
-  if (!window.postContent || !window.postBtn) return;
-  window.postContent.style.height = "auto";
-  window.postContent.style.height = Math.min(window.postContent.scrollHeight, 180) + "px";
-  const hasText = window.postContent.value.trim().length > 0;
-  const hasImages = _pendingImages.length > 0;
-  const active = hasText || hasImages;
-  window.postBtn.classList.toggle("visible", active);
-
-  // Glow composer when something is ready
-  const composer = window.postBtn.closest(".composer-box");
-  if (composer) composer.classList.toggle("has-content", active);
-};
-
-// ---------- Override post creation handler ----------
-
-// Remove old window.postBtn click handler by cloning
-if (window.postBtn) {
-  const newPostBtn = window.postBtn.cloneNode(true);
-  window.postBtn.parentNode.replaceChild(newPostBtn, window.postBtn);
-  window.postBtn = newPostBtn;   // S30.29 — reassign so const-holder keeps working
-
-  newPostBtn.addEventListener("click", async () => {
-    if (!window.postContent) return;
-    const text = window.postContent.value.trim();
-    const media = _pendingImages.slice();
-
-    if (!text && !media.length) return;
-
-    newPostBtn.disabled = true;
-    const oldHTML = newPostBtn.innerHTML;
-    newPostBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i>`;
-
-    try {
-      const res = await api("/api/posts", {
-        method: "POST",
-        body: JSON.stringify({ content: text, media }),
-      });
-      window.postContent.value = "";
-      resetComposerImages();
-      updateComposerState();
-      window.__highlightNextPost = true;
-      await loadFeed();
-      showToast("✅ পোস্ট হয়েছে!");
-    } catch (err) {
-      alert(err.message);
-    } finally {
-      newPostBtn.disabled = false;
-      newPostBtn.innerHTML = oldHTML;
-    }
-  });
-}
-
-// ---------- Carousel render for posts ----------
-
-function renderCarousel(media) {
-  if (!media || !media.length) return "";
-
-  // Single image — simple
-  if (media.length === 1) {
-    return `
-      <div class="post-carousel">
-        <div class="post-carousel-track">
-          <div class="post-carousel-slide">
-            <img src="${escapeHtml(media[0])}" alt="" loading="lazy" decoding="async">
-          </div>
-        </div>
-      </div>
-    `;
-  }
-
-  // Multiple — full carousel
-  const slides = media.map((src) => `
-    <div class="post-carousel-slide">
-      <img src="${escapeHtml(src)}" alt="" loading="lazy" decoding="async">
-    </div>
-  `).join("");
-
-  const dots = media.map((_, i) => `
-    <span class="post-carousel-dot ${i === 0 ? "active" : ""}" data-idx="${i}"></span>
-  `).join("");
-
-  return `
-    <div class="post-carousel" data-current="0" data-total="${media.length}">
-      <div class="post-carousel-counter">1 / ${media.length}</div>
-      <div class="post-carousel-track">${slides}</div>
-      <button class="post-carousel-arrow prev hidden">
-        <i class="fa-solid fa-chevron-left"></i>
-      </button>
-      <button class="post-carousel-arrow next">
-        <i class="fa-solid fa-chevron-right"></i>
-      </button>
-      <div class="post-carousel-dots">${dots}</div>
-    </div>
-  `;
-}
-
-// ---------- Carousel interactions (attach after rendering) ----------
-
-function attachCarouselListeners(container) {
-  if (!container) return;
-
-  container.querySelectorAll(".post-carousel").forEach((carousel) => {
-    const track = carousel.querySelector(".post-carousel-track");
-    const total = parseInt(carousel.dataset.total);
-    if (!track || total <= 1) return;
-
-    let current = 0;
-    const counter = carousel.querySelector(".post-carousel-counter");
-    const dots = carousel.querySelectorAll(".post-carousel-dot");
-    const prevBtn = carousel.querySelector(".post-carousel-arrow.prev");
-    const nextBtn = carousel.querySelector(".post-carousel-arrow.next");
-
-    function goTo(idx, fromSwipe = false) {
-      if (idx < 0) idx = 0;
-      if (idx >= total) idx = total - 1;
-      current = idx;
-
-      track.style.transition = fromSwipe ? "none" : "transform 0.4s cubic-bezier(0.4, 0, 0.2, 1)";
-      track.style.transform = `translateX(-${current * 100}%)`;
-
-      if (counter) counter.textContent = `${current + 1} / ${total}`;
-
-      dots.forEach((d, i) => d.classList.toggle("active", i === current));
-
-      if (prevBtn) prevBtn.classList.toggle("hidden", current === 0);
-      if (nextBtn) nextBtn.classList.toggle("hidden", current === total - 1);
-
-      // Fix for swipe mode: restore transition after
-      if (fromSwipe) {
-        requestAnimationFrame(() => {
-          track.style.transition = "transform 0.4s cubic-bezier(0.4, 0, 0.2, 1)";
-        });
-      }
-    }
-
-    // Arrows
-    prevBtn?.addEventListener("click", (e) => {
-      e.stopPropagation();
-      goTo(current - 1);
-    });
-    nextBtn?.addEventListener("click", (e) => {
-      e.stopPropagation();
-      goTo(current + 1);
-    });
-
-    // Dots
-    dots.forEach((dot) => {
-      dot.addEventListener("click", (e) => {
-        e.stopPropagation();
-        goTo(parseInt(dot.dataset.idx));
-      });
-    });
-
-    // Swipe (touch + mouse)
-    let startX = 0;
-    let startY = 0;
-    let isDragging = false;
-    let locked = false;
-
-    function onStart(x, y) {
-      startX = x;
-      startY = y;
-      isDragging = true;
-      locked = false;
-    }
-
-    function onMove(x, y) {
-      if (!isDragging) return;
-      const dx = x - startX;
-      const dy = y - startY;
-
-      // Lock direction on first significant move
-      if (!locked && (Math.abs(dx) > 8 || Math.abs(dy) > 8)) {
-        locked = true;
-        if (Math.abs(dy) > Math.abs(dx)) {
-          // Vertical scroll → cancel horizontal swipe
-          isDragging = false;
-          return;
-        }
-      }
-      if (!locked) return;
-      if (Math.abs(dx) < 5) return;
-
-      // Prevent text selection
-      if (Math.abs(dx) > 15) {
-        const offset = -current * 100 + (dx / carousel.offsetWidth) * 100;
-        track.style.transition = "none";
-        track.style.transform = `translateX(${offset}%)`;
-      }
-    }
-
-    function onEnd(x) {
-      if (!isDragging) {
-        isDragging = false;
-        return;
-      }
-      const dx = x - startX;
-      isDragging = false;
-      if (!locked) return;
-
-      const threshold = carousel.offsetWidth * 0.2;
-      if (dx < -threshold && current < total - 1) {
-        goTo(current + 1);
-      } else if (dx > threshold && current > 0) {
-        goTo(current - 1);
-      } else {
-        goTo(current);
-      }
-    }
-
-    // Touch
-    carousel.addEventListener("touchstart", (e) => {
-      onStart(e.touches[0].clientX, e.touches[0].clientY);
-    }, { passive: true });
-
-    carousel.addEventListener("touchmove", (e) => {
-      onMove(e.touches[0].clientX, e.touches[0].clientY);
-    }, { passive: true });
-
-    carousel.addEventListener("touchend", (e) => {
-      onEnd(e.changedTouches[0].clientX);
-    });
-
-    // Mouse drag (desktop)
-    carousel.addEventListener("mousedown", (e) => {
-      e.preventDefault();
-      onStart(e.clientX, e.clientY);
-    });
-
-    carousel.addEventListener("mousemove", (e) => {
-      onMove(e.clientX, e.clientY);
-    });
-
-    carousel.addEventListener("mouseup", (e) => {
-      onEnd(e.clientX);
-    });
-
-    carousel.addEventListener("mouseleave", (e) => {
-      if (isDragging) onEnd(e.clientX);
-    });
-
-    // Prevent img drag
-    carousel.querySelectorAll("img").forEach((img) => {
-      img.addEventListener("dragstart", (e) => e.preventDefault());
-    });
-  });
-}
-
-// ---------- Hook carousel into window.bindPostEvents ----------
-
-const _origBindPostEventsMulti = window.bindPostEvents;
-window.bindPostEvents = function() {
-  _origBindPostEventsMulti();
-  attachCarouselListeners(document.getElementById("feed-list"));
-};
-
-// Also run on window.enterApp for initial feed
-window._enterAppHooks.push(() => {
-  setTimeout(() => {
-    attachCarouselListeners(document.getElementById("feed-list"));
-  }, 500);
-});
-
-// Cleanup pending images when switching themes etc. — reset on load
-
-
-// ==================================================
 // POST BUTTON STATE SYNC — Bulletproof (polling)
 // ==================================================
 
@@ -739,7 +235,7 @@ function _syncPostBtnState() {
   if (!btn || !ta) return;
 
   const hasText = ta.value.trim().length > 0;
-  const hasImages = (typeof _pendingImages !== "undefined" && _pendingImages.length > 0);
+  const hasImages = (typeof window._pendingImages !== "undefined" && window._pendingImages.length > 0);
   const active = hasText || hasImages;
 
   const currentlyVisible = btn.classList.contains("visible");
@@ -3160,7 +2656,7 @@ function openAdminPage() {
   if (!page) return;
   page.classList.remove("hidden");
   document.body.classList.add("overlay-open");
-  _pushPage("admin");
+  window._pushPage("admin");
   _adminShowTab("dashboard");
 }
 
@@ -3201,25 +2697,25 @@ document.getElementById("admin-refresh")?.addEventListener("click", function () 
 
 // ---- Back ----
 document.getElementById("admin-back")?.addEventListener("click", function () {
-  if (_PageStack.length > 0 && _PageStack[_PageStack.length - 1] === "admin") {
+  if (window._PageStack.length > 0 && window._PageStack[window._PageStack.length - 1] === "admin") {
     history.back();
   } else {
     closeAdminPage();
   }
 });
 
-// ---- Extend _closeTopPage ----
-const _origCloseTopPageAdmin = _closeTopPage;
-_closeTopPage = function () {
-  var top = _PageStack[_PageStack.length - 1];
+// ---- Extend window._closeTopPage ----
+const _origCloseTopPageAdmin = window._closeTopPage;
+window._closeTopPage = function () {
+  var top = window._PageStack[window._PageStack.length - 1];
   if (top === "admin") {
-    _PageStack.pop();
+    window._PageStack.pop();
     closeAdminPage();
     return true;
   }
   return _origCloseTopPageAdmin();
 };
-  window._closeTopPage = _closeTopPage;
+  window._closeTopPage = window._closeTopPage;
 
 // ---- Nav item click ----
 document.addEventListener("click", function (e) {
@@ -6072,13 +5568,13 @@ function openBackupEmailModal() {
 // ==================================================
 // S29.10 - Unified page-closer (replaces 7-deep wrapper chain)
 // ==================================================
-// Previously _closeTopPage was redefined 7 times via
-//   const _origCloseTopPageX = _closeTopPage;
-//   _closeTopPage = function() { ... return _origCloseTopPageX(); };
+// Previously window._closeTopPage was redefined 7 times via
+//   const _origCloseTopPageX = window._closeTopPage;
+//   window._closeTopPage = function() { ... return _origCloseTopPageX(); };
 // producing an 8-level call chain. Any missed wrap meant that page
 // type could never be closed via back button. This unified version
 // uses a single dispatch table so adding a new overlay is one line.
-_closeTopPage = function _closeTopPageUnified() {
+window._closeTopPage = function _closeTopPageUnified() {
   // --- Step 1: if a chat conversation is open, close it first ---
   var cw = document.getElementById("chat-window");
   if (cw && !cw.classList.contains("hidden")) {
@@ -6088,8 +5584,8 @@ _closeTopPage = function _closeTopPageUnified() {
     cw.classList.add("hidden");
     if (typeof window.currentChatUser !== "undefined") window.currentChatUser = null;
     if (typeof window.lastMsgCount !== "undefined") window.lastMsgCount = 0;
-    if (typeof _PageStack !== "undefined" && _PageStack[_PageStack.length - 1] === "chat") {
-      _PageStack.pop();
+    if (typeof window._PageStack !== "undefined" && window._PageStack[window._PageStack.length - 1] === "chat") {
+      window._PageStack.pop();
     }
     try { if (typeof loadConversations === "function") loadConversations(); } catch (e) {}
     try { if (typeof window._updateOverlayClass === "function") window._updateOverlayClass(); } catch (e) {}
@@ -6097,8 +5593,8 @@ _closeTopPage = function _closeTopPageUnified() {
   }
 
   // --- Step 2: dispatch on stack top ---
-  if (typeof _PageStack === "undefined" || !_PageStack.length) return false;
-  var top = _PageStack[_PageStack.length - 1];
+  if (typeof window._PageStack === "undefined" || !window._PageStack.length) return false;
+  var top = window._PageStack[window._PageStack.length - 1];
 
   var CLOSERS = {
     "profile": function () {
@@ -6160,14 +5656,14 @@ _closeTopPage = function _closeTopPageUnified() {
   var closer = CLOSERS[top];
   if (!closer) return false;
 
-  _PageStack.pop();
+  window._PageStack.pop();
   try { closer(); }
   catch (err) { console.error("[S29.10] closer failed for", top, err); }
   try { if (typeof window._updateOverlayClass === "function") window._updateOverlayClass(); } catch (e) {}
   return true;
 };
-  window._closeTopPage = _closeTopPage;
-console.log("[S29.10] unified _closeTopPage registered");
+  window._closeTopPage = window._closeTopPage;
+console.log("[S29.10] unified window._closeTopPage registered");
 
 
 // ==================================================
@@ -7125,7 +6621,7 @@ window._reloadSheetComments = _reloadSheetComments;
     var pageInput = document.getElementById("search-page-input");
     if (page && pageInput) {
       // S39 — push to page stack so back button works
-      if (typeof _pushPage === "function") _pushPage("search-page");
+      if (typeof window._pushPage === "function") window._pushPage("search-page");
       page.classList.remove("hidden");
       pageInput.value = "";
       setTimeout(function () { try { pageInput.focus(); } catch (err) {} }, 60);

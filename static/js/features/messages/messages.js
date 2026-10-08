@@ -911,13 +911,13 @@ export async function updateUnreadBadge() {
 }
 
 // ---------- Self-wrap: page-stack integration ----------
-if (typeof _pushPage === "function") {
+if (typeof window._pushPage === "function") {
   const _origOpenMessagesPage = openMessagesPage;
   openMessagesPage = async function () {
     await _origOpenMessagesPage();
     const page = document.getElementById("messages-page");
     if (page && !page.classList.contains("hidden")) {
-      _pushPage("messages");
+      window._pushPage("messages");
     }
   };
 }

@@ -391,9 +391,9 @@
       e.stopPropagation();
       // S39 — direct close (simplest, always works)
       // Also clean up the page stack if it has our entry
-      if (typeof _PageStack !== "undefined") {
-        var idx = _PageStack.lastIndexOf("search-page");
-        if (idx !== -1) _PageStack.splice(idx, 1);
+      if (typeof window._PageStack !== "undefined") {
+        var idx = window._PageStack.lastIndexOf("search-page");
+        if (idx !== -1) window._PageStack.splice(idx, 1);
       }
       _close();
     });

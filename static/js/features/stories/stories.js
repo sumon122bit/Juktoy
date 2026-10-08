@@ -564,13 +564,13 @@ if (document.readyState === "loading") {
 }
 
 // ---------- Self-wrap: page-stack integration ----------
-if (typeof _pushPage === "function") {
+if (typeof window._pushPage === "function") {
   const _origOpenStoryViewer = openStoryViewer;
   openStoryViewer = async function (groupIdx, storyIdx) {
     await _origOpenStoryViewer(groupIdx, storyIdx);
     const viewer = document.getElementById("story-viewer");
     if (viewer && !viewer.classList.contains("hidden")) {
-      _pushPage("story-viewer");
+      window._pushPage("story-viewer");
     }
   };
 }

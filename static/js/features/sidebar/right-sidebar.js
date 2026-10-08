@@ -36,7 +36,7 @@ document.querySelectorAll(".mbn-item").forEach((btn) => {
         var el = document.getElementById(id);
         if (el) el.classList.add("hidden");
       });
-      if (typeof _PageStack !== "undefined") _PageStack.length = 0;
+      if (typeof window._PageStack !== "undefined") window._PageStack.length = 0;
       if (state.me && typeof loadFeed === "function") loadFeed();
       window.scrollTo({ top: 0, behavior: "smooth" });
     } else if (target === "explore") {
