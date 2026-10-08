@@ -135,442 +135,6 @@ function showMessage(text, type = "") {
   el.className = "message " + type;
 }
 
-// ==================================================
-// PROFILE PAGE
-// ==================================================
-
-const modal = document.getElementById("profile-modal");
-const closeProfile = document.getElementById("close-profile");
-
-if (closeProfile) closeProfile.addEventListener("click", () => modal.classList.add("hidden"));
-if (modal) {
-  modal.addEventListener("click", (e) => {
-    if (e.target === modal) modal.classList.add("hidden");
-  });
-}
-
-async function openProfile(username) {
-  try {
-    const data = await api("/api/users/" + encodeURIComponent(username));
-    window._currentProfileData = data;
-    const u = data.user;
-    const isMe = state.me && state.me.username === u.username;
-
-    const page = document.getElementById("profile-page");
-    const editIcon = document.getElementById("profile-edit-icon");
-
-    setAvatar(document.getElementById("profile-page-avatar"), u.display_name, u.profile_pic);
-    setProfileCover(u.cover_pic);
-    document.getElementById("profile-page-name").textContent = u.display_name;
-    document.getElementById("profile-page-username").textContent = "@" + u.username;
-    document.getElementById("profile-page-bio").textContent = u.bio || "বায়ো নেই";
-    var _aboutBio = document.getElementById("about-bio");
-    if (_aboutBio) _aboutBio.textContent = u.bio || "বায়ো নেই";
-
-    // Profile completion bar (only on own profile)
-    var compEl = document.getElementById("profile-completion");
-    if (compEl) {
-      if (isMe) {
-        if (typeof window._renderProfileCompletion === "function") window._renderProfileCompletion(u, data.posts ? data.posts.length : 0);
-      } else {
-        compEl.classList.add("hidden");
-      }
-    }
-
-    // Mutual followers
-    var mutualEl = document.getElementById("profile-page-mutual");
-    if (mutualEl) {
-      if (!isMe && data.mutual_count > 0 && data.mutual_followers && data.mutual_followers.length) {
-        var preview = data.mutual_followers.slice(0, 3);
-        var avatarsHTML = preview.map(function (m) {
-          return '<div class="pm-av">' +
-            (m.profile_pic
-              ? '<img src="' + escapeHtml(m.profile_pic) + '" alt="" loading="lazy" decoding="async">'
-              : initial(m.display_name)) +
-            '</div>';
-        }).join("");
-        var names = preview.map(function (m) { return m.display_name; });
-        var extra = data.mutual_count - preview.length;
-        var text;
-        if (names.length === 1) {
-          text = '<strong>' + escapeHtml(names[0]) + '</strong> ফলো করেন';
-        } else if (names.length === 2) {
-          text = '<strong>' + escapeHtml(names[0]) + '</strong> এবং <strong>' + escapeHtml(names[1]) + '</strong> ফলো করেন';
-        } else {
-          text = '<strong>' + escapeHtml(names[0]) + '</strong>, <strong>' + escapeHtml(names[1]) + '</strong>';
-          if (extra > 0) {
-            text += ' এবং <strong>আরও ' + extra + ' জন</strong>';
-          }
-          text += ' ফলো করেন';
-        }
-        mutualEl.innerHTML =
-          '<div class="pm-avatars">' + avatarsHTML + '</div>' +
-          '<div class="pm-text">' + text + '</div>';
-        mutualEl.classList.remove("hidden");
-        mutualEl.style.cursor = "pointer";
-        mutualEl.onclick = function () { showMutualFollowers(u.username); };
-      } else {
-        mutualEl.classList.add("hidden");
-        mutualEl.innerHTML = "";
-        mutualEl.onclick = null;
-      }
-    }
-
-    // Join date
-    var joinedEl = document.getElementById("profile-page-joined");
-    if (joinedEl && u.created_at) {
-      var dt = parseISO(u.created_at);
-      var months = ["জানুয়ারি", "ফেব্রুয়ারি", "মার্চ", "এপ্রিল", "মে", "জুন",
-                    "জুলাই", "আগস্ট", "সেপ্টেম্বর", "অক্টোবর", "নভেম্বর", "ডিসেম্বর"];
-      var day = dt.getDate();
-      var month = months[dt.getMonth()];
-      var year = dt.getFullYear();
-      var bnDay = String(day).replace(/[0-9]/g, function (d) { return "০১২৩৪৫৬৭৮৯"[d]; });
-      var bnYear = String(year).replace(/[0-9]/g, function (d) { return "০১২৩৪৫৬৭৮৯"[d]; });
-      joinedEl.querySelector("span").textContent = bnDay + " " + month + " " + bnYear + " এ যোগ দিয়েছেন";
-      joinedEl.style.display = "";
-    } else if (joinedEl) {
-      joinedEl.style.display = "none";
-    }
-    var _aboutUname = document.getElementById("about-username");
-    if (_aboutUname) _aboutUname.textContent = "@" + u.username;
-
-    // Update all 3 stats (posts / followers / following)
-    const statEls = document.querySelectorAll(".profile-stats .stat-item .stat-num");
-    if (statEls.length >= 3) {
-      statEls[0].textContent = data.posts.length;
-      statEls[1].textContent = data.followers_count || 0;
-      statEls[2].textContent = data.following_count || 0;
-      statEls[1].style.cursor = "pointer";
-      statEls[2].style.cursor = "pointer";
-      statEls[1].onclick = () => showFollowList(u.username, "followers");
-      statEls[2].onclick = () => showFollowList(u.username, "following");
-    }
-
-    // S39 — Msg button: hide on own profile, show on other's
-    var _msgBtn = document.getElementById("profile-msg-btn");
-    if (_msgBtn) {
-      if (isMe) {
-        _msgBtn.classList.add("hidden");
-      } else {
-        _msgBtn.classList.remove("hidden");
-      }
-    }
-
-    if (isMe) {
-      editIcon.classList.remove("hidden");
-      editIcon.onclick = openEditProfile;
-    } else {
-      editIcon.classList.add("hidden");
-    }
-
-    const btns = document.getElementById("profile-buttons");
-    if (isMe) {
-      btns.innerHTML = `
-        <button id="btn-edit-profile"><i class="fa-solid fa-pen"></i> এডিট</button>
-        <button id="btn-share-profile"><i class="fa-solid fa-share"></i> শেয়ার</button>
-        <button id="profile-menu-btn" class="btn-menu-circle" title="আরও" aria-label="Menu"><i class="fa-solid fa-ellipsis-vertical"></i></button>
-      `;
-      btns.dataset.b3 = "0";
-      document.getElementById("btn-edit-profile").onclick = openEditProfile;
-      document.getElementById("btn-share-profile").onclick = function() { showToast("শীঘ্রই আসছে! ✨"); };
-    } else {
-      var _renderBtnHtml = function(flw) {
-        var icon = flw ? "fa-user-check" : "fa-user-plus";
-        var lbl = flw ? "ফলোয়িং" : "ফলো";
-        var _h = '<button id="btn-follow" data-username="' + escapeHtml(u.username) + '" data-following="' + (flw ? "1" : "0") + '">' +
-                 '<i class="fa-solid ' + icon + '"></i><span>' + lbl + '</span></button>';
-        if (flw) {
-          _h += '<button id="btn-msg"><i class="fa-regular fa-comment"></i> মেসেজ</button>';
-          _h += '<button id="btn-profile-wave" class="btn-icon-sm" title="Wave"><i class="fa-regular fa-hand"></i></button>';
-        }
-        _h += '<button id="profile-menu-btn" class="btn-menu-circle" title="আরও" aria-label="Menu"><i class="fa-solid fa-ellipsis-vertical"></i></button>';
-        return _h;
-      };
-
-      var _attachOtherHandlers = function() {
-        var followBtn = document.getElementById("btn-follow");
-        if (followBtn) {
-          followBtn.onclick = function(ev) {
-            var fb = ev.currentTarget;
-            var uname = fb.dataset.username;
-            fb.disabled = true;
-            api("/api/users/" + encodeURIComponent(uname) + "/follow", { method: "POST" })
-              .then(function(res) {
-                var nowFollowing = res.is_following;
-                btns.innerHTML = _renderBtnHtml(nowFollowing);
-                _attachOtherHandlers();
-                var statEls = document.querySelectorAll(".profile-stats .stat-item .stat-num");
-                if (statEls.length >= 3) statEls[1].textContent = res.followers;
-                if (typeof showToast === "function") {
-                  showToast(nowFollowing ? "✅ ফলো করা হয়েছে" : "আনফলো করা হয়েছে");
-                }
-              })
-              .catch(function(err) { alert(err.message); fb.disabled = false; });
-          };
-        }
-        var mBtn = document.getElementById("btn-msg");
-        if (mBtn) mBtn.onclick = function() {
-          document.getElementById("profile-page").classList.add("hidden");
-          window.openMessagesPage().then(function() { openChat(u.username); });
-        };
-        var wBtn = document.getElementById("btn-profile-wave");
-        if (wBtn) wBtn.onclick = function() {
-          api("/api/users/" + encodeURIComponent(u.username) + "/wave", { method: "POST" })
-            .then(function() { showToast("👋 Wave পাঠানো হয়েছে"); })
-            .catch(function(e) { alert(e.message); });
-        };
-      };
-
-      btns.innerHTML = _renderBtnHtml(data.is_following);
-      btns.dataset.b3 = "0";
-      _attachOtherHandlers();
-    }
-
-    const postsEl = document.getElementById("profile-tab-posts");
-    if (data.posts.length) {
-      postsEl.innerHTML = data.posts
-        .map(
-          (p) => `
-        <div class="profile-post">
-          <div class="post-content">${escapeHtml(p.content)}</div>
-          <div class="post-time"><i class="fa-regular fa-clock"></i> ${timeAgo(p.created_at)}</div>
-        </div>
-      `
-        )
-        .join("");
-    } else {
-      postsEl.innerHTML = `<p class="empty-text">📝 এখনো কোনো পোস্ট নেই</p>`;
-    }
-
-    document.querySelectorAll(".profile-tab").forEach((t) => t.classList.remove("active"));
-    var _pt_default = document.querySelector('.profile-tab[data-tab="posts"]');
-    if (_pt_default) _pt_default.classList.add("active");
-    document.getElementById("profile-tab-posts").classList.remove("hidden");
-    var _p_photos = document.getElementById("profile-tab-photos"); if (_p_photos) _p_photos.classList.add("hidden");
-    var _p_about = document.getElementById("profile-tab-about"); if (_p_about) _p_about.classList.add("hidden");
-
-    page.classList.remove("hidden");
-    page.scrollTop = 0;
-  } catch (err) {
-    alert(err.message);
-  }
-}
-
-function setProfileCover(url) {
-  const el = document.getElementById("profile-page-cover");
-  const gradient = document.querySelector("#profile-page .cover-gradient");
-
-  if (!el) return;
-
-  if (url) {
-    el.src = url;
-    el.classList.remove("hidden");
-    if (gradient) gradient.style.display = "none";
-  } else {
-    el.removeAttribute("src");
-    el.classList.add("hidden");
-    if (gradient) gradient.style.display = "block";
-  }
-}
-
-// ==================================================
-// EDIT PROFILE + AVATAR UPLOAD
-// ==================================================
-
-let pendingAvatar = null;
-let pendingCover = null;
-
-const editProfileModal = document.getElementById("edit-profile-modal");
-const closeEditProfile = document.getElementById("close-edit-profile");
-const cancelEditProfile = document.getElementById("cancel-edit-profile");
-const saveEditProfile = document.getElementById("save-edit-profile");
-const avatarInput = document.getElementById("avatar-input");
-const btnUploadAvatar = document.getElementById("btn-upload-avatar");
-const btnRemoveAvatar = document.getElementById("btn-remove-avatar");
-const avatarPreview = document.getElementById("avatar-preview");
-
-const coverInput = document.getElementById("cover-input");
-const btnUploadCover = document.getElementById("btn-upload-cover");
-const btnRemoveCover = document.getElementById("btn-remove-cover");
-const coverPreview = document.getElementById("cover-preview");
-
-function openEditProfile() {
-  document.getElementById("edit-name").value = state.me.display_name || "";
-  document.getElementById("edit-bio").value = state.me.bio || "";
-  pendingAvatar = null;
-  pendingCover = null;
-
-  setAvatar(avatarPreview, state.me.display_name, state.me.profile_pic);
-
-  if (coverPreview) {
-    if (state.me.cover_pic) {
-      coverPreview.innerHTML =
-        `<img src="${escapeHtml(state.me.cover_pic)}" alt="Cover preview" loading="lazy" decoding="async">`;
-    } else {
-      coverPreview.innerHTML =
-        `<div class="cover-preview-placeholder">🖼️ কভার ফটো</div>`;
-    }
-  }
-  editProfileModal.classList.remove("hidden");
-}
-
-if (closeEditProfile) closeEditProfile.addEventListener("click", () => editProfileModal.classList.add("hidden"));
-if (cancelEditProfile) cancelEditProfile.addEventListener("click", () => editProfileModal.classList.add("hidden"));
-if (editProfileModal) {
-  editProfileModal.addEventListener("click", (e) => {
-    if (e.target === editProfileModal) editProfileModal.classList.add("hidden");
-  });
-}
-
-if (btnUploadAvatar && avatarInput) {
-  btnUploadAvatar.addEventListener("click", () => avatarInput.click());
-}
-
-if (avatarInput) {
-  avatarInput.addEventListener("change", async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    if (!file.type.startsWith("image/")) {
-      alert("শুধু ছবি আপলোড করা যাবে");
-      return;
-    }
-    try {
-      btnUploadAvatar.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> লোড হচ্ছে...`;
-      const resized = await resizeImage(file, 400);
-      pendingAvatar = resized;
-      setAvatar(avatarPreview, state.me.display_name, pendingAvatar);
-    } catch (err) {
-      alert("ছবি লোড করা যায়নি");
-    } finally {
-      btnUploadAvatar.innerHTML = `<i class="fa-solid fa-camera"></i> ছবি আপলোড`;
-      avatarInput.value = "";
-    }
-  });
-}
-
-if (btnRemoveAvatar) {
-  btnRemoveAvatar.addEventListener("click", () => {
-    if (!confirm("প্রোফাইল ছবি মুছে ফেলবেন?")) return;
-    pendingAvatar = "";
-    setAvatar(avatarPreview, state.me.display_name, null);
-  });
-}
-
-if (btnUploadCover && coverInput) {
-  btnUploadCover.addEventListener("click", () => coverInput.click());
-}
-
-if (coverInput) {
-  coverInput.addEventListener("change", async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    if (!file.type.startsWith("image/")) {
-      alert("শুধু ছবি আপলোড করা যাবে");
-      return;
-    }
-
-    try {
-      btnUploadCover.innerHTML =
-        `<i class="fa-solid fa-spinner fa-spin"></i> লোড হচ্ছে...`;
-
-      pendingCover = await resizeImage(file, 1400, 0.86);
-
-      if (coverPreview) {
-        coverPreview.innerHTML =
-          `<img src="${escapeHtml(pendingCover)}" alt="Cover preview" loading="lazy" decoding="async">`;
-      }
-    } catch (err) {
-      alert("কভার ছবি লোড করা যায়নি");
-    } finally {
-      btnUploadCover.innerHTML =
-        `<i class="fa-solid fa-image"></i> কভার ফটো`;
-      coverInput.value = "";
-    }
-  });
-}
-
-if (btnRemoveCover) {
-  btnRemoveCover.addEventListener("click", () => {
-    if (!confirm("কভার ফটো মুছে ফেলবেন?")) return;
-
-    pendingCover = "";
-
-    if (coverPreview) {
-      coverPreview.innerHTML =
-        `<div class="cover-preview-placeholder">🖼️ কভার ফটো</div>`;
-    }
-  });
-}
-
-if (saveEditProfile) {
-  saveEditProfile.addEventListener("click", async () => {
-    const bio = document.getElementById("edit-bio").value.trim();
-    const name = document.getElementById("edit-name").value.trim();
-
-    saveEditProfile.disabled = true;
-    saveEditProfile.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> সেভ হচ্ছে...`;
-
-    try {
-      await api("/api/me/bio", {
-        method: "POST",
-        body: JSON.stringify({ bio, display_name: name }),
-      });
-
-      if (pendingAvatar !== null) {
-        const res = await api("/api/me/avatar", {
-          method: "POST",
-          body: JSON.stringify({ avatar: pendingAvatar }),
-        });
-        state.me.profile_pic = res.avatar;
-      }
-
-      if (pendingCover !== null) {
-        const res = await api("/api/me/cover", {
-          method: "POST",
-          body: JSON.stringify({ cover: pendingCover }),
-        });
-        state.me.cover_pic = res.cover;
-      }
-
-      const meRes = await api("/api/me");
-      state.me = meRes.user;
-
-      window.refreshProfileUI();
-      await loadFeed();
-
-      const profilePage = document.getElementById("profile-page");
-      if (!profilePage.classList.contains("hidden")) {
-        setAvatar(
-          document.getElementById("profile-page-avatar"),
-          state.me.display_name,
-          state.me.profile_pic
-        );
-
-        setProfileCover(state.me.cover_pic);
-
-        document.getElementById("profile-page-name").textContent = state.me.display_name;
-        document.getElementById("profile-page-bio").textContent = state.me.bio || "বায়ো নেই";
-        document.getElementById("about-bio").textContent = state.me.bio || "বায়ো নেই";
-      }
-
-      pendingAvatar = null;
-      pendingCover = null;
-      editProfileModal.classList.add("hidden");
-    } catch (err) {
-      alert(err.message);
-    } finally {
-      saveEditProfile.disabled = false;
-      saveEditProfile.innerHTML = `<i class="fa-solid fa-check"></i> সেভ করুন`;
-    }
-  });
-}
-
-
-// S30.11 - merged into _badgePoll below
-
-// ==================================================
 // STORIES
 // ==================================================
 
@@ -680,7 +244,7 @@ document.querySelectorAll(".mbn-item").forEach((btn) => {
     } else if (target === "notifications") {
       if (typeof openNotificationsPage === "function") openNotificationsPage();
     } else if (target === "profile" && state.me) {
-      if (typeof openProfile === "function") openProfile(state.me.username);
+      if (typeof window.openProfile === "function") window.openProfile(state.me.username);
     }
   });
 });
@@ -768,7 +332,7 @@ async function loadRightSidebar() {
               showToast("✅ ফলো করা হয়েছে!");
             });
           } else {
-            el.addEventListener("click", () => openProfile(el.dataset.user));
+            el.addEventListener("click", () => window.openProfile(el.dataset.user));
           }
         });
       }
@@ -794,7 +358,7 @@ async function loadRightSidebar() {
             )
             .join("");
           online.querySelectorAll(".online-item").forEach((el) => {
-            el.addEventListener("click", () => openProfile(el.dataset.user));
+            el.addEventListener("click", () => window.openProfile(el.dataset.user));
           });
         }
       } catch (err) {
@@ -863,8 +427,8 @@ async function loadSuggestedUsers() {
 
     el.querySelectorAll(".explore-user-card").forEach((card) => {
       const username = card.dataset.username;
-      card.querySelector(".explore-user-avatar").addEventListener("click", () => openProfile(username));
-      card.querySelector(".explore-user-name").addEventListener("click", () => openProfile(username));
+      card.querySelector(".explore-user-avatar").addEventListener("click", () => window.openProfile(username));
+      card.querySelector(".explore-user-name").addEventListener("click", () => window.openProfile(username));
       card.querySelector(".explore-user-follow").addEventListener("click", async (e) => {
         e.stopPropagation();
         const btn = e.currentTarget;
@@ -937,7 +501,7 @@ async function openHashtag(tag) {
     postsEl.querySelectorAll(".explore-post-card").forEach((card) => {
       card.addEventListener("click", (e) => {
         if (e.target.classList.contains("hashtag-link")) return;
-        openProfile(card.dataset.user);
+        window.openProfile(card.dataset.user);
       });
     });
   } catch (err) {
@@ -1067,9 +631,9 @@ _rebindBackButton("sv-close");
 
 // ---------- Wrap open functions to push stack ----------
 
-// openProfile
-const _origOpenProfile_stack = openProfile;
-openProfile = async function (username) {
+// window.openProfile
+const _origOpenProfile_stack = window.openProfile;
+window.openProfile = async function (username) {
   await _origOpenProfile_stack(username);
   const page = document.getElementById("profile-page");
   if (page && !page.classList.contains("hidden")) {
@@ -2324,7 +1888,7 @@ async function openPostDetail(postId) {
     });
     modal.querySelector(".pd-head .avatar").addEventListener("click", function () {
       modal.remove();
-      if (typeof openProfile === "function") openProfile(p.username);
+      if (typeof window.openProfile === "function") window.openProfile(p.username);
     });
     // Hashtags
     modal.querySelectorAll(".hashtag-link").forEach(function (el) {
@@ -2651,7 +2215,7 @@ document.addEventListener("click", function (e) {
   if (!quoted) return;
   e.stopPropagation();
   const username = quoted.dataset.quoteUser;
-  if (username) openProfile(username);
+  if (username) window.openProfile(username);
 });
 
 
@@ -2888,7 +2452,7 @@ function openUserListModal(title, users, emptyText) {
   modal.querySelectorAll(".user-list-item[data-username]").forEach(function(el) {
     el.addEventListener("click", function() {
       modal.remove();
-      if (typeof openProfile === "function") openProfile(el.dataset.username);
+      if (typeof window.openProfile === "function") window.openProfile(el.dataset.username);
     });
   });
 }
@@ -6046,7 +5610,7 @@ window._openDeleteMessageSheet = _openDeleteMessageSheet;
       row.addEventListener("click", function (e) {
         if (e.target.closest(".call-log-btn")) return;
         var u = row.dataset.username;
-        if (u && typeof openProfile === "function") openProfile(u);
+        if (u && typeof window.openProfile === "function") window.openProfile(u);
       });
     });
   }
@@ -7383,8 +6947,8 @@ window._reloadSheetComments = _reloadSheetComments;
           });
           document.body.classList.remove("sheet-open");
         } catch (err) {}
-        if (typeof openProfile === "function") {
-          setTimeout(function () { openProfile(u); }, 200);
+        if (typeof window.openProfile === "function") {
+          setTimeout(function () { window.openProfile(u); }, 200);
         }
       }
       return;
@@ -7404,8 +6968,8 @@ window._reloadSheetComments = _reloadSheetComments;
           });
           document.body.classList.remove("sheet-open");
         } catch (err) {}
-        if (typeof openProfile === "function") {
-          setTimeout(function () { openProfile(uname); }, 200);
+        if (typeof window.openProfile === "function") {
+          setTimeout(function () { window.openProfile(uname); }, 200);
         }
       }
       return;
@@ -7951,7 +7515,7 @@ window._reloadSheetComments = _reloadSheetComments;
         var act = b.dataset.act;
         close();
         if (act === "edit") {
-          if (typeof openEditProfile === "function") openEditProfile();
+          if (typeof window.openEditProfile === "function") window.openEditProfile();
         } else if (act === "share") {
           var url = window.location.origin + "/u/" + data.user.username;
           if (navigator.share) navigator.share({ title: "JUKTOY", url: url }).catch(function(){});
@@ -7986,11 +7550,11 @@ window._reloadSheetComments = _reloadSheetComments;
       icon.style.transform = "rotate(360deg)";
       setTimeout(function(){ icon.style.transition = ""; icon.style.transform = ""; }, 650);
     }
-    if (typeof openProfile === "function") openProfile(data.user.username);
+    if (typeof window.openProfile === "function") window.openProfile(data.user.username);
   }, true);
 
   // ---- 8/9. Follow state machine for OTHER profiles ----
-  // Wrap openProfile to alter follow button based on is_requested/follows_me
+  // Wrap window.openProfile to alter follow button based on is_requested/follows_me
   var _origOpenProfileB1 = window.openProfile;
   if (typeof _origOpenProfileB1 === "function") {
     window.openProfile = async function (username) {
@@ -8342,7 +7906,7 @@ window._reloadSheetComments = _reloadSheetComments;
     e.preventDefault();
     var data = window._currentProfileData;
     if (!data || !data.user) return;
-    // S39 — button is hidden on own profile (see openProfile), so this
+    // S39 — button is hidden on own profile (see window.openProfile), so this
     // only fires on others. Safety check kept just in case:
     if (window.state && state.me && state.me.username === data.user.username) {
       return;
@@ -8365,7 +7929,7 @@ window._reloadSheetComments = _reloadSheetComments;
   if (typeof _origOpenProfileB2b === "function") {
     window.openProfile = async function (username) {
       await _origOpenProfileB2b(username);
-      return;   // S39 — disabled: voice/video injection removed (handled by main openProfile)
+      return;   // S39 — disabled: voice/video injection removed (handled by main window.openProfile)
       // eslint-disable-next-line no-unreachable
       var data = window._currentProfileData;
       if (!data || !data.user) return;
@@ -8838,7 +8402,7 @@ window._reloadSheetComments = _reloadSheetComments;
   if (typeof _origOpenProfileB3 === "function") {
     window.openProfile = async function (username) {
       await _origOpenProfileB3(username);
-      return;   // S39 — disabled: wave/save/bell injection removed (handled by main openProfile)
+      return;   // S39 — disabled: wave/save/bell injection removed (handled by main window.openProfile)
       // eslint-disable-next-line no-unreachable
       var data = window._currentProfileData;
       if (!data || !data.user) return;
@@ -9163,7 +8727,7 @@ window._reloadSheetComments = _reloadSheetComments;
   }
 
 
-  // enrich openProfile: highlights + similar + pinned + live + hide own-only tabs
+  // enrich window.openProfile: highlights + similar + pinned + live + hide own-only tabs
   var _orig = window.openProfile;
   if (typeof _orig === "function") {
     window.openProfile = async function (username) {
@@ -9244,7 +8808,7 @@ window._reloadSheetComments = _reloadSheetComments;
               simEl.classList.remove("hidden");
               simEl.querySelectorAll("[data-user]").forEach(function (c) {
                 c.addEventListener("click", function () {
-                  if (typeof openProfile === "function") openProfile(c.dataset.user);
+                  if (typeof window.openProfile === "function") window.openProfile(c.dataset.user);
                 });
               });
             }
@@ -9837,7 +9401,7 @@ window._reloadSheetComments = _reloadSheetComments;
         if (m) m.classList.add("hidden");
         if (typeof showToast === "function") showToast("✅ প্রোফাইল সেভ হয়েছে");
         // re-render profile if open
-        if (state.me && typeof openProfile === "function") openProfile(state.me.username);
+        if (state.me && typeof window.openProfile === "function") window.openProfile(state.me.username);
       } catch (err) {
         alert(err.message || "সেভ করা যায়নি");
       } finally {
