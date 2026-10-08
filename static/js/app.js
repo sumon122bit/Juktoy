@@ -1256,7 +1256,7 @@ function _closeTopPage() {
     if (typeof window.currentChatUser !== "undefined") window.currentChatUser = null;
     if (typeof window.lastMsgCount !== "undefined") window.lastMsgCount = 0;
     if (typeof loadConversations === "function") loadConversations();
-    if (typeof _updateOverlayClass === "function") _updateOverlayClass();
+    if (typeof window._updateOverlayClass === "function") window._updateOverlayClass();
   }
   return true;
 }
@@ -4192,101 +4192,6 @@ if (window.chatMessages) {
 
 
 
-// ==================================================
-// OVERLAY PAGES — track body class + back button chain
-// ==================================================
-
-function _updateOverlayClass() {
-  var ids = ["messages-page", "profile-page", "reels-page", "explore-page",
-             "hashtag-page", "notifications-page", "saved-page", "settings-page",
-             "story-viewer", "onboarding"];
-  var anyOpen = false;
-  for (var i = 0; i < ids.length; i++) {
-    var el = document.getElementById(ids[i]);
-    if (el && !el.classList.contains("hidden")) { anyOpen = true; break; }
-  }
-  document.body.classList.toggle("overlay-open", anyOpen);
-}
-
-// Watch for class changes on overlay pages
-["messages-page", "profile-page", "reels-page", "explore-page",
- "hashtag-page", "notifications-page", "saved-page", "settings-page",
- "story-viewer", "onboarding"].forEach(function(id) {
-  var el = document.getElementById(id);
-  if (!el) return;
-  var obs = new MutationObserver(_updateOverlayClass);
-  obs.observe(el, { attributes: true, attributeFilter: ["class"] });
-});
-_updateOverlayClass();
-
-// ---------- Chat window back button handling ----------
-// When chat window is open, back button should close chat window first,
-// then return to messages list.
-
-(function() {
-  var _chatStackDepth = 0;
-
-  // Override openChat to push another history entry
-  var _origOpenChat = window.openChat;
-  if (typeof openChat === "function") {
-    var _orig = openChat;
-    window.openChat = async function(username) {
-      await _orig(username);
-      var cw = document.getElementById("chat-window");
-      if (cw && !cw.classList.contains("hidden")) {
-        // Push another state for chat window itself
-        history.pushState({ page: "chat" }, "", "");
-        _chatStackDepth++;
-        // Fixed: also track "chat" in _PageStack so back-stack works correctly
-        if (typeof _PageStack !== "undefined" && _PageStack[_PageStack.length - 1] !== "chat") {
-          _PageStack.push("chat");
-        }
-      }
-    };
-    // Reassign the actual variable used in code
-    try { openChat = window.openChat; } catch (e) {}
-  }
-
-  // NOTE: chat back-handling now goes through _closeTopPage("chat")
-  // to avoid double-closing the messages page.
-})();
-
-// Also: when openChat is called, ensure body overlay class updates
-document.addEventListener("click", function(e) {
-  if (e.target.closest(".conv-item") || e.target.closest(".new-chat-result")) {
-    setTimeout(_updateOverlayClass, 100);
-  }
-}, true);
-
-// Update on chat-close click
-document.addEventListener("click", function(e) {
-  if (e.target.closest("#chat-close")) {
-    setTimeout(_updateOverlayClass, 50);
-  }
-}, true);
-
-// Make sure _closeTopPage knows about chat state
-const _origCloseTopPageChat = _closeTopPage;
-_closeTopPage = function() {
-  var cw = document.getElementById("chat-window");
-  if (cw && !cw.classList.contains("hidden")) {
-    // CRITICAL: pop "chat" from _PageStack so stack stays consistent
-    if (typeof _PageStack !== "undefined" && _PageStack.length > 0) {
-      if (_PageStack[_PageStack.length - 1] === "chat") _PageStack.pop();
-    }
-    if (typeof stopChatPolling === "function") stopChatPolling();
-    cw.classList.add("hidden");
-    window.currentChatUser = null;
-    window.lastMsgCount = 0;
-    if (typeof loadConversations === "function") loadConversations();
-    _updateOverlayClass();
-    return true;
-  }
-  var result = _origCloseTopPageChat();
-  _updateOverlayClass();
-  return result;
-};
-  window._closeTopPage = _closeTopPage;
 
 
 // ==================================================
@@ -8586,7 +8491,7 @@ _closeTopPage = function _closeTopPageUnified() {
       _PageStack.pop();
     }
     try { if (typeof loadConversations === "function") loadConversations(); } catch (e) {}
-    try { if (typeof _updateOverlayClass === "function") _updateOverlayClass(); } catch (e) {}
+    try { if (typeof window._updateOverlayClass === "function") window._updateOverlayClass(); } catch (e) {}
     return true;
   }
 
@@ -8657,7 +8562,7 @@ _closeTopPage = function _closeTopPageUnified() {
   _PageStack.pop();
   try { closer(); }
   catch (err) { console.error("[S29.10] closer failed for", top, err); }
-  try { if (typeof _updateOverlayClass === "function") _updateOverlayClass(); } catch (e) {}
+  try { if (typeof window._updateOverlayClass === "function") window._updateOverlayClass(); } catch (e) {}
   return true;
 };
   window._closeTopPage = _closeTopPage;
