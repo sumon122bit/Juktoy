@@ -45,7 +45,7 @@ export async function loadNotifications() {
         if (postId && (notifType === "like" || notifType === "comment" ||
                        notifType === "comment_like" || notifType === "comment_reply" ||
                        notifType === "repost")) {
-          openPostFromNotif(parseInt(postId));
+          window.openPostFromNotif(parseInt(postId));
         } else if (actorUsername) {
           document.getElementById("notifications-page").classList.add("hidden");
           openProfile(actorUsername);
