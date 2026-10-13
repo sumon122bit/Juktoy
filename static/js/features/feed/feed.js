@@ -151,7 +151,7 @@ export function postHTML(p) {
     ${summaryHTML}
     <div class="post-actions">
       <button class="action-btn like-btn" data-reaction="${p.my_reaction || ""}" data-id="${p.id}">
-        ${renderReactionIcon(p.my_reaction)}
+        ${window.renderReactionIcon(p.my_reaction)}
         <span>${likeLabel}</span>
         <span class="like-count">${p.likes}</span>
       </button>
