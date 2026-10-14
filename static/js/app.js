@@ -42,141 +42,9 @@ if (typeof window !== "undefined") {
   window.__juktoyState = state;
 }
 
-// ==================================================
-// HELPERS
-// ==================================================
-
-function _readCsrfCookie() {
-  try {
-    const m = document.cookie.match(/(?:^|;\s*)csrf_token=([^;]*)/);
-    return m ? decodeURIComponent(m[1]) : "";
-  } catch (e) { return ""; }
-}
-
-async function api(url, options = {}) {
-  const opts = { ...options };
-  opts.credentials = "include";
-  opts.headers = { "Content-Type": "application/json", ...(options.headers || {}) };
-
-  const method = (opts.method || "GET").toUpperCase();
-  if (!["GET", "HEAD", "OPTIONS"].includes(method)) {
-    const token = _readCsrfCookie();
-    if (token) opts.headers["X-CSRF-Token"] = token;
-  }
-
-  // S30.14 — 30s timeout via AbortController
-  // (was: infinite wait if server hangs → UI stuck on "লোড হচ্ছে...")
-  var _ac = null;
-  var _tid = null;
-  if (typeof AbortController !== "undefined") {
-    _ac = new AbortController();
-    // preserve any existing signal from caller
-    if (options && options.signal) {
-      try {
-        options.signal.addEventListener("abort", function () { _ac.abort(); });
-      } catch (e) {}
-    }
-    opts.signal = _ac.signal;
-    _tid = setTimeout(function () { try { _ac.abort(); } catch (e) {} }, 30000);
-  }
-
-  let res;
-  try {
-    res = await fetch(BASE_URL + url, opts);
-  } catch (err) {
-    if (_tid) clearTimeout(_tid);
-    // AbortError → friendly message
-    if (err && (err.name === "AbortError" || /abort/i.test(err.message || ""))) {
-      const _toErr = new Error("সার্ভার সময়মতো সাড়া দেয়নি। আবার চেষ্টা করুন।");
-      _toErr.isTimeout = true;
-      throw _toErr;
-    }
-    throw err;
-  } finally {
-    if (_tid) clearTimeout(_tid);
-  }
-
-  const data = await res.json().catch(() => ({}));
-
-  // 401 handling (unchanged)
-  if (res.status === 401) {
-    var _isMeCheck = (url === "/api/me");
-    var _wasLoggedIn = false;
-    try {
-      _wasLoggedIn = !!(window.state && window.state.me);
-    } catch (e) {}
-
-    if (data && data.idle_timeout) {
-      try {
-        if (typeof showToast === "function") {
-          showToast("⏱️ নিষ্ক্রিয়তার কারণে লগআউট হয়েছেন");
-        }
-      } catch (e) {}
-      setTimeout(function () { window.location.reload(); }, 1500);
-    } else if (!_isMeCheck && _wasLoggedIn) {
-      try {
-        if (typeof showToast === "function") {
-          showToast(data.error || "সেশন শেষ হয়ে গেছে। আবার লগইন করুন।");
-        }
-      } catch (e) {}
-      setTimeout(function () { window.location.reload(); }, 1500);
-    }
-  }
-
-  if (!res.ok) throw new Error(data.error || "কিছু ভুল হয়েছে");
-  return data;
-}
-window.api = api;
-
-
-function showMessage(text, type = "") {
-  const el = document.getElementById("auth-message");
-  if (!el) return;
-  el.textContent = text;
-  el.className = "message " + type;
-}
 
 // STORIES
 // ==================================================
-
-// ==================================================
-// BOOT
-// ==================================================
-
-(function boot() {
-  // Apply theme first (before any other rendering)
-  const _themeFn = typeof readSavedTheme === "function" ? readSavedTheme : (window.readSavedTheme || null);
-  const _applyFn = typeof applyTheme === "function" ? applyTheme : (window.applyTheme || null);
-  if (_themeFn && _applyFn) {
-    const saved = _themeFn() || "light";
-    _applyFn(saved);
-  } else {
-    // Fallback: try after DOM ready (in case module loads late)
-    document.addEventListener("DOMContentLoaded", function() {
-      if (typeof window.readSavedTheme === "function" && typeof window.applyTheme === "function") {
-        window.applyTheme(window.readSavedTheme() || "light");
-      }
-    });
-  }
-
-  // Fill stories (guarded — stories.js loads after app.js)
-  if (typeof fillStoryAvatars === "function") {
-    if (document.readyState === "loading") {
-      document.addEventListener("DOMContentLoaded", fillStoryAvatars);
-    } else {
-      fillStoryAvatars();
-    }
-  }
-
-  // Auto-login if session exists
-  (async () => {
-    try {
-      const { user } = await api("/api/me");
-      if (user) await window.enterApp();
-    } catch (e) {}
-  })();
-})();
-
 
 // ==================================================
 // TOPBAR + MOBILE NAV HANDLERS
@@ -281,7 +149,7 @@ document.addEventListener("submit", async function(e) {
   if (_chatReplyTo) payload.parent_id = _chatReplyTo.id;
 
   try {
-    await api("/api/messages/" + encodeURIComponent(window.currentChatUser), {
+    await window.api("/api/messages/" + encodeURIComponent(window.currentChatUser), {
       method: "POST",
       body: JSON.stringify(payload),
     });
@@ -392,7 +260,7 @@ document.addEventListener("click", function(e) {
     btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> প্রস্তুত হচ্ছে...';
 
     try {
-      await api("/api/me/logout-all", { method: "POST" });
+      await window.api("/api/me/logout-all", { method: "POST" });
       showToast("✅ সব ডিভাইস থেকে লগআউট হয়েছে");
     } catch (err) {
       alert(err.message || "কিছু ভুল হয়েছে");
@@ -507,7 +375,7 @@ document.addEventListener("click", function(e) {
     var old = btn.innerHTML;
     btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
     try {
-      await api("/api/auth/forgot/send", {
+      await window.api("/api/auth/forgot/send", {
         method: "POST",
         body: JSON.stringify({ email: em }),
       });
@@ -541,7 +409,7 @@ document.addEventListener("click", function(e) {
   if (verifyTok) {
     (async function () {
       try {
-        await api("/api/me/email/verify", {
+        await window.api("/api/me/email/verify", {
           method: "POST",
           body: JSON.stringify({ token: verifyTok }),
         });
@@ -563,7 +431,7 @@ document.addEventListener("click", function(e) {
 
   (async function () {
     try {
-      var res = await api("/api/auth/reset/check", {
+      var res = await window.api("/api/auth/reset/check", {
         method: "POST",
         body: JSON.stringify({ token: token }),
       });
@@ -606,7 +474,7 @@ document.addEventListener("click", function(e) {
     btn.disabled = true;
     btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
     try {
-      await api("/api/auth/reset/complete", {
+      await window.api("/api/auth/reset/complete", {
         method: "POST",
         body: JSON.stringify({ token: token, new_password: pw1 }),
       });
@@ -635,7 +503,7 @@ var _isAdmin = false;
 // ---- Detect admin status after login ----
 async function _checkAdminStatus() {
   try {
-    var res = await api("/api/admin/check");
+    var res = await window.api("/api/admin/check");
     _isAdmin = !!res.is_admin;
     var navAdmin = document.getElementById("nav-admin");
     if (navAdmin) {
@@ -746,7 +614,7 @@ async function _loadAdminDashboard() {
   if (!el) return;
   el.innerHTML = '<p style="text-align:center;color:var(--muted);padding:40px">লোড হচ্ছে...</p>';
   try {
-    var stats = await api("/api/admin/stats");
+    var stats = await window.api("/api/admin/stats");
     el.innerHTML =
       '<div class="admin-stats-grid">' +
         _statCard("অপেক্ষমাণ রিপোর্ট", stats.pending_reports, "fa-flag", "orange") +
@@ -786,7 +654,7 @@ async function _loadAdminReports() {
   if (!el) return;
   el.innerHTML = '<p style="text-align:center;color:var(--muted);padding:40px">লোড হচ্ছে...</p>';
   try {
-    var reports = await api("/api/admin/reports?status=all");
+    var reports = await window.api("/api/admin/reports?status=all");
     if (!reports.length) {
       el.innerHTML = '<div class="admin-empty"><i class="fa-solid fa-check-circle"></i><p>কোনো রিপোর্ট নেই ✨</p></div>';
       return;
@@ -868,7 +736,7 @@ async function _adminHandleReportAction(btn) {
 
   if (action === "dismiss" || action === "reopen") {
     try {
-      await api("/api/admin/reports/" + rid + "/action", {
+      await window.api("/api/admin/reports/" + rid + "/action", {
         method: "POST",
         body: JSON.stringify({ action: action }),
       });
@@ -881,7 +749,7 @@ async function _adminHandleReportAction(btn) {
   if (action === "delete") {
     if (!confirm("এই কনটেন্ট মুছে ফেলবেন? এটি ফেরানো যাবে না।")) return;
     try {
-      await api("/api/admin/reports/" + rid + "/action", {
+      await window.api("/api/admin/reports/" + rid + "/action", {
         method: "POST",
         body: JSON.stringify({ action: "delete" }),
       });
@@ -929,7 +797,7 @@ function _adminOpenBanModal(reportId) {
       var days = b.dataset.days;
       var reason = (document.getElementById("admin-ban-reason").value || "").trim() || "নীতিমালা লঙ্ঘন";
       try {
-        await api("/api/admin/reports/" + reportId + "/action", {
+        await window.api("/api/admin/reports/" + reportId + "/action", {
           method: "POST",
           body: JSON.stringify({ action: "ban", ban_days: days, ban_reason: reason }),
         });
@@ -967,7 +835,7 @@ async function _adminFetchUsers(q) {
   if (!list) return;
   list.innerHTML = '<p style="text-align:center;color:var(--muted);padding:30px">লোড হচ্ছে...</p>';
   try {
-    var users = await api("/api/admin/users?q=" + encodeURIComponent(q));
+    var users = await window.api("/api/admin/users?q=" + encodeURIComponent(q));
     if (!users.length) {
       list.innerHTML = '<div class="admin-empty"><p>কোনো ইউজার নেই</p></div>';
       return;
@@ -1013,7 +881,7 @@ async function _adminUserAction(btn) {
   var uid = btn.dataset.uid;
   if (action === "unban") {
     try {
-      await api("/api/admin/users/" + uid + "/unban", { method: "POST" });
+      await window.api("/api/admin/users/" + uid + "/unban", { method: "POST" });
       showToast("✅ আনব্যান করা হয়েছে");
       _adminFetchUsers(document.getElementById("admin-user-search")?.value || "");
     } catch (err) { alert(err.message); }
@@ -1049,7 +917,7 @@ function _adminOpenUserBanModal(uid, username) {
       var days = b.dataset.days;
       var reason = (document.getElementById("admin-ban-reason").value || "").trim() || "নীতিমালা লঙ্ঘন";
       try {
-        await api("/api/admin/users/" + uid + "/ban", {
+        await window.api("/api/admin/users/" + uid + "/ban", {
           method: "POST",
           body: JSON.stringify({ ban_days: days, ban_reason: reason }),
         });
@@ -1068,7 +936,7 @@ async function _loadAdminLog() {
   if (!el) return;
   el.innerHTML = '<p style="text-align:center;color:var(--muted);padding:40px">লোড হচ্ছে...</p>';
   try {
-    var logs = await api("/api/admin/log");
+    var logs = await window.api("/api/admin/log");
     if (!logs.length) {
       el.innerHTML = '<div class="admin-empty"><p>এখনো কোনো action নেওয়া হয়নি</p></div>';
       return;
@@ -1119,7 +987,7 @@ function _clientPasswordCheck(pw) {
     if (err) {
       e.preventDefault();
       e.stopImmediatePropagation();
-      showMessage(err, "error");
+      window.showMessage(err, "error");
     }
   }, true);
 })();
@@ -1171,7 +1039,7 @@ console.log("[S15.1] strong password check attached ✅");
   async function load() {
     list.innerHTML = '<p class="empty-text" style="padding:12px 0">লোড হচ্ছে...</p>';
     try {
-      var rows = await api("/api/me/logins?limit=10");
+      var rows = await window.api("/api/me/logins?limit=10");
       if (!rows.length) {
         list.innerHTML = '<p class="empty-text" style="padding:12px 0">কোনো লগইন ইতিহাস নেই</p>';
         return;
@@ -1205,7 +1073,7 @@ console.log("[S15.1] strong password check attached ✅");
   document.getElementById("btn-clear-logins").addEventListener("click", async function () {
     if (!confirm("সব লগইন ইতিহাস মুছে ফেলবেন?")) return;
     try {
-      await api("/api/me/sessions/clear", { method: "POST" });
+      await window.api("/api/me/sessions/clear", { method: "POST" });
       showToast("🗑️ ইতিহাস মুছে ফেলা হয়েছে");
       load();
     } catch (err) { alert(err.message); }
@@ -1228,7 +1096,7 @@ console.log("[S15.1] strong password check attached ✅");
   async function load() {
     list.innerHTML = '<p class="empty-text" style="padding:12px 0">লোড হচ্ছে...</p>';
     try {
-      var rows = await api("/api/me/sessions");
+      var rows = await window.api("/api/me/sessions");
       if (!rows.length) {
         list.innerHTML = '<p class="empty-text" style="padding:12px 0">কোনো সক্রিয় সেশন নেই</p>';
         return;
@@ -1258,7 +1126,7 @@ console.log("[S15.1] strong password check attached ✅");
         btn.addEventListener("click", async function () {
           if (!confirm("এই ডিভাইস থেকে লগআউট করবেন?")) return;
           try {
-            await api("/api/me/sessions/" + btn.dataset.sid + "/revoke", { method: "POST" });
+            await window.api("/api/me/sessions/" + btn.dataset.sid + "/revoke", { method: "POST" });
             showToast("✅ ডিভাইস থেকে লগআউট হয়েছে");
             load();
           } catch (err) { alert(err.message); }
@@ -1278,7 +1146,7 @@ console.log("[S15.1] strong password check attached ✅");
   document.getElementById("btn-revoke-others").addEventListener("click", async function () {
     if (!confirm("অন্য সব ডিভাইস থেকে লগআউট করবেন?\n\nআপনার এই ডিভাইস চালু থাকবে।")) return;
     try {
-      await api("/api/me/sessions/revoke-others", { method: "POST" });
+      await window.api("/api/me/sessions/revoke-others", { method: "POST" });
       showToast("✅ অন্য সব ডিভাইস থেকে লগআউট হয়েছে");
       load();
     } catch (err) { alert(err.message); }
@@ -1409,7 +1277,7 @@ async function _askSensitiveVerify(opts) {
 
   var tfaEnabled = false;
   try {
-    var st = await api("/api/me/2fa/status");
+    var st = await window.api("/api/me/2fa/status");
     // S29.4 - Only TOTP gates sensitive actions.
     // Email-2FA protects LOGIN only. The backend verifier
     // (_verify_sensitive_action) checks only totp_enabled, so
@@ -1533,7 +1401,7 @@ document.addEventListener("click", async function (e) {
   btn.disabled = true;
   btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
   try {
-    await api("/api/me/password", {
+    await window.api("/api/me/password", {
       method: "POST",
       body: JSON.stringify({
         current_password: v.password,
@@ -1581,7 +1449,7 @@ document.addEventListener("click", async function (e) {
   btn.disabled = true;
   btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
   try {
-    var res = await api("/api/me/username", {
+    var res = await window.api("/api/me/username", {
       method: "POST",
       body: JSON.stringify({
         username:  uname,
@@ -1626,7 +1494,7 @@ document.addEventListener("click", async function (e) {
   btn.disabled = true;
   btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
   try {
-    await api("/api/me/delete-account", {
+    await window.api("/api/me/delete-account", {
       method: "POST",
       body: JSON.stringify({
         password:  v.password,
@@ -1666,7 +1534,7 @@ document.addEventListener("click", async function (e) {
   btn.disabled = true;
   btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
   try {
-    await api("/api/me/email/remove", {
+    await window.api("/api/me/email/remove", {
       method: "POST",
       body: JSON.stringify({
         password:  v.password,
@@ -1705,7 +1573,7 @@ document.addEventListener("click", async function (e) {
   btn.disabled = true;
   btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
   try {
-    await api("/api/me/2fa/disable", {
+    await window.api("/api/me/2fa/disable", {
       method: "POST",
       body: JSON.stringify({
         password:  v.password,
@@ -1743,7 +1611,7 @@ document.addEventListener("click", async function (e) {
   btn.disabled = true;
   btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
   try {
-    await api("/api/me/sessions/revoke-others", {
+    await window.api("/api/me/sessions/revoke-others", {
       method: "POST",
       body: JSON.stringify({
         password:  v.password,
@@ -2013,7 +1881,7 @@ function _vrStop(cancel) {
 async function _vrSend(dataUrl, duration) {
   if (!window.currentChatUser) return;
   try {
-    var res = await api("/api/messages/" + encodeURIComponent(window.currentChatUser) + "/voice", {
+    var res = await window.api("/api/messages/" + encodeURIComponent(window.currentChatUser) + "/voice", {
       method: "POST",
       body: JSON.stringify({ audio: dataUrl, duration: duration }),
     });
@@ -2327,8 +2195,8 @@ function _openChatThemePicker(username) {
 
   document.getElementById("ctm-save").addEventListener("click", async function () {
     try {
-      var cur = await api("/api/chats/" + encodeURIComponent(username) + "/settings");
-      await api("/api/chats/" + encodeURIComponent(username) + "/settings", {
+      var cur = await window.api("/api/chats/" + encodeURIComponent(username) + "/settings");
+      await window.api("/api/chats/" + encodeURIComponent(username) + "/settings", {
         method: "POST",
         body: JSON.stringify({
           pinned: cur.pinned,
@@ -2353,7 +2221,7 @@ async function _openNicknameModal(username) {
   if (old) old.remove();
 
   var cur = { nickname: "" };
-  try { cur = await api("/api/chats/" + encodeURIComponent(username) + "/settings"); } catch (e) {}
+  try { cur = await window.api("/api/chats/" + encodeURIComponent(username) + "/settings"); } catch (e) {}
 
   var modal = document.createElement("div");
   modal.id = "chat-nickname-modal";
@@ -2391,8 +2259,8 @@ async function _openNicknameModal(username) {
 
   async function saveVal(val) {
     try {
-      var st = await api("/api/chats/" + encodeURIComponent(username) + "/settings");
-      await api("/api/chats/" + encodeURIComponent(username) + "/settings", {
+      var st = await window.api("/api/chats/" + encodeURIComponent(username) + "/settings");
+      await window.api("/api/chats/" + encodeURIComponent(username) + "/settings", {
         method: "POST",
         body: JSON.stringify({
           pinned: st.pinned,
@@ -2493,8 +2361,8 @@ function _openWallpaperPicker(username) {
 
   document.getElementById("cwm-save").addEventListener("click", async function () {
     try {
-      var st = await api("/api/chats/" + encodeURIComponent(username) + "/settings");
-      await api("/api/chats/" + encodeURIComponent(username) + "/settings", {
+      var st = await window.api("/api/chats/" + encodeURIComponent(username) + "/settings");
+      await window.api("/api/chats/" + encodeURIComponent(username) + "/settings", {
         method: "POST",
         body: JSON.stringify({
           pinned: st.pinned,
@@ -2553,7 +2421,7 @@ function _openEditMessageModal(msgId, msgEl, currentText) {
     var val = (ta.value || "").trim();
     if (!val) return showToast("\u0996\u09be\u09b2\u09bf \u09b9\u09ac\u09c7 \u09a8\u09be");
     try {
-      var res = await api("/api/messages/" + msgId, {
+      var res = await window.api("/api/messages/" + msgId, {
         method: "PATCH",
         body: JSON.stringify({ content: val }),
       });
@@ -2623,11 +2491,11 @@ function _openDeleteMessageSheet(msgId, msgEl, isMine) {
       close();
       try {
         if (act === "del-me") {
-          await api("/api/messages/" + msgId + "/delete-for-me", { method: "POST" });
+          await window.api("/api/messages/" + msgId + "/delete-for-me", { method: "POST" });
           if (msgEl) msgEl.remove();
           showToast("\u0986\u09ae\u09be\u09b0 \u099c\u09a8\u09cd\u09af \u09ae\u09c1\u099b\u09c7 \u09ab\u09c7\u09b2\u09be \u09b9\u09df\u09c7\u099b\u09c7");
         } else if (act === "del-all") {
-          await api("/api/messages/" + msgId + "/delete-for-everyone", { method: "POST" });
+          await window.api("/api/messages/" + msgId + "/delete-for-everyone", { method: "POST" });
           await loadChatMessages(true);
           showToast("\u09b8\u09ac\u09be\u09b0 \u099c\u09a8\u09cd\u09af \u09ae\u09c1\u099b\u09c7 \u09ab\u09c7\u09b2\u09be \u09b9\u09df\u09c7\u099b\u09c7");
         }
@@ -2813,7 +2681,7 @@ window._openDeleteMessageSheet = _openDeleteMessageSheet;
     if (list) list.innerHTML = '<div class="explore-empty" style="padding:40px"><p>লোড হচ্ছে...</p></div>';
 
     try {
-      var data = await api("/api/calls/history?limit=100");
+      var data = await window.api("/api/calls/history?limit=100");
       _allCalls = Array.isArray(data) ? data : [];
       _renderList();
     } catch (e) {
@@ -2870,7 +2738,7 @@ async function _loadSecurityDashboard() {
   if (!container) return;
   container.innerHTML = '<p style="text-align:center;color:var(--muted);padding:20px">লোড হচ্ছে...</p>';
   try {
-    const data = await api("/api/me/security-overview");
+    const data = await window.api("/api/me/security-overview");
     container.innerHTML = _renderSecurityDashboard(data);
     _bindSecurityDashboardEvents();
   } catch (err) {
@@ -2945,7 +2813,7 @@ function _bindSecurityDashboardEvents() {
 
 async function _openRecoveryCodeModal() {
   // S27B fix — replace browser prompt() with custom modal (APK-friendly)
-  const has2FA = await api("/api/me/2fa/status")
+  const has2FA = await window.api("/api/me/2fa/status")
     // S29.4 - recovery-code regeneration calls _verify_sensitive_action,
     // which only checks TOTP. Align the UI with the backend.
     .then(r => !!(r && r.totp_enabled))
@@ -3018,7 +2886,7 @@ async function _openRecoveryCodeModal() {
     btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
 
     try {
-      const res = await api("/api/me/recovery-code/regenerate", {
+      const res = await window.api("/api/me/recovery-code/regenerate", {
         method: "POST",
         body: JSON.stringify({ password: password, totp_code: code }),
       });
@@ -3087,7 +2955,7 @@ async function _checkEmailGateFor2FA() {
   if (!enableBtn || !disabledView) return;
 
   try {
-    const st = await api("/api/me/email/status");
+    const st = await window.api("/api/me/email/status");
     const verified = st && st.verified;
     const existingWarn = document.getElementById("s27b2-gate-warning");
 
@@ -3213,7 +3081,7 @@ function _openRecover2FAModal() {
     btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
 
     try {
-      const res = await api("/api/auth/recover-2fa/request", {
+      const res = await window.api("/api/auth/recover-2fa/request", {
         method: "POST",
         body: JSON.stringify({ username: u, password: p }),
       });
@@ -3240,7 +3108,7 @@ function _openRecover2FAModal() {
     btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
 
     try {
-      const res = await api("/api/auth/recover-2fa/verify", {
+      const res = await window.api("/api/auth/recover-2fa/verify", {
         method: "POST",
         body: JSON.stringify({ username: currentUser, email_code: code }),
       });
@@ -3309,7 +3177,7 @@ console.log("[S27B-3] recovery flow ready ✅");
 
     async function refreshToggles() {
       try {
-        const st = await api("/api/me/2fa/status");
+        const st = await window.api("/api/me/2fa/status");
         const emailOn = !!st.email_2fa_enabled;
         const totpOn = !!st.totp_enabled;
         const emailVerified = !!st.email_verified;
@@ -3351,13 +3219,13 @@ console.log("[S27B-3] recovery flow ready ✅");
       emailSwitch.disabled = true;
       try {
         if (on) {
-          await api("/api/me/2fa/email/disable", {
+          await window.api("/api/me/2fa/email/disable", {
             method: "POST",
             body: JSON.stringify({ password }),
           });
           showToast("✅ Email 2FA বন্ধ হয়েছে");
         } else {
-          const res = await api("/api/me/2fa/email/enable", {
+          const res = await window.api("/api/me/2fa/email/enable", {
             method: "POST",
             body: JSON.stringify({ password }),
           });
@@ -3380,7 +3248,7 @@ console.log("[S27B-3] recovery flow ready ✅");
         const pw = prompt("Authenticator 2FA বন্ধ করতে পাসওয়ার্ড দিন:");
         if (!pw) return;
         try {
-          await api("/api/me/2fa/disable", {
+          await window.api("/api/me/2fa/disable", {
             method: "POST",
             body: JSON.stringify({ password: pw }),
           });
@@ -3523,7 +3391,7 @@ function openBackupEmailModal() {
     btn.disabled = true;
     btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
     try {
-      const res = await api("/api/me/backup-email/set", {
+      const res = await window.api("/api/me/backup-email/set", {
         method: "POST",
         body: JSON.stringify({ email: em, password: pw }),
       });
@@ -3751,7 +3619,7 @@ console.log("[S29.10] unified window._closeTopPage registered");
       var sendBtn = form.querySelector(".sheet-send");
       sendBtn.disabled = true;
       try {
-        await api("/api/posts/" + postId + "/comments", {
+        await window.api("/api/posts/" + postId + "/comments", {
           method: "POST",
           body: JSON.stringify({ content: text }),
         });
@@ -3920,7 +3788,7 @@ async function _reloadSheetComments(postId) {
   _cmtSerial = 0;   // S32.2 — reset serial for sheet render
   body.innerHTML = '<p style="text-align:center;padding:20px;color:var(--muted)">লোড হচ্ছে...</p>';
   try {
-    var comments = await api("/api/posts/" + postId + "/comments");
+    var comments = await window.api("/api/posts/" + postId + "/comments");
     if (window._s323CacheComments) window._s323CacheComments(postId, comments);
     if (!comments || !comments.length) {
       body.innerHTML = '<p style="text-align:center;padding:36px 20px;color:var(--muted);font-size:14px">এখনো কোনো মন্তব্য নেই।<br>প্রথম মন্তব্য আপনিই করুন!</p>';
@@ -4013,7 +3881,7 @@ window._reloadSheetComments = _reloadSheetComments;
       // Fetch fresh comments
       var comments;
       try {
-        comments = await api("/api/posts/" + postId + "/comments");
+        comments = await window.api("/api/posts/" + postId + "/comments");
       } catch (err) {
         bodyEl.innerHTML = '<p style="text-align:center;padding:20px;color:var(--danger)">লোড করা যায়নি</p>';
         return;
@@ -4064,7 +3932,7 @@ window._reloadSheetComments = _reloadSheetComments;
       var sendBtn = formEl.querySelector(".sheet-send");
       sendBtn.disabled = true;
       try {
-        await api("/api/posts/" + postId + "/comments", {
+        await window.api("/api/posts/" + postId + "/comments", {
           method: "POST",
           body: JSON.stringify({ content: text, parent_id: parseInt(parentCid) }),
         });
@@ -4183,7 +4051,7 @@ window._reloadSheetComments = _reloadSheetComments;
     var now = Date.now();
     if (_userCache && (now - _userCacheAt) < 60000) return _userCache;
     try {
-      var list = await api("/api/users?q=");
+      var list = await window.api("/api/users?q=");
       _userCache = Array.isArray(list) ? list : [];
       _userCacheAt = now;
       return _userCache;
@@ -4783,7 +4651,7 @@ window._reloadSheetComments = _reloadSheetComments;
       if (!banner) return;
       if (!isMe) { banner.classList.add("hidden"); return; }
       try {
-        var r = await api("/api/me/follow-requests/count");
+        var r = await window.api("/api/me/follow-requests/count");
         var n = (r && r.count) || 0;
         if (n > 0) {
           document.getElementById("frb-count").textContent = n + " জন অপেক্ষা করছেন";
@@ -4801,7 +4669,7 @@ window._reloadSheetComments = _reloadSheetComments;
     e.preventDefault();
     (async function () {
       try {
-        var list = await api("/api/me/follow-requests");
+        var list = await window.api("/api/me/follow-requests");
         if (!Array.isArray(list) || !list.length) {
           if (typeof showToast === "function") showToast("কোনো অনুরোধ নেই");
           return;
@@ -4850,7 +4718,7 @@ window._reloadSheetComments = _reloadSheetComments;
           b.addEventListener("click", async function () {
             b.disabled = true;
             try {
-              await api("/api/me/follow-requests/" + b.dataset.uid + "/accept", { method: "POST" });
+              await window.api("/api/me/follow-requests/" + b.dataset.uid + "/accept", { method: "POST" });
               b.closest(".fr-row").remove();
               if (typeof showToast === "function") showToast("✅ গ্রহণ করা হয়েছে");
             } catch (err) { alert(err.message || "সমস্যা"); b.disabled = false; }
@@ -4860,7 +4728,7 @@ window._reloadSheetComments = _reloadSheetComments;
           b.addEventListener("click", async function () {
             b.disabled = true;
             try {
-              await api("/api/me/follow-requests/" + b.dataset.uid + "/reject", { method: "POST" });
+              await window.api("/api/me/follow-requests/" + b.dataset.uid + "/reject", { method: "POST" });
               b.closest(".fr-row").remove();
               if (typeof showToast === "function") showToast("বাতিল");
             } catch (err) { alert(err.message || "সমস্যা"); b.disabled = false; }
@@ -4955,7 +4823,7 @@ window._reloadSheetComments = _reloadSheetComments;
     e.stopPropagation();
     (async function () {
       try {
-        var list = await api("/api/users/" + encodeURIComponent(data.user.username) + "/followers");
+        var list = await window.api("/api/users/" + encodeURIComponent(data.user.username) + "/followers");
         var s = _sheet(
           '<div class="sheet-panel">' +
             '<div class="sheet-handle"></div>' +
@@ -4982,9 +4850,9 @@ window._reloadSheetComments = _reloadSheetComments;
             b.disabled = true;
             try {
               // find user_id
-              var list2 = await api("/api/users/" + encodeURIComponent(b.dataset.remove));
+              var list2 = await window.api("/api/users/" + encodeURIComponent(b.dataset.remove));
               if (!list2 || !list2.user) throw new Error("ইউজার পাওয়া যায়নি");
-              await api("/api/me/followers/" + list2.user.id + "/remove", { method: "POST" });
+              await window.api("/api/me/followers/" + list2.user.id + "/remove", { method: "POST" });
               b.closest(".b2-list-row").remove();
               if (typeof showToast === "function") showToast("✅ সরানো হয়েছে");
             } catch (err) { alert(err.message || "সমস্যা"); b.disabled = false; }
@@ -5003,11 +4871,11 @@ window._reloadSheetComments = _reloadSheetComments;
 
     (async function () {
       try {
-        var current = await api(url);
+        var current = await window.api(url);
         var curNames = {};
         (current || []).forEach(function (u) { curNames[u.username] = true; });
 
-        var all = await api("/api/me/following-list");
+        var all = await window.api("/api/me/following-list");
         var html = (all || []).map(function (u) {
           var isOn = !!u[flag];
           return '<div class="b2-list-row">' +
@@ -5038,7 +4906,7 @@ window._reloadSheetComments = _reloadSheetComments;
           b.addEventListener("click", async function () {
             b.disabled = true;
             try {
-              var r = await api("/api/users/" + encodeURIComponent(b.dataset.toggle) + toggleUrl, { method: "POST" });
+              var r = await window.api("/api/users/" + encodeURIComponent(b.dataset.toggle) + toggleUrl, { method: "POST" });
               var on = mode === "close" ? r.is_close : r.is_favorite;
               b.classList.toggle("on", on);
               b.textContent = on ? "✓ " + title : "যোগ";
@@ -5070,8 +4938,8 @@ window._reloadSheetComments = _reloadSheetComments;
       if (!row) return;
       if (!isMe) { row.classList.add("hidden"); return; }
       try {
-        var c1 = await api("/api/me/close-friends");
-        var c2 = await api("/api/me/favorites");
+        var c1 = await window.api("/api/me/close-friends");
+        var c2 = await window.api("/api/me/favorites");
         document.getElementById("cf-close-count").textContent = (c1 || []).length;
         document.getElementById("cf-fav-count").textContent = (c2 || []).length;
         row.classList.remove("hidden");
@@ -5171,7 +5039,7 @@ window._reloadSheetComments = _reloadSheetComments;
       if (!inp) return;
       // Fetch state to decide
       try {
-        var p = await api("/api/users/" + encodeURIComponent(username));
+        var p = await window.api("/api/users/" + encodeURIComponent(username));
         var theyFollowMe = !!(p && p.follows_me);
         var chatHeader = document.querySelector(".chat-header");
         var oldHint = document.getElementById("b2-msg-request-hint");
@@ -5197,7 +5065,7 @@ window._reloadSheetComments = _reloadSheetComments;
     e.preventDefault();
     (async function () {
       try {
-        var list = await api("/api/messages/requests");
+        var list = await window.api("/api/messages/requests");
         var s = _sheet(
           '<div class="sheet-panel">' +
             '<div class="sheet-handle"></div>' +
@@ -5224,7 +5092,7 @@ window._reloadSheetComments = _reloadSheetComments;
           b.addEventListener("click", async function () {
             b.disabled = true;
             try {
-              await api("/api/messages/requests/" + b.dataset.accept + "/accept", { method: "POST" });
+              await window.api("/api/messages/requests/" + b.dataset.accept + "/accept", { method: "POST" });
               b.closest(".b2-list-row").remove();
               if (typeof showToast === "function") showToast("✅ গ্রহণ করা হয়েছে");
             } catch (err) { alert(err.message || "সমস্যা"); b.disabled = false; }
@@ -5234,7 +5102,7 @@ window._reloadSheetComments = _reloadSheetComments;
           b.addEventListener("click", async function () {
             b.disabled = true;
             try {
-              await api("/api/messages/requests/" + b.dataset.reject + "/reject", { method: "POST" });
+              await window.api("/api/messages/requests/" + b.dataset.reject + "/reject", { method: "POST" });
               b.closest(".b2-list-row").remove();
             } catch (err) { alert(err.message || "সমস্যা"); b.disabled = false; }
           });
@@ -5371,7 +5239,7 @@ window._reloadSheetComments = _reloadSheetComments;
 
     async function load(q) {
       try {
-        var users = await api("/api/users?q=" + encodeURIComponent(q || ""));
+        var users = await window.api("/api/users?q=" + encodeURIComponent(q || ""));
         var filtered = (users || []).filter(function (u) { return u.username !== username; });
         if (!filtered.length) {
           listEl.innerHTML = '<p style="text-align:center;padding:20px;color:var(--muted)">কেউ পাওয়া যায়নি</p>';
@@ -5392,7 +5260,7 @@ window._reloadSheetComments = _reloadSheetComments;
             var to = b.dataset.to;
             b.disabled = true;
             try {
-              await api("/api/messages/" + encodeURIComponent(to), {
+              await window.api("/api/messages/" + encodeURIComponent(to), {
                 method: "POST",
                 body: JSON.stringify({ content: "🔗 প্রোফাইল দেখুন: " + url })
               });
@@ -5525,7 +5393,7 @@ window._reloadSheetComments = _reloadSheetComments;
     if (!data || !data.user) return;
     var btn = e.target.closest("#btn-profile-wave");
     btn.disabled = true;
-    api("/api/users/" + encodeURIComponent(data.user.username) + "/wave", { method: "POST" })
+    window.api("/api/users/" + encodeURIComponent(data.user.username) + "/wave", { method: "POST" })
       .then(function () {
         if (typeof showToast === "function") showToast("👋 Wave পাঠানো হয়েছে");
         // brief pulse animation
@@ -5545,7 +5413,7 @@ window._reloadSheetComments = _reloadSheetComments;
     if (!data || !data.user) return;
     var btn = e.target.closest("#btn-profile-save");
     btn.disabled = true;
-    api("/api/users/" + encodeURIComponent(data.user.username) + "/save-profile", { method: "POST" })
+    window.api("/api/users/" + encodeURIComponent(data.user.username) + "/save-profile", { method: "POST" })
       .then(function (r) {
         btn.classList.toggle("on", !!r.saved);
         var icon = btn.querySelector("i");
@@ -5565,7 +5433,7 @@ window._reloadSheetComments = _reloadSheetComments;
     if (!data || !data.user) return;
     var btn = e.target.closest("#btn-profile-notify");
     btn.disabled = true;
-    api("/api/users/" + encodeURIComponent(data.user.username) + "/notify", { method: "POST" })
+    window.api("/api/users/" + encodeURIComponent(data.user.username) + "/notify", { method: "POST" })
       .then(function (r) {
         btn.classList.toggle("on", !!r.notify);
         var icon = btn.querySelector("i");
@@ -5633,7 +5501,7 @@ window._reloadSheetComments = _reloadSheetComments;
 
         // load saved/notify status
         try {
-          var st = await api("/api/me/save-background-check", {
+          var st = await window.api("/api/me/save-background-check", {
             method: "POST",
             body: JSON.stringify({ username: data.user.username })
           });
@@ -5684,7 +5552,7 @@ window._reloadSheetComments = _reloadSheetComments;
     if (!pane) return;
     pane.innerHTML = '<p class="empty-text">লোড হচ্ছে...</p>';
     try {
-      var list = await api("/api/users/" + encodeURIComponent(username) + "/reels-list");
+      var list = await window.api("/api/users/" + encodeURIComponent(username) + "/reels-list");
       if (!list.length) {
         pane.innerHTML = '<div class="pf-reels-empty">🎬 এখনো কোনো রিল নেই</div>';
         return;
@@ -5710,7 +5578,7 @@ window._reloadSheetComments = _reloadSheetComments;
     if (!pane) return;
     pane.innerHTML = '<p class="empty-text">লোড হচ্ছে...</p>';
     try {
-      var list = await api("/api/users/" + encodeURIComponent(username) + "/tagged-posts");
+      var list = await window.api("/api/users/" + encodeURIComponent(username) + "/tagged-posts");
       if (!list.length) {
         pane.innerHTML = '<div class="pf-tagged-empty">📌 এখনো কেউ ট্যাগ করেনি</div>';
         return;
@@ -5736,7 +5604,7 @@ window._reloadSheetComments = _reloadSheetComments;
     if (!pane) return;
     pane.innerHTML = '<p class="empty-text">লোড হচ্ছে...</p>';
     try {
-      var list = await api("/api/me/liked-posts");
+      var list = await window.api("/api/me/liked-posts");
       if (!list.length) {
         pane.innerHTML = '<div class="pf-tagged-empty">❤️ এখনো কিছু লাইক করেননি</div>';
         return;
@@ -5758,7 +5626,7 @@ window._reloadSheetComments = _reloadSheetComments;
     if (!pane) return;
     pane.innerHTML = '<p class="empty-text">লোড হচ্ছে...</p>';
     try {
-      var list = await api("/api/me/saved-posts");
+      var list = await window.api("/api/me/saved-posts");
       if (!list.length) {
         pane.innerHTML = '<div class="pf-tagged-empty">🔖 এখনো কিছু সেভ করেননি</div>';
         return;
@@ -5791,7 +5659,7 @@ window._reloadSheetComments = _reloadSheetComments;
 
       // auto-refresh reels count in tab
       try {
-        var reels = await api("/api/users/" + encodeURIComponent(data.user.username) + "/reels-list");
+        var reels = await window.api("/api/users/" + encodeURIComponent(data.user.username) + "/reels-list");
         var rTab = document.querySelector('.profile-tab[data-tab="reels"]');
         if (rTab && reels.length) {
           var base = rTab.textContent.replace(/\(\d+\)/, "").trim();
@@ -5874,7 +5742,7 @@ window._reloadSheetComments = _reloadSheetComments;
     if (!p) return;
     p.innerHTML = '<p class="empty-text">লোড হচ্ছে...</p>';
     try {
-      var list = await api("/api/users/" + encodeURIComponent(username) + "/reposts-list");
+      var list = await window.api("/api/users/" + encodeURIComponent(username) + "/reposts-list");
       if (!list.length) { p.innerHTML = '<div class="pf-tagged-empty">🔁 এখনো রিপোস্ট নেই</div>'; return; }
       p.innerHTML = list.map(function (r) {
         return '<div class="profile-post">' +
@@ -5894,7 +5762,7 @@ window._reloadSheetComments = _reloadSheetComments;
     if (!p) return;
     p.innerHTML = '<p class="empty-text">লোড হচ্ছে...</p>';
     try {
-      var list = await api("/api/me/archived-posts");
+      var list = await window.api("/api/me/archived-posts");
       if (!list.length) { p.innerHTML = '<div class="pf-tagged-empty">📦 কোনো আর্কাইভ নেই</div>'; return; }
       p.innerHTML = list.map(function (r) {
         return '<div class="profile-post">' +
@@ -5938,7 +5806,7 @@ window._reloadSheetComments = _reloadSheetComments;
       var hlRow = document.getElementById("profile-highlights");
       if (hlRow) {
         try {
-          var hls = await api("/api/users/" + encodeURIComponent(username) + "/highlights");
+          var hls = await window.api("/api/users/" + encodeURIComponent(username) + "/highlights");
           var html = (hls || []).map(function (h) {
             return '<div class="pf-highlight" data-hl="' + h.id + '">' +
               '<div class="pf-hl-cover">' +
@@ -5970,7 +5838,7 @@ window._reloadSheetComments = _reloadSheetComments;
         if (isMe) { simEl.classList.add("hidden"); }
         else {
           try {
-            var sim = await api("/api/users/" + encodeURIComponent(username) + "/similar");
+            var sim = await window.api("/api/users/" + encodeURIComponent(username) + "/similar");
             if (!sim.length) { simEl.classList.add("hidden"); }
             else {
               simEl.innerHTML = '<div class="pf-sim-title">👥 মিলে যায় এমন অ্যাকাউন্ট</div>' +
@@ -6092,9 +5960,9 @@ window._reloadSheetComments = _reloadSheetComments;
         try {
           var u = data.user.username;
           var st = await Promise.all([
-            api("/api/users/" + encodeURIComponent(u) + "/mute/status"),
-            api("/api/users/" + encodeURIComponent(u) + "/restrict/status"),
-            api("/api/users/" + encodeURIComponent(u) + "/no-retweet/status"),
+            window.api("/api/users/" + encodeURIComponent(u) + "/mute/status"),
+            window.api("/api/users/" + encodeURIComponent(u) + "/restrict/status"),
+            window.api("/api/users/" + encodeURIComponent(u) + "/no-retweet/status"),
           ]);
           if (st[0].muted) {
             var b = panel.querySelector(".b6-mute span");
@@ -6117,13 +5985,13 @@ window._reloadSheetComments = _reloadSheetComments;
           var u = data.user.username;
           try {
             if (b.classList.contains("b6-mute")) {
-              var r = await api("/api/users/" + encodeURIComponent(u) + "/mute", { method: "POST" });
+              var r = await window.api("/api/users/" + encodeURIComponent(u) + "/mute", { method: "POST" });
               if (typeof showToast === "function") showToast(r.muted ? "🔕 মিউট করা হয়েছে" : "🔔 আনমিউট");
             } else if (b.classList.contains("b6-restrict")) {
-              var r2 = await api("/api/users/" + encodeURIComponent(u) + "/restrict", { method: "POST" });
+              var r2 = await window.api("/api/users/" + encodeURIComponent(u) + "/restrict", { method: "POST" });
               if (typeof showToast === "function") showToast(r2.restricted ? "🔒 রেস্ট্রিক্টেড" : "✅ আনরেস্ট্রিক্ট");
             } else if (b.classList.contains("b6-noretweet")) {
-              var r3 = await api("/api/users/" + encodeURIComponent(u) + "/no-retweet", { method: "POST" });
+              var r3 = await window.api("/api/users/" + encodeURIComponent(u) + "/no-retweet", { method: "POST" });
               if (typeof showToast === "function") showToast(r3.no_retweet ? "🚫 রিটুইট বন্ধ" : "🔁 রিটুইট চালু");
             } else if (b.classList.contains("b6-subscribe")) {
               if (typeof showToast === "function") showToast("⭐ সাবস্ক্রাইব — শীঘ্রই আসছে");
@@ -6241,7 +6109,7 @@ window._reloadSheetComments = _reloadSheetComments;
         var notes = (s.root.querySelector("#b7-story-notes").value || "").trim();
         r.style.pointerEvents = "none";
         try {
-          await api("/api/stories/" + sid + "/report", {
+          await window.api("/api/stories/" + sid + "/report", {
             method: "POST",
             body: JSON.stringify({ reason: reason, notes: notes })
           });
@@ -6268,7 +6136,7 @@ window._reloadSheetComments = _reloadSheetComments;
     if (typeof window.closePostMenu === "function") window.closePostMenu();
     (async function () {
       try {
-        await api("/api/posts/" + postId + "/hide", { method: "POST" });
+        await window.api("/api/posts/" + postId + "/hide", { method: "POST" });
         postEl.style.transition = "opacity 0.3s, transform 0.3s";
         postEl.style.opacity = "0";
         postEl.style.transform = "scale(0.96)";
@@ -6284,7 +6152,7 @@ window._reloadSheetComments = _reloadSheetComments;
     window.handlePostMenuAction = async function (action, btn, postEl, postId) {
       if (action === "hide") {
         try {
-          await api("/api/posts/" + postId + "/hide", { method: "POST" });
+          await window.api("/api/posts/" + postId + "/hide", { method: "POST" });
           postEl.style.transition = "opacity 0.3s, transform 0.3s";
           postEl.style.opacity = "0";
           postEl.style.transform = "scale(0.96)";
@@ -6354,7 +6222,7 @@ window._reloadSheetComments = _reloadSheetComments;
           var days = b2.dataset.days;
           b2.disabled = true;
           try {
-            await api("/api/users/" + encodeURIComponent(username) + "/snooze", {
+            await window.api("/api/users/" + encodeURIComponent(username) + "/snooze", {
               method: "POST",
               body: JSON.stringify({ days: parseInt(days) })
             });
@@ -6410,7 +6278,7 @@ window._reloadSheetComments = _reloadSheetComments;
     m.querySelector("#b7-break-cancel").onclick = function () { m.remove(); };
     m.querySelector("#b7-break-go").onclick = async function () {
       try {
-        var r = await api("/api/me/take-break", { method: "POST" });
+        var r = await window.api("/api/me/take-break", { method: "POST" });
         m.remove();
         if (typeof showToast === "function") showToast(r.message || "🌿 বিরতি নিন");
       } catch (err) { alert(err.message || "সমস্যা"); }
@@ -6453,7 +6321,7 @@ window._reloadSheetComments = _reloadSheetComments;
       var sendBtn = m.querySelector("#b7-imp-send");
       sendBtn.disabled = true;
       try {
-        await api("/api/me/report-imposter", {
+        await window.api("/api/me/report-imposter", {
           method: "POST",
           body: JSON.stringify({ username: data.user.username, notes: notes })
         });
@@ -6506,7 +6374,7 @@ window._reloadSheetComments = _reloadSheetComments;
     window.openEditProfile = async function () {
       _origOpenEdit();
       try {
-        var ext = await api("/api/me/profile-extended");
+        var ext = await window.api("/api/me/profile-extended");
         var pr = document.getElementById("edit-pronouns");
         var lo = document.getElementById("edit-location");
         var ca = document.getElementById("edit-category");
@@ -6538,7 +6406,7 @@ window._reloadSheetComments = _reloadSheetComments;
       btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> সেভ...';
       try {
         // 1. Basic bio + name
-        await api("/api/me/bio", {
+        await window.api("/api/me/bio", {
           method: "POST",
           body: JSON.stringify({
             bio: bio ? bio.value.trim() : "",
@@ -6546,7 +6414,7 @@ window._reloadSheetComments = _reloadSheetComments;
           })
         });
         // 2. Extended fields
-        await api("/api/me/profile-extended", {
+        await window.api("/api/me/profile-extended", {
           method: "POST",
           body: JSON.stringify({
             pronouns: pr ? pr.value.trim() : "",
@@ -6557,21 +6425,21 @@ window._reloadSheetComments = _reloadSheetComments;
         });
         // 3. avatar/cover (handled by original save code) — call them if pending
         if (typeof pendingAvatar !== "undefined" && pendingAvatar !== null) {
-          var r = await api("/api/me/avatar", {
+          var r = await window.api("/api/me/avatar", {
             method: "POST",
             body: JSON.stringify({ avatar: pendingAvatar })
           });
           if (window.state.me) window.state.me.profile_pic = r.avatar;
         }
         if (typeof pendingCover !== "undefined" && pendingCover !== null) {
-          var rc = await api("/api/me/cover", {
+          var rc = await window.api("/api/me/cover", {
             method: "POST",
             body: JSON.stringify({ cover: pendingCover })
           });
           if (window.state.me) window.state.me.cover_pic = rc.cover;
         }
         // refresh
-        var me = await api("/api/me");
+        var me = await window.api("/api/me");
         if (me && me.user) window.state.me = me.user;
         if (typeof window.refreshProfileUI === "function") window.refreshProfileUI();
         if (typeof loadFeed === "function") loadFeed();
@@ -6693,7 +6561,7 @@ window._reloadSheetComments = _reloadSheetComments;
     var body = document.getElementById("insights-body");
     body.innerHTML = '<p style="text-align:center;padding:40px;color:var(--muted)">লোড হচ্ছে...</p>';
     try {
-      var d = await api("/api/me/insights");
+      var d = await window.api("/api/me/insights");
       var cards = [
         { i: "fa-file-lines",     v: d.posts,             l: "মোট পোস্ট" },
         { i: "fa-heart",          v: d.likes_received,    l: "মোট লাইক" },
@@ -6824,7 +6692,7 @@ window._reloadSheetComments = _reloadSheetComments;
       if (!amt || amt < 10) return alert("১০ টাকার বেশি দিন");
       this.disabled = true;
       try {
-        await api("/api/users/" + encodeURIComponent(username) + "/tip", {
+        await window.api("/api/users/" + encodeURIComponent(username) + "/tip", {
           method: "POST",
           body: JSON.stringify({ amount: amt, note: note })
         });
@@ -6888,7 +6756,7 @@ window._reloadSheetComments = _reloadSheetComments;
       var note = (s.root.querySelector("#b9-gift-note").value || "").trim();
       this.disabled = true;
       try {
-        await api("/api/users/" + encodeURIComponent(username) + "/gift", {
+        await window.api("/api/users/" + encodeURIComponent(username) + "/gift", {
           method: "POST",
           body: JSON.stringify({ gift: selected, note: note })
         });
@@ -6936,7 +6804,7 @@ window._reloadSheetComments = _reloadSheetComments;
       if (!when) return alert("তারিখ ও সময় দিন");
       this.disabled = true;
       try {
-        await api("/api/users/" + encodeURIComponent(username) + "/appointments", {
+        await window.api("/api/users/" + encodeURIComponent(username) + "/appointments", {
           method: "POST",
           body: JSON.stringify({ datetime: when, duration: dur, note: note })
         });
@@ -6962,7 +6830,7 @@ window._reloadSheetComments = _reloadSheetComments;
     async function load() {
       var list = s.root.querySelector("#b9-shop-list");
       try {
-        var products = await api("/api/users/" + encodeURIComponent(username) + "/shop");
+        var products = await window.api("/api/users/" + encodeURIComponent(username) + "/shop");
         if (!products.length) {
           list.innerHTML = '<p style="text-align:center;padding:30px;color:var(--muted);font-size:14px">🛍️ এখনো কোনো পণ্য নেই</p>';
           return;
@@ -6984,7 +6852,7 @@ window._reloadSheetComments = _reloadSheetComments;
             if (isOwn) return;
             if (!confirm("এই পণ্য কিনবেন — ৳ " + cell.dataset.price + " ?")) return;
             try {
-              await api("/api/shop/products/" + cell.dataset.pid + "/buy", { method: "POST" });
+              await window.api("/api/shop/products/" + cell.dataset.pid + "/buy", { method: "POST" });
               if (typeof showToast === "function") showToast("✅ অর্ডার প্লেস হয়েছে");
             } catch (err) { alert(err.message || "সমস্যা"); }
           });
@@ -7002,7 +6870,7 @@ window._reloadSheetComments = _reloadSheetComments;
         if (!title) return;
         var price = parseFloat(prompt("দাম (টাকা):") || "0");
         if (!price || price < 0) return alert("দাম দিন");
-        api("/api/users/" + encodeURIComponent(username) + "/shop", {
+        window.api("/api/users/" + encodeURIComponent(username) + "/shop", {
           method: "POST",
           body: JSON.stringify({ title: title, price: price })
         }).then(function(){
@@ -7058,7 +6926,7 @@ window._reloadSheetComments = _reloadSheetComments;
       if (!budget || budget < 50) return alert("কমপক্ষে ৫০ টাকা");
       this.disabled = true;
       try {
-        await api("/api/posts/" + postId + "/boost", {
+        await window.api("/api/posts/" + postId + "/boost", {
           method: "POST",
           body: JSON.stringify({ budget: budget, days: days })
         });
@@ -7229,7 +7097,7 @@ window._reloadSheetComments = _reloadSheetComments;
       if (!selected) return;
       this.disabled = true;
       try {
-        var r = await api("/api/users/" + encodeURIComponent(username) + "/subscribe", {
+        var r = await window.api("/api/users/" + encodeURIComponent(username) + "/subscribe", {
           method: "POST",
           body: JSON.stringify({ tier: selected })
         });
@@ -7268,7 +7136,7 @@ window._reloadSheetComments = _reloadSheetComments;
       if (!name || !reason) return alert("সব তথ্য দিন");
       this.disabled = true;
       try {
-        await api("/api/me/verify-request", {
+        await window.api("/api/me/verify-request", {
           method: "POST",
           body: JSON.stringify({ full_name: name, reason: reason })
         });
@@ -7307,7 +7175,7 @@ window._reloadSheetComments = _reloadSheetComments;
       if (!name || !email) return alert("নাম ও ইমেইল দিন");
       this.disabled = true;
       try {
-        await api("/api/me/claim-business", {
+        await window.api("/api/me/claim-business", {
           method: "POST",
           body: JSON.stringify({ business_name: name, contact_email: email, notes: notes })
         });
@@ -7320,7 +7188,7 @@ window._reloadSheetComments = _reloadSheetComments;
   // ============ 94. Invite to group ============
   window._openInviteToGroup = async function (username) {
     try {
-      var groups = await api("/api/groups");
+      var groups = await window.api("/api/groups");
       if (!groups.length) {
         if (typeof showToast === "function") showToast("আপনার কোনো গ্রুপ নেই — আগে একটি বানান");
         return;
@@ -7346,7 +7214,7 @@ window._reloadSheetComments = _reloadSheetComments;
       s.root.querySelectorAll("[data-gid]").forEach(function(b){
         b.addEventListener("click", async function(){
           try {
-            await api("/api/groups/invite-from-profile", {
+            await window.api("/api/groups/invite-from-profile", {
               method: "POST",
               body: JSON.stringify({ group_id: parseInt(b.dataset.gid), username: username })
             });
@@ -7365,7 +7233,7 @@ window._reloadSheetComments = _reloadSheetComments;
     e.preventDefault();
     var data = window._currentProfileData;
     if (!data || !data.user) return;
-    api("/api/users/" + encodeURIComponent(data.user.username) + "/send-contact", { method: "POST" })
+    window.api("/api/users/" + encodeURIComponent(data.user.username) + "/send-contact", { method: "POST" })
       .then(function(){ if (typeof showToast === "function") showToast("📇 Contact পাঠানো হয়েছে"); })
       .catch(function(e){ alert(e.message); });
   }, true);
@@ -7379,7 +7247,7 @@ window._reloadSheetComments = _reloadSheetComments;
       var data = window._currentProfileData;
       if (!data || !data.user) return;
       try {
-        var friends = await api("/api/me/suggested-friends");
+        var friends = await window.api("/api/me/suggested-friends");
         if (!friends.length) { if (typeof showToast === "function") showToast("কেউ নেই"); return; }
         var s = _sheet("b10-suggest-sheet",
           '<div class="sheet-panel">' +
@@ -7401,7 +7269,7 @@ window._reloadSheetComments = _reloadSheetComments;
         s.root.querySelectorAll("[data-to]").forEach(function(row){
           row.addEventListener("click", async function(){
             try {
-              await api("/api/users/" + encodeURIComponent(data.user.username) + "/suggest", {
+              await window.api("/api/users/" + encodeURIComponent(data.user.username) + "/suggest", {
                 method: "POST",
                 body: JSON.stringify({ to: row.dataset.to })
               });
@@ -7447,7 +7315,7 @@ window._reloadSheetComments = _reloadSheetComments;
       if (msg.length < 10) return alert("কমপক্ষে ১০ অক্ষর লিখুন");
       this.disabled = true;
       try {
-        await api("/api/me/report-problem", {
+        await window.api("/api/me/report-problem", {
           method: "POST",
           body: JSON.stringify({ category: cat, message: msg })
         });
@@ -7552,7 +7420,7 @@ window._reloadSheetComments = _reloadSheetComments;
               if (it.a === "subscribe")   window._openSubscribeSheet(u, d);
               if (it.a === "invite")      window._openInviteToGroup(u);
               if (it.a === "send-contact") {
-                api("/api/users/" + encodeURIComponent(u) + "/send-contact", { method: "POST" })
+                window.api("/api/users/" + encodeURIComponent(u) + "/send-contact", { method: "POST" })
                   .then(function(){ if (typeof showToast === "function") showToast("📇 Contact পাঠানো হয়েছে"); })
                   .catch(function(e){ alert(e.message); });
               }
