@@ -251,3 +251,12 @@ window.refreshProfileUI = refreshProfileUI;
 // ---------- Temporary bridge ----------
 window.enterApp = enterApp;
 window.refreshProfileUI = refreshProfileUI;
+
+// Auto-start for new users after window.enterApp
+const _origEnterAppOb = window.enterApp;
+window.enterApp = async function () {
+  await _origEnterAppOb();
+  if (window.state.me && !window.state.me.onboarded) {
+    setTimeout(function() { if (typeof window.startOnboarding === "function") window.startOnboarding(); }, 400);
+  }
+};
