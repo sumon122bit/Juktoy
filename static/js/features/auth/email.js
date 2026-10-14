@@ -206,3 +206,163 @@
 
   console.log("[S13-A] email card attached ✅");
 })();
+// ---- Forgot password modal (email) ----
+(function () {
+  var modal = document.getElementById("forgot-modal");
+  if (!modal) return;
+
+  var step1 = document.getElementById("forgot-step-1");
+  var step2 = document.getElementById("forgot-step-2");
+  var openBtn = document.getElementById("open-forgot");
+  var errEl = document.getElementById("forgot-error");
+
+  function showError(msg) {
+    errEl.textContent = msg || "";
+    errEl.classList.toggle("hidden", !msg);
+  }
+
+  function resetModal() {
+    document.getElementById("forgot-email").value = "";
+    step1.classList.remove("hidden");
+    step2.classList.add("hidden");
+    showError("");
+  }
+
+  function open() {
+    resetModal();
+    modal.classList.remove("hidden");
+    setTimeout(function () { document.getElementById("forgot-email").focus(); }, 80);
+  }
+  function close() { modal.classList.add("hidden"); }
+
+  if (openBtn) openBtn.addEventListener("click", function (e) { e.preventDefault(); open(); });
+  document.getElementById("close-forgot").addEventListener("click", close);
+  document.getElementById("cancel-forgot-1").addEventListener("click", close);
+  document.getElementById("forgot-done").addEventListener("click", close);
+  modal.addEventListener("click", function (e) { if (e.target === modal) close(); });
+
+  document.getElementById("btn-forgot-send").addEventListener("click", async function () {
+    var em = (document.getElementById("forgot-email").value || "").trim().toLowerCase();
+    if (!em) return showError("ইমেইল দিন");
+    var btn = this;
+    btn.disabled = true;
+    var old = btn.innerHTML;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+    try {
+      await window.api("/api/auth/forgot/send", {
+        method: "POST",
+        body: JSON.stringify({ email: em }),
+      });
+      showError("");
+      document.getElementById("forgot-sent-to").textContent = em;
+      step1.classList.add("hidden");
+      step2.classList.remove("hidden");
+    } catch (err) {
+      showError(err.message);
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = old;
+    }
+  });
+
+  console.log("[S13-A] forgot modal attached ✅");
+})();
+
+
+// ---- Reset password (from email link) + email verify ----
+(function () {
+  // S16.3 — read token from URL fragment (#reset=... / #verify_email=...).
+  // Fragments are NEVER sent to the server → no leak in logs/referrer/analytics.
+  // Query-string is still supported for backward compat (old emails).
+  var hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+  var queryParams = new URLSearchParams(window.location.search);
+  var token = hashParams.get("reset") || queryParams.get("reset");
+  var verifyTok = hashParams.get("verify_email") || queryParams.get("verify_email");
+
+  // Email verification
+  if (verifyTok) {
+    (async function () {
+      try {
+        await window.api("/api/me/email/verify", {
+          method: "POST",
+          body: JSON.stringify({ token: verifyTok }),
+        });
+        window.showToast("✅ ইমেইল যাচাই সম্পন্ন");
+      } catch (err) {
+        window.showToast("❌ " + (err.message || "যাচাই ব্যর্থ"));
+      } finally {
+        history.replaceState({}, "", window.location.pathname);
+      }
+    })();
+    return;
+  }
+
+  // Password reset
+  if (!token) return;
+
+  var modal = document.getElementById("reset-modal");
+  if (!modal) return;
+
+  (async function () {
+    try {
+      var res = await window.api("/api/auth/reset/check", {
+        method: "POST",
+        body: JSON.stringify({ token: token }),
+      });
+      if (!res.valid) {
+        window.showToast("❌ লিংকটি invalid বা expire হয়েছে");
+        history.replaceState({}, "", window.location.pathname);
+        return;
+      }
+      document.getElementById("reset-for-user").classList.remove("hidden");
+      document.getElementById("reset-username").textContent = "@" + res.username;
+      document.getElementById("reset-new-pw").value = "";
+      document.getElementById("reset-confirm-pw").value = "";
+      document.getElementById("reset-error").classList.add("hidden");
+      modal.classList.remove("hidden");
+      setTimeout(function () { document.getElementById("reset-new-pw").focus(); }, 100);
+    } catch (err) {
+      window.showToast("❌ লিংক যাচাই করা যায়নি");
+      history.replaceState({}, "", window.location.pathname);
+    }
+  })();
+
+  function closeReset() {
+    modal.classList.add("hidden");
+    history.replaceState({}, "", window.location.pathname);
+  }
+
+  document.getElementById("reset-cancel").addEventListener("click", closeReset);
+  modal.addEventListener("click", function (e) { if (e.target === modal) closeReset(); });
+
+  document.getElementById("reset-submit").addEventListener("click", async function () {
+    var pw1 = document.getElementById("reset-new-pw").value;
+    var pw2 = document.getElementById("reset-confirm-pw").value;
+    var errEl = document.getElementById("reset-error");
+    errEl.classList.add("hidden");
+
+    if (!pw1 || pw1.length < 6) { errEl.textContent = "পাসওয়ার্ড ৬+ অক্ষর"; errEl.classList.remove("hidden"); return; }
+    if (pw1 !== pw2) { errEl.textContent = "পাসওয়ার্ড মিলছে না"; errEl.classList.remove("hidden"); return; }
+
+    var btn = this;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+    try {
+      await window.api("/api/auth/reset/complete", {
+        method: "POST",
+        body: JSON.stringify({ token: token, new_password: pw1 }),
+      });
+      closeReset();
+      window.showToast("✅ পাসওয়ার্ড রিসেট হয়েছে। এখন লগইন করুন।");
+    } catch (err) {
+      errEl.textContent = err.message;
+      errEl.classList.remove("hidden");
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fa-solid fa-check"></i> সেভ করুন';
+    }
+  });
+
+  console.log("[S13-A] reset modal attached ✅");
+})();
+
