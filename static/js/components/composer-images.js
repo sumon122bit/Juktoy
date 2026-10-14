@@ -137,7 +137,7 @@ if (window.postBtn) {
     newPostBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i>`;
 
     try {
-      const res = await window.api("/window.api/posts", {
+      const res = await window.api("/api/posts", {
         method: "POST",
         body: JSON.stringify({ content: text, media }),
       });
