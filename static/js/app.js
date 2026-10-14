@@ -230,102 +230,12 @@ document.addEventListener("click", async function (e) {
 
 
 
-// ==================================================
-// LIKE LIST + STORY VIEWERS
-// ==================================================
-
-const _REACTION_EMOJI = {
-  like: "👍", love: "❤️", haha: "😆",
-  wow: "😮", sad: "😢", angry: "😡"
-};
-
-function openUserListModal(title, users, emptyText) {
-  const old = document.getElementById("user-list-modal");
-  if (old) old.remove();
-
-  const modal = document.createElement("div");
-  modal.id = "user-list-modal";
-  modal.className = "modal";
-
-  let bodyHTML;
-  if (!users.length) {
-    bodyHTML = `<p class="user-list-empty">${escapeHtml(emptyText)}</p>`;
-  } else {
-    bodyHTML = users.map(function(u) {
-      const reactionEmoji = u.reaction && _REACTION_EMOJI[u.reaction]
-        ? `<div class="user-list-reaction">${_REACTION_EMOJI[u.reaction]}</div>` : "";
-      return '<div class="user-list-item" data-username="' + escapeHtml(u.username) + '">' +
-        '<div class="user-list-avatar">' + avatarInner(u.display_name, u.profile_pic) + '</div>' +
-        '<div class="user-list-info">' +
-          '<div class="user-list-name">' + escapeHtml(u.display_name) + '</div>' +
-          '<div class="user-list-username">@' + escapeHtml(u.username) + '</div>' +
-        '</div>' + reactionEmoji + '</div>';
-    }).join("");
-  }
-
-  modal.innerHTML =
-    '<div class="modal-content user-list-modal-content">' +
-      '<div class="user-list-header">' +
-        '<h3 class="user-list-title">' + escapeHtml(title) + '</h3>' +
-        '<button type="button" class="close-btn" id="user-list-close">&times;</button>' +
-      '</div>' +
-      '<div class="user-list-body">' + bodyHTML + '</div>' +
-    '</div>';
-
-  document.body.appendChild(modal);
-
-  modal.querySelector("#user-list-close").addEventListener("click", function() { modal.remove(); });
-  modal.addEventListener("click", function(e) { if (e.target === modal) modal.remove(); });
-  modal.querySelectorAll(".user-list-item[data-username]").forEach(function(el) {
-    el.addEventListener("click", function() {
-      modal.remove();
-      if (typeof window.openProfile === "function") window.openProfile(el.dataset.username);
-    });
-  });
-}
-
-async function openLikesList(postId) {
-  try {
-    const users = await api("/api/posts/" + postId + "/likes");
-    openUserListModal("লাইক দিয়েছেন", users, "এখনো কেউ লাইক দেয়নি");
-  } catch (err) {
-    showToast("লোড করা যায়নি");
-  }
-}
-
-async function openStoryViewers(storyId) {
-  try {
-    const users = await api("/api/stories/" + storyId + "/viewers");
-    openUserListModal("স্টোরি দেখেছেন", users, "এখনো কেউ দেখেনি");
-  } catch (err) {
-    showToast("লোড করা যায়নি");
-  }
-}
-
-// Event delegation — likes line + story views btn + comment avatars
-document.addEventListener("click", function(e) {
-  var likesLine = e.target.closest(".post-likes-line");
-  if (likesLine) {
-    e.preventDefault();
-    e.stopPropagation();
-    openLikesList(parseInt(likesLine.dataset.postId));
-    return;
-  }
-  var svBtn = e.target.closest(".sv-views-btn");
-  if (svBtn) {
-    e.preventDefault();
-    e.stopPropagation();
-    openStoryViewers(parseInt(svBtn.dataset.storyId));
-    return;
-  }
-}, true);
-
 
 // Auto-start for new users after window.enterApp
 const _origEnterAppOb = window.enterApp;
 window.enterApp = async function () {
   await _origEnterAppOb();
-  if (state.me && !state.me.onboarded) {
+  if (window.state.me && !window.state.me.onboarded) {
     setTimeout(function() { if (typeof window.startOnboarding === "function") window.startOnboarding(); }, 400);
   }
 };
@@ -1996,7 +1906,7 @@ console.log("[S15.1] strong password check attached ✅");
       // Skip if page hidden (battery save)
       if (document.hidden) return;
       // Skip if no user (not logged in)
-      if (!state.me) return;
+      if (!window.state.me) return;
       // Skip if last poll < interval
       if (Date.now() - _lastPollAt < _pollInterval - 5000) return;
       _lastPollAt = Date.now();
@@ -2030,7 +1940,7 @@ console.log("[S15.1] strong password check attached ✅");
 
   // Also poll on visibility change (user returns to tab)
   document.addEventListener("visibilitychange", function () {
-    if (!document.hidden && state.me) {
+    if (!document.hidden && window.state.me) {
       _lastPollAt = 0;  // Force immediate check
     }
   });
@@ -2215,7 +2125,7 @@ document.addEventListener("click", async function (e) {
   var uname = (document.getElementById("set-username").value || "").trim().toLowerCase();
   if (!uname)                       return showToast("নতুন ইউজারনেম লিখুন");
   if (!/^[a-z0-9_]+$/.test(uname))  return showToast("শুধু a-z, 0-9, _ ব্যবহার করুন");
-  if (state.me && uname === state.me.username)
+  if (window.state.me && uname === window.state.me.username)
     return showToast("এটাই আপনার বর্তমান ইউজারনেম");
 
   var v = await _askSensitiveVerify({
@@ -2237,7 +2147,7 @@ document.addEventListener("click", async function (e) {
         totp_code: v.totp_code || ""
       })
     });
-    if (state.me) state.me.username = res.username;
+    if (window.state.me) window.state.me.username = res.username;
     if (typeof window.refreshProfileUI === "function") window.refreshProfileUI();
     var cu = document.getElementById("set-current-uname");
     if (cu) cu.textContent = "@" + res.username;
@@ -4427,7 +4337,7 @@ console.log("[S29.10] unified window._closeTopPage registered");
     if (!btn || !postId) return;
     _closeAllSheets();
 
-    var isOwn = state.me && btn.dataset.owner === state.me.username;
+    var isOwn = window.state.me && btn.dataset.owner === window.state.me.username;
     var isSaved = btn.dataset.saved === "1";
     var isReposted = btn.dataset.reposted === "1";
 
@@ -5294,7 +5204,7 @@ window._reloadSheetComments = _reloadSheetComments;
     e.preventDefault();
     var data = window._currentProfileData;
     if (!data || !data.user) return;
-    var isMe = window.state && state.me && state.me.username === data.user.username;
+    var isMe = window.state && window.state.me && window.state.me.username === data.user.username;
 
     // sheet-style menu
     var old = document.getElementById("profile-menu-sheet");
@@ -5389,7 +5299,7 @@ window._reloadSheetComments = _reloadSheetComments;
       // after render, adjust the follow button
       var data = window._currentProfileData;
       if (!data || !data.user) return;
-      var isMe = window.state && state.me && state.me.username === data.user.username;
+      var isMe = window.state && window.state.me && window.state.me.username === data.user.username;
       if (isMe) return;
 
       var fb = document.getElementById("btn-follow");
@@ -5426,7 +5336,7 @@ window._reloadSheetComments = _reloadSheetComments;
       await _origOpenProfileB1b(username);
       var data = window._currentProfileData;
       if (!data || !data.user) return;
-      var isMe = window.state && state.me && state.me.username === data.user.username;
+      var isMe = window.state && window.state.me && window.state.me.username === data.user.username;
       var banner = document.getElementById("profile-follow-requests");
       if (!banner) return;
       if (!isMe) { banner.classList.add("hidden"); return; }
@@ -5598,7 +5508,7 @@ window._reloadSheetComments = _reloadSheetComments;
     if (idx !== 1) return; // only "followers"
     var data = window._currentProfileData;
     if (!data || !data.user) return;
-    if (!window.state || !state.me || state.me.username !== data.user.username) return;
+    if (!window.state || !window.state.me || window.state.me.username !== data.user.username) return;
     e.preventDefault();
     e.stopPropagation();
     (async function () {
@@ -5713,7 +5623,7 @@ window._reloadSheetComments = _reloadSheetComments;
       await _origOpenProfileB2(username);
       var data = window._currentProfileData;
       if (!data || !data.user) return;
-      var isMe = window.state && state.me && state.me.username === data.user.username;
+      var isMe = window.state && window.state.me && window.state.me.username === data.user.username;
       var row = document.getElementById("profile-cf-row");
       if (!row) return;
       if (!isMe) { row.classList.add("hidden"); return; }
@@ -5735,7 +5645,7 @@ window._reloadSheetComments = _reloadSheetComments;
     if (!data || !data.user) return;
     // S39 — button is hidden on own profile (see window.openProfile), so this
     // only fires on others. Safety check kept just in case:
-    if (window.state && state.me && state.me.username === data.user.username) {
+    if (window.state && window.state.me && window.state.me.username === data.user.username) {
       return;
     }
     // close profile, open chat
@@ -5760,7 +5670,7 @@ window._reloadSheetComments = _reloadSheetComments;
       // eslint-disable-next-line no-unreachable
       var data = window._currentProfileData;
       if (!data || !data.user) return;
-      var isMe = window.state && state.me && state.me.username === data.user.username;
+      var isMe = window.state && window.state.me && window.state.me.username === data.user.username;
       if (isMe) return;
       var btns = document.getElementById("profile-buttons");
       if (!btns) return;
@@ -6233,7 +6143,7 @@ window._reloadSheetComments = _reloadSheetComments;
       // eslint-disable-next-line no-unreachable
       var data = window._currentProfileData;
       if (!data || !data.user) return;
-      var isMe = window.state && state.me && state.me.username === data.user.username;
+      var isMe = window.state && window.state.me && window.state.me.username === data.user.username;
       var btns = document.getElementById("profile-buttons");
       if (!btns) return;
       if (btns.dataset.b3 === "1") return;
@@ -6431,7 +6341,7 @@ window._reloadSheetComments = _reloadSheetComments;
       await _origOpenProfileB4(username);
       var data = window._currentProfileData;
       if (!data || !data.user) return;
-      var isMe = window.state && state.me && state.me.username === data.user.username;
+      var isMe = window.state && window.state.me && window.state.me.username === data.user.username;
       var liked = document.getElementById("pt-liked");
       var saved = document.getElementById("pt-saved");
       if (liked) liked.style.display = isMe ? "" : "none";
@@ -6561,7 +6471,7 @@ window._reloadSheetComments = _reloadSheetComments;
       await _orig(username);
       var data = window._currentProfileData;
       if (!data || !data.user) return;
-      var isMe = window.state && state.me && state.me.username === data.user.username;
+      var isMe = window.state && window.state.me && window.state.me.username === data.user.username;
 
       // own-only tabs hide
       ["pt-liked","pt-saved"].forEach(function(id){
@@ -6716,7 +6626,7 @@ window._reloadSheetComments = _reloadSheetComments;
       panel.dataset.b6 = "1";
       var data = window._currentProfileData;
       if (!data || !data.user) return;
-      var isMe = window.state && state.me && state.me.username === data.user.username;
+      var isMe = window.state && window.state.me && window.state.me.username === data.user.username;
       if (isMe) return;
 
       var extra = [
@@ -7023,7 +6933,7 @@ window._reloadSheetComments = _reloadSheetComments;
       panel.dataset.b7s = "1";
       var data = window._currentProfileData;
       if (!data || !data.user) return;
-      var isMe = window.state && state.me && state.me.username === data.user.username;
+      var isMe = window.state && window.state.me && window.state.me.username === data.user.username;
       if (isMe) return;
       var btn = document.createElement("button");
       btn.type = "button";
@@ -7120,7 +7030,7 @@ window._reloadSheetComments = _reloadSheetComments;
       panel.dataset.b7i = "1";
       var data = window._currentProfileData;
       if (!data || !data.user) return;
-      var isMe = window.state && state.me && state.me.username === data.user.username;
+      var isMe = window.state && window.state.me && window.state.me.username === data.user.username;
       if (isMe) return;
       var btn = document.createElement("button");
       btn.type = "button";
@@ -7209,18 +7119,18 @@ window._reloadSheetComments = _reloadSheetComments;
             method: "POST",
             body: JSON.stringify({ avatar: pendingAvatar })
           });
-          if (state.me) state.me.profile_pic = r.avatar;
+          if (window.state.me) window.state.me.profile_pic = r.avatar;
         }
         if (typeof pendingCover !== "undefined" && pendingCover !== null) {
           var rc = await api("/api/me/cover", {
             method: "POST",
             body: JSON.stringify({ cover: pendingCover })
           });
-          if (state.me) state.me.cover_pic = rc.cover;
+          if (window.state.me) window.state.me.cover_pic = rc.cover;
         }
         // refresh
         var me = await api("/api/me");
-        if (me && me.user) state.me = me.user;
+        if (me && me.user) window.state.me = me.user;
         if (typeof window.refreshProfileUI === "function") window.refreshProfileUI();
         if (typeof loadFeed === "function") loadFeed();
         // close modal
@@ -7228,7 +7138,7 @@ window._reloadSheetComments = _reloadSheetComments;
         if (m) m.classList.add("hidden");
         if (typeof showToast === "function") showToast("✅ প্রোফাইল সেভ হয়েছে");
         // re-render profile if open
-        if (state.me && typeof window.openProfile === "function") window.openProfile(state.me.username);
+        if (window.state.me && typeof window.openProfile === "function") window.openProfile(window.state.me.username);
       } catch (err) {
         alert(err.message || "সেভ করা যায়নি");
       } finally {
@@ -7315,7 +7225,7 @@ window._reloadSheetComments = _reloadSheetComments;
       }
 
       // ============ Inject Insights button (own profile only) ============
-      var isMe = window.state && state.me && state.me.username === u.username;
+      var isMe = window.state && window.state.me && window.state.me.username === u.username;
       var btns = document.getElementById("profile-buttons");
       if (btns && isMe) {
         if (!document.getElementById("btn-open-insights")) {
@@ -7725,7 +7635,7 @@ window._reloadSheetComments = _reloadSheetComments;
       panel.dataset.b9 = "1";
       var data = window._currentProfileData;
       if (!data || !data.user) return;
-      var isMe = window.state && state.me && state.me.username === data.user.username;
+      var isMe = window.state && window.state.me && window.state.me.username === data.user.username;
       if (isMe) return;
 
       var items = [
@@ -7773,7 +7683,7 @@ window._reloadSheetComments = _reloadSheetComments;
         var menu = document.getElementById("post-menu-popup");
         if (!menu || menu.dataset.b9 === "1") return;
         menu.dataset.b9 = "1";
-        var isOwn = window.state && state.me && btn.dataset.owner === state.me.username;
+        var isOwn = window.state && window.state.me && btn.dataset.owner === window.state.me.username;
         if (!isOwn) return;
         var boost = document.createElement("button");
         boost.setAttribute("data-action", "boost");
@@ -8146,7 +8056,7 @@ window._reloadSheetComments = _reloadSheetComments;
       panel.dataset.b10 = "1";
       var data = window._currentProfileData;
       if (!data || !data.user) return;
-      var isMe = window.state && state.me && state.me.username === data.user.username;
+      var isMe = window.state && window.state.me && window.state.me.username === data.user.username;
 
       if (isMe) {
         // own profile additions

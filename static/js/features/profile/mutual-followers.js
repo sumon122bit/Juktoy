@@ -5,8 +5,8 @@
 export async function showMutualFollowers(username) {
   try {
     var users = await api("/api/users/" + encodeURIComponent(username) + "/mutual");
-    if (typeof openUserListModal === "function") {
-      openUserListModal("মিউচুয়াল ফলোয়ার", users, "কোনো মিউচুয়াল ফলোয়ার নেই");
+    if (typeof window.openUserListModal === "function") {
+      window.openUserListModal("মিউচুয়াল ফলোয়ার", users, "কোনো মিউচুয়াল ফলোয়ার নেই");
       return;
     }
     // Fallback: build a simple modal
