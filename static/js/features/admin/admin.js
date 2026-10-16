@@ -7,7 +7,7 @@ window._isAdmin = false;
 // ---- Detect admin status after login ----
 export async function _checkAdminStatus() {
   try {
-    var res = await window.api("/window.api/admin/check");
+    var res = await window.api("/api/admin/check");
     window._isAdmin = !!res.is_admin;
     var navAdmin = document.getElementById("nav-admin");
     if (navAdmin) {
@@ -118,7 +118,7 @@ export async function _loadAdminDashboard() {
   if (!el) return;
   el.innerHTML = '<p style="text-align:center;color:var(--muted);padding:40px">লোড হচ্ছে...</p>';
   try {
-    var stats = await window.api("/window.api/admin/stats");
+    var stats = await window.api("/api/admin/stats");
     el.innerHTML =
       '<div class="admin-stats-grid">' +
         _statCard("অপেক্ষমাণ রিপোর্ট", stats.pending_reports, "fa-flag", "orange") +
@@ -158,7 +158,7 @@ export async function _loadAdminReports() {
   if (!el) return;
   el.innerHTML = '<p style="text-align:center;color:var(--muted);padding:40px">লোড হচ্ছে...</p>';
   try {
-    var reports = await window.api("/window.api/admin/reports?status=all");
+    var reports = await window.api("/api/admin/reports?status=all");
     if (!reports.length) {
       el.innerHTML = '<div class="admin-empty"><i class="fa-solid fa-check-circle"></i><p>কোনো রিপোর্ট নেই ✨</p></div>';
       return;
@@ -240,7 +240,7 @@ export async function _adminHandleReportAction(btn) {
 
   if (action === "dismiss" || action === "reopen") {
     try {
-      await window.api("/window.api/admin/reports/" + rid + "/action", {
+      await window.api("/api/admin/reports/" + rid + "/action", {
         method: "POST",
         body: JSON.stringify({ action: action }),
       });
@@ -253,7 +253,7 @@ export async function _adminHandleReportAction(btn) {
   if (action === "delete") {
     if (!confirm("এই কনটেন্ট মুছে ফেলবেন? এটি ফেরানো যাবে না।")) return;
     try {
-      await window.api("/window.api/admin/reports/" + rid + "/action", {
+      await window.api("/api/admin/reports/" + rid + "/action", {
         method: "POST",
         body: JSON.stringify({ action: "delete" }),
       });
@@ -301,7 +301,7 @@ export function _adminOpenBanModal(reportId) {
       var days = b.dataset.days;
       var reason = (document.getElementById("admin-ban-reason").value || "").trim() || "নীতিমালা লঙ্ঘন";
       try {
-        await window.api("/window.api/admin/reports/" + reportId + "/action", {
+        await window.api("/api/admin/reports/" + reportId + "/action", {
           method: "POST",
           body: JSON.stringify({ action: "ban", ban_days: days, ban_reason: reason }),
         });
@@ -339,7 +339,7 @@ export async function _adminFetchUsers(q) {
   if (!list) return;
   list.innerHTML = '<p style="text-align:center;color:var(--muted);padding:30px">লোড হচ্ছে...</p>';
   try {
-    var users = await window.api("/window.api/admin/users?q=" + encodeURIComponent(q));
+    var users = await window.api("/api/admin/users?q=" + encodeURIComponent(q));
     if (!users.length) {
       list.innerHTML = '<div class="admin-empty"><p>কোনো ইউজার নেই</p></div>';
       return;
@@ -385,7 +385,7 @@ export async function _adminUserAction(btn) {
   var uid = btn.dataset.uid;
   if (action === "unban") {
     try {
-      await window.api("/window.api/admin/users/" + uid + "/unban", { method: "POST" });
+      await window.api("/api/admin/users/" + uid + "/unban", { method: "POST" });
       window.showToast("✅ আনব্যান করা হয়েছে");
       _adminFetchUsers(document.getElementById("admin-user-search")?.value || "");
     } catch (err) { alert(err.message); }
@@ -421,7 +421,7 @@ export function _adminOpenUserBanModal(uid, username) {
       var days = b.dataset.days;
       var reason = (document.getElementById("admin-ban-reason").value || "").trim() || "নীতিমালা লঙ্ঘন";
       try {
-        await window.api("/window.api/admin/users/" + uid + "/ban", {
+        await window.api("/api/admin/users/" + uid + "/ban", {
           method: "POST",
           body: JSON.stringify({ ban_days: days, ban_reason: reason }),
         });
@@ -440,7 +440,7 @@ export async function _loadAdminLog() {
   if (!el) return;
   el.innerHTML = '<p style="text-align:center;color:var(--muted);padding:40px">লোড হচ্ছে...</p>';
   try {
-    var logs = await window.api("/window.api/admin/log");
+    var logs = await window.api("/api/admin/log");
     if (!logs.length) {
       el.innerHTML = '<div class="admin-empty"><p>এখনো কোনো action নেওয়া হয়নি</p></div>';
       return;
